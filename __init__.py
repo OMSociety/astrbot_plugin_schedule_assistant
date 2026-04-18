@@ -5,5 +5,5 @@ Schedule Assistant - 日程提醒助手插件
 支持: Apple Calendar (CalDAV), Notion (Maton Gateway)
 """
 
-__version__ = "1.2.0"
+__version__ = "1.4.0"
 __author__ = "Flandre Scarlet"
