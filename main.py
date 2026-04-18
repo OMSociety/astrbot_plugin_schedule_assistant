@@ -4,7 +4,7 @@ Schedule Assistant Plugin
 Intelligent Schedule Assistant,支持自然语言创建日程,定时habit reminders,结合Live Dashboard
 状态智能生成提醒,上下午感知提醒,私聊定向推送等功能.
 
-版本: v1.2.0
+版本: v1.4.0
 作者: Slandre & Flandre
 """
 
@@ -392,7 +392,7 @@ class ScheduleAssistant(Star):
             return "未启用日历同步"
         
         try:
-            events = self.calendar.get_all_events(days=1)
+            events = await self.calendar.get_all_events(days=7)
             if events:
                 return "\n".join([f"{e['start'][11:16] if len(e['start']) > 11 else ''} {e['summary']}" 
                                  for e in events[:5]])
@@ -405,7 +405,7 @@ class ScheduleAssistant(Star):
             return "日历获取失败"
 
     async def _fetch_local_schedules(self, user_id: str) -> str:
-        """获取本地日程
+        """获取本地所有日程
         
         Args:
             user_id: 用户ID
@@ -667,12 +667,22 @@ Notion待办:
             now = datetime.now()
             water_interval = self.config.get("water_interval", DEFAULT_WATER_INTERVAL)
             
+            # 读取上次喝水/跳过时间，计算真实间隔
+            water_last_str = await self.store.get_water_last(user_id)
+            time_since_last = water_interval
+            if water_last_str:
+                try:
+                    last_time = datetime.strptime(water_last_str, "%Y-%m-%d %H:%M:%S")
+                    time_since_last = int((now - last_time).total_seconds() / 60)
+                except ValueError:
+                    pass
+            
             prompt = f"""你是「{username}」的贴心日程助手，现在需要生成一条喝水提醒~
 
 【用户信息】
 - 用户名: {username}
 - 当前时间: {now.strftime("%H:%M")}
-- 距离上次喝水: {water_interval}分钟
+- 距离上次喝水: {time_since_last}分钟
 - 用户当前状态: {dashboard}
 
 【生成要求】
@@ -731,7 +741,13 @@ Notion待办:
                         diff = (due_date_local - now).total_seconds()
                         if 0 < diff < 86400:  # 24小时内
                             title = task.get('title', '未命名任务')
+                            ddl_time = due_date_local.strftime('%m-%d %H:%M')
                             logger.info(f"{LOG_PREFIX} DDL提醒: {title} 将在 {diff/3600:.1f} 小时后到期")
+                            # 发送私信提醒
+                            await self._send_to_user(
+                                self.default_user_id,
+                                f"📌 DDL提醒：{title} 截止于 {ddl_time}，还剩 {int(diff/3600)} 小时了~"
+                            )
                     except Exception as e:
                         logger.debug(f"{LOG_PREFIX} 解析任务截止日期失败: {e}")
                         
