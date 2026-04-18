@@ -1,0 +1,98 @@
+{
+ "morning_report_time": {
+  "type": "string",
+  "default": "09:00",
+  "description": "早安播报时间，格式 HH:MM"
+ },
+ "maton_api_key": {
+  "type": "string",
+  "default": "",
+  "description": "Maton API Key，用于读取 Notion 数据库。从 https://gateway.maton.ai 注册获取"
+ },
+ "transaction_db_id": {
+  "type": "string",
+  "default": "",
+  "description": "Notion 事务库 ID（在 Notion 页面链接里找）"
+ },
+ "reading_db_id": {
+  "type": "string",
+  "default": "",
+  "description": "Notion 阅读库 ID（可选）"
+ },
+ "apple_calendar_enabled": {
+  "type": "bool",
+  "default": false,
+  "description": "是否启用 Apple 日历同步"
+ },
+ "apple_id": {
+  "type": "string",
+  "default": "",
+  "description": "Apple ID 邮箱（如 xxx@icloud.com）"
+ },
+ "apple_app_password": {
+  "type": "string",
+  "default": "",
+  "description": "Apple 专用密码（不是登录密码！去 appleid.apple.com 生成）"
+ },
+ "webcal_urls": {
+  "type": "list",
+  "default": [],
+  "description": "WebCal 共享日历链接列表（iCloud 日历可以复制公共链接）",
+  "placeholder": "webcal://pXXX-caldav.icloud.com.cn/published/..."
+ },
+ "bath_time": {
+  "type": "string",
+  "default": "22:00",
+  "description": "洗澡提醒时间，格式 HH:MM"
+ },
+ "sleep_time": {
+  "type": "string",
+  "default": "23:00",
+  "description": "睡觉提醒时间，格式 HH:MM"
+ },
+ "water_interval": {
+  "type": "int",
+  "default": 90,
+  "description": "喝水提醒间隔（分钟），默认90分钟一次"
+ },
+ "water_start_time": {
+  "type": "string",
+  "default": "09:30",
+  "description": "喝水提醒开始时间（太早不会吵你）"
+ },
+ "water_end_time": {
+  "type": "string",
+  "default": "21:30",
+  "description": "喝水提醒结束时间（太晚就不提醒了）"
+ },
+ "enable_bath_reminder": {
+  "type": "bool",
+  "default": true,
+  "description": "开启洗澡提醒"
+ },
+ "enable_sleep_reminder": {
+  "type": "bool",
+  "default": true,
+  "description": "开启睡觉提醒"
+ },
+ "enable_water_reminder": {
+  "type": "bool",
+  "default": true,
+  "description": "开启喝水提醒"
+ },
+ "weather_api_key": {
+  "type": "string",
+  "default": "",
+  "description": "心知天气 API Key，用于早报天气。从 seniverse.com 获取（免费版够用）"
+ },
+ "weather_city": {
+  "type": "string",
+  "default": "杭州",
+  "description": "默认查询天气的城市"
+ },
+ "whitelist_qq_ids": {
+  "type": "list",
+  "default": [],
+  "description": "白名单QQ号，只有这些QQ能收到自动提醒。格式如 [\"123456789\"]，第一个会作为默认用户"
+ }
+}
