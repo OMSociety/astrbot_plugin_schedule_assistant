@@ -9,4 +9,4 @@ version: v1.2.0
 autoupdate: false
 support_platforms:
   - aiocqhttp
-repo: null
+repo: https://github.com/OMSociety/astrbot_plugin_schedule_assistant
