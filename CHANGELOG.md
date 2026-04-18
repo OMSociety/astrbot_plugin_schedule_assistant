@@ -22,9 +22,6 @@
 - 所有 aiohttp 请求统一封装：状态码分类处理（401/403/404/429）、最多3次重试、超时控制
 - `NotionClient` 实例级 session 复用，减少连接开销
 
-### 版本统一
-- 版本号统一为 v1.4.0（metadata.yaml / __init__.py / main.py）
-
 ---
 
 ## v1.3.0
