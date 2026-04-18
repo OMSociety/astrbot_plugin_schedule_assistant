@@ -77,8 +77,9 @@ class AppleCalendar:
 
             local_tz = datetime.now().astimezone().tzinfo
             now = datetime.now().replace(tzinfo=None)
-            today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-            today_end = today_start + timedelta(days=1)
+            # 根据 days 参数计算日期范围
+            range_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            range_end = range_start + timedelta(days=days)
 
             for ev in vevents:
                 summary_match = re.search(r'SUMMARY:([^\r\n]+)', ev)
@@ -118,7 +119,7 @@ class AppleCalendar:
                             end_time = datetime.strptime(ds[:8], "%Y%m%d")
 
                 if start_time:
-                    if start_time < today_start or start_time >= today_end:
+                    if start_time < range_start or start_time >= range_end:
                         continue
                     events.append({
                         "uid": uid,
