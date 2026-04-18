@@ -1,64 +1,76 @@
 # Schedule Assistant 日程助手
 
+> 🤖 **AI Generated** — 本插件由 AI 辅助开发
+
 > 你的贴心日程管家，每日自动提醒、智能同步日历与待办事项
 
-## 这个插件能做什么？
+---
 
-### 1. 每日早报 ☀️
-每天早上 9:00 自动推送：
-- 天气情况（今天天气、温差、降水概率）
-- 今日日历（从 Apple 日历读取）
-- 待办事项（从 Notion 读取即将到期的事项）
-- 贴心建议（根据天气和日历智能生成）
+## 功能一览
 
-### 2. 习惯提醒 🔔
+### ☀️ 每日早报
+每天早上 9:00（可配置）自动推送：
+- 天气情况（当前天气、预报、温差、降水概率）
+- 今日日历事件（Apple 日历同步）
+- 本地日程列表
+- Notion 待办事项（只显示已过期或一周内的事项）
+- 贴心建议（结合 Live Dashboard 状态智能生成）
+
+### 🔔 习惯提醒
 | 习惯 | 默认时间 | 说明 |
 |------|---------|------|
-| 🚿 洗澡 | 22:00 | 可推迟、可临时改时间 |
-| 😴 睡觉 | 23:00 | 智能催睡，支持推迟 |
-| 💧 喝水 | 每90分钟 | 9:30-21:30 期间循环提醒，可跳过 |
+| 🚿 洗澡提醒 | 22:00 | 可推迟、可临时改时间 |
+| 😴 睡觉提醒 | 23:00 | 智能催睡，超时带吐槽 |
+| 💧 喝水提醒 | 每90分钟 | 9:30-21:30 循环，可跳过 |
 
-**智能功能：**
-- 可以跟 Bot 说"今天洗澡改到23点"（只改今天）
-- 说"跳过这次喝水"就不会打扰你
-- 结合 Live Dashboard 状态生成个性化提醒
+**智能特性：**
+- 支持"只改今天"的临时调整
+- 结合 Live Dashboard 状态生成个性化提醒文案
+- 防重入机制避免重复提醒
 
-### 3. 日程管理 📝
-直接跟 Bot 说：
-- "明天上午10点开组会" → 添加日程
-- "删除开组会" → 删除匹配项
-- "查看我的日程" → 查看列表
-- "推迟组会20分钟" → 临时调整
+### 📝 日程管理（自然语言）
+- `添加日程：明天上午10点开组会`
+- `删除开组会`
+- `查看我的日程`
+- `推迟组会20分钟`
+- `今天洗澡改到23点`
 
-### 4. Notion 待办同步 📋
-每小时检查一次 Notion 事务库，DDL 临近时私信提醒你。
+### 📋 Notion 待办同步
+每小时检查一次 Notion 事务库，DDL 临近（24小时内）时私信提醒。
 
 ---
 
-## 安装方法
+## 安装
 
-1. 把插件文件夹放进 `/AstrBot/data/plugins/`
+1. 将插件文件夹放入 `/AstrBot/data/plugins/`
 2. 重启 AstrBot
-3. 在管理面板配置你的 API Key
+3. 在管理面板配置 API Key
 
 ---
 
-## 配置说明
+## 配置项
 
-在 AstrBot 管理面板 → 插件配置 → Schedule Assistant 里填：
-
-| 配置项 | 用途 | 去哪获取 |
+| 配置项 | 说明 | 获取方式 |
 |--------|------|---------|
-| **Maton API Key** | 读取 Notion 数据库 | https://gateway.maton.ai |
-| **Apple 专用密码** | 同步 Apple 日历 | https://appleid.apple.com |
-| **心知天气 API** | 查天气 | https://seniverse.com |
-| **WebCal 链接** | 共享日历（不用密码） | iCloud 日历 → 复制链接 |
-
-**基础设置：**
-- `bath_time`: 洗澡提醒时间（默认 22:00）
-- `sleep_time`: 睡觉提醒时间（默认 23:00）
-- `water_interval`: 喝水间隔分钟数（默认 90）
-- `whitelist_qq_ids`: 白名单QQ号，只有这些QQ能收到自动提醒。格式如 ["123456789"]，第一个会作为默认用户
+| `morning_report_time` | 早报推送时间，默认 `09:00` | — |
+| `weather_api_key` | 心知天气 API Key | [seniverse.com](https://seniverse.com) 免费注册 |
+| `weather_city` | 天气查询城市，默认 `杭州` | — |
+| `maton_api_key` | Maton Gateway Key | [gateway.maton.ai](https://gateway.maton.ai) |
+| `transaction_db_id` | Notion 事务库 ID | Notion 页面链接中复制 |
+| `reading_db_id` | Notion 阅读库 ID（可选） | 同上 |
+| `apple_calendar_enabled` | 启用 Apple 日历同步 | `true` / `false` |
+| `apple_id` | Apple ID 邮箱 | — |
+| `apple_app_password` | Apple 专用密码 | [appleid.apple.com](https://appleid.apple.com) 生成 |
+| `webcal_urls` | WebCal 公共日历链接列表 | iCloud 日历 → 复制公共链接 |
+| `bath_time` | 洗澡提醒时间，默认 `22:00` | — |
+| `sleep_time` | 睡觉提醒时间，默认 `23:00` | — |
+| `water_interval` | 喝水间隔（分钟），默认 `90` | — |
+| `water_start_time` | 喝水提醒开始时间，默认 `09:30` | — |
+| `water_end_time` | 喝水提醒结束时间，默认 `21:30` | — |
+| `enable_bath_reminder` | 开启洗澡提醒，默认 `true` | — |
+| `enable_sleep_reminder` | 开启睡觉提醒，默认 `true` | — |
+| `enable_water_reminder` | 开启喝水提醒，默认 `true` | — |
+| `whitelist_qq_ids` | 白名单 QQ 号列表，只有这些账号能收到提醒 | 格式：`["123456"]` |
 
 ---
 
@@ -66,49 +78,83 @@
 
 ```
 astrbot_plugin_schedule_assistant/
-├── main.py              # 主逻辑 + 定时任务
-├── schedule_store.py    # 数据存储（AstrBot 自带数据库）
-├── apple_calendar.py    # Apple 日历同步
-├── dashboard.py         # 读取 Live Dashboard 状态
-├── notion_client.py     # Notion API 调用
-├── _conf_schema.json    # 配置项定义
-├── requirements.txt     # 依赖
+├── main.py              # 主逻辑、定时任务调度、LLM工具
+├── schedule_store.py    # 数据持久化（AstrBot Preference API）
+├── notion_client.py     # Notion API 调用（通过 Maton Gateway）
+├── apple_calendar.py    # Apple 日历同步（WebCal）
+├── dashboard.py         # Live Dashboard 状态获取
+├── constants.py         # 统一常量定义
+├── _conf_schema.json    # 配置项 schema
+├── metadata.yaml        # 插件元信息
+├── requirements.txt     # 依赖（仅需 aiohttp）
 └── README.md            # 本文档
 ```
 
 ---
 
-## 自然语言指令（直接跟 Bot 说）
+## LLM 工具一览
 
-### 日程管理
-- "添加日程：明天上午10点开组会"
-- "删除开组会"
-- "查看我的日程"
-- "推迟组会20分钟"
-
-### 习惯控制
-- "今天洗澡改到23点"
-- "跳过这次喝水"
-- "查看 Notion 待办"
+| 工具名 | 说明 |
+|--------|------|
+| `add_schedule` | 添加日程或习惯 |
+| `remove_schedule` | 删除日程或习惯（模糊匹配） |
+| `list_schedules` | 查看所有日程和习惯 |
+| `snooze_schedule` | 推迟日程或习惯提醒 |
+| `temp_override_habit` | 临时修改习惯提醒时间（仅今天生效） |
+| `get_notion_tasks` | 查看 Notion 未完成待办 |
+| `skip_water` | 跳过本次喝水提醒 |
 
 ---
 
 ## 常见问题
 
 **Q: 没收到早报？**
-- 检查 `whitelist_qq_ids` 里有没有你的 QQ 号
-- 确认 9:00 时机器人在线
+- 检查 `whitelist_qq_ids` 是否包含你的 QQ 号
+- 确认 Bot 在 9:00 时在线
 
 **Q: Apple 日历同步失败？**
-- 专用密码不是 Apple ID 密码，要去 appleid.apple.com 生成
-- 检查 Apple ID 是否开启了双重认证
+- 专用密码不是登录密码，需在 appleid.apple.com 生成
+- 确保 Apple ID 开启了双重认证
 
-**Q: 喝水间隔想改短？**
-- 改 `water_interval` 配置，单位是分钟
+**Q: 想改喝水提醒间隔？**
+- 修改 `water_interval` 配置项，单位为分钟
 
 **Q: 提醒太烦想关掉？**
-- 把 `enable_bath_reminder` 等设成 `false`
+- 设置 `enable_bath_reminder` / `enable_sleep_reminder` / `enable_water_reminder` 为 `false`
 
 ---
 
-*由 Slandre & Flandre 开发，用爱发电 ❤️*
+## 更新日志
+
+### v1.2.0
+- 🎨 重构代码架构，删除死代码约300行
+- ⚡ 统一为纯异步实现，提升响应性能
+- 🔧 修复 LLM 工具描述不一致问题
+- 📦 发布至 GitHub
+
+### v1.1.0
+- ✅ 支持临时修改习惯提醒时间（仅当天生效）
+- ✅ 喝水提醒增加防重入机制
+- ✅ 早安播报支持 Live Dashboard 状态感知
+
+### v1.0.0
+- 🎉 初始版本
+- ✅ 基础日程管理
+- ✅ 洗澡/睡觉/喝水定时提醒
+- ✅ Notion 待办同步
+- ✅ Apple 日历同步
+- ✅ 每日早安播报
+
+---
+
+## 技术说明
+
+- **数据存储**：使用 AstrBot 内置 Preference API，无需额外数据库
+- **异步框架**：全程 `asyncio` + `aiohttp`，兼容 AstrBot 异步环境
+- **定时调度**：使用 `APScheduler` 的 `AsyncIOScheduler`
+- **外部集成**：Notion（通过 Maton Gateway）、Apple 日历（WebCal）
+- **上下文感知**：结合 Live Dashboard 设备状态生成智能提醒
+
+---
+
+*🤖 由 [Slandre](https://github.com/OMSociety) & [Flandre](https://github.com/Slandre) 开发，用爱发电 ❤️*
