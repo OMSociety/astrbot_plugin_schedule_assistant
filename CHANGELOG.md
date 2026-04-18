@@ -4,6 +4,29 @@
 
 ---
 
+## v1.4.0
+
+> 🐛 修复版本 — 功能正确性修复 + 稳定性提升
+
+### 功能修复
+- 🐛 `_fetch_calendar_events` 缺少 `await`，日历数据无法获取（现已修复）
+- 🐛 `_notion_ddl_check` 只写日志不发消息，DDL 私信提醒功能现已生效
+- 🐛 `skip_water` 与喝水提醒逻辑闭环，读取上次喝水时间计算真实间隔
+
+### 逻辑一致性
+- `_fetch_local_schedules` 更名为"获取本地所有日程"，消除歧义
+- `AppleCalendar.fetch_webcal_async(days=...)` 参数现已正确生效，早报展示未来7天日历
+
+### 稳定性提升
+- `NotionClient` 改为实例隔离，`_config`/`_pending_cache` 不再跨实例污染
+- 所有 aiohttp 请求统一封装：状态码分类处理（401/403/404/429）、最多3次重试、超时控制
+- `NotionClient` 实例级 session 复用，减少连接开销
+
+### 版本统一
+- 版本号统一为 v1.4.0（metadata.yaml / __init__.py / main.py）
+
+---
+
 ## v1.3.0
 
 > 🎨 重构版本 — 代码全面优化
