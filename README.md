@@ -122,18 +122,3 @@ astrbot_plugin_schedule_assistant/
 
 **Q: 提醒太烦想关掉？**
 - 设置 `enable_bath_reminder` / `enable_sleep_reminder` / `enable_water_reminder` 为 `false`
-
----
-
-## 技术说明
-
-- **数据存储**：使用 AstrBot 内置 Preference API，无需额外数据库
-- **异步框架**：全程 `asyncio` + `aiohttp`，兼容 AstrBot 异步环境
-- **定时调度**：使用 `APScheduler` 的 `AsyncIOScheduler`
-- **外部集成**：Notion（通过 Maton Gateway）、Apple 日历（WebCal）
-- **上下文感知**：结合 Live Dashboard 设备状态生成智能提醒
-- **资源管理**：`on_unload` 正确关闭所有外部会话
-
----
-
-*🤖 由 [Slandre](https://github.com/OMSociety) & [Flandre](https://github.com/Slandre) 开发，用爱发电 ❤️*
