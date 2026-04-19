@@ -172,6 +172,11 @@ class ScheduleAssistant(Star):
             next_trigger = self._get_water_next_trigger(now, water_start, water_end, water_interval)
             initial_delay = (next_trigger - now).total_seconds()
             
+            # 显式移除旧的喝水任务（replace_existing=True 对 date 触发器无效）
+            try:
+                self.scheduler.remove_job("water_reminder")
+            except Exception:
+                pass
             self.scheduler.add_job(
                 self._water_reminder,
                 "date",
