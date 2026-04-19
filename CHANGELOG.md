@@ -4,6 +4,27 @@
 
 ---
 
+## v1.5.0
+
+> 🏗️ 架构重构版本 — 消除双入口 + 补闭环 + 资源释放
+
+### 架构修复
+- 🐛 `_notion_ddl_check` 改用实例方法 `self.notion.get_pending_transactions()`（原模块级函数从未初始化，DDL检查从未生效）
+- 🗑️ 删除废弃的模块级函数（`_module_config`/`notion_get_pending_async` 等约120行死代码）
+
+### 资源管理
+- ✨ `on_unload` 新增 Notion 和日历会话关闭，修复连接泄漏
+- ✨ `AppleCalendar` 新增 `close()` 方法（空实现，保持接口一致性）
+
+### 功能闭环
+- ✨ 新增日程定时扫描任务（每小时01分执行，到期触发私信提醒）
+- ✨ `ScheduleStore` 新增 `update_item()` 方法，支持日程状态持久化
+
+### P2 优化（架构健康）
+- 🏗️ `notion_client.py` 单入口：只保留 `NotionClient` 类，删除冗余模块级函数
+
+---
+
 ## v1.4.1
 
 > 🐛 修复版本 — 播报正确性与智能化修复
