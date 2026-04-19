@@ -216,6 +216,28 @@ class ScheduleStore:
         
         return False
 
+    async def update_item(self, user_id: str, item: "ScheduleItem") -> bool:
+        """根据ID更新日程项
+        
+        Args:
+            user_id: 用户ID
+            item: 更新后的 ScheduleItem（必须有 id）
+            
+        Returns:
+            是否成功更新
+        """
+        data = await self._get_user_data(user_id)
+        item_dict = item.to_dict()
+        
+        for key in [SCHEDULES_KEY, HABITS_KEY]:
+            for i, stored in enumerate(data.get(key, [])):
+                if stored.get("id") == item.id:
+                    data[key][i] = item_dict
+                    await self._save_user_data(user_id, data)
+                    return True
+        
+        return False
+
     async def snooze_item(self, user_id: str, item_id: str, minutes: int) -> bool:
         """推迟日程项指定分钟数
         
