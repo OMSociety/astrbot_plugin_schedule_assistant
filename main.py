@@ -40,6 +40,10 @@ from .constants import (
 )
 
 
+
+# 模块级调度器单例，避免 AstrBot 重载时多实例并存
+_shared_scheduler = None
+
 class ScheduleAssistant(Star):
     """Main class for Schedule Assistant
     
@@ -166,7 +170,11 @@ class ScheduleAssistant(Star):
             )
         
         # 定时任务调度器
-        self.scheduler = AsyncIOScheduler()
+        # 复用模块级单例调度器（避免重载时多实例并存）
+        global _shared_scheduler
+        if _shared_scheduler is None:
+            _shared_scheduler = AsyncIOScheduler()
+        self.scheduler = _shared_scheduler
         
         # 防重入锁 - 防止任务重复触发
         self._water_reminder_running = False
