@@ -90,7 +90,7 @@ class ScheduleAssistant(Star):
         try:
             h, m = map(int, value.split(":"))
             return 0 <= h <= 23 and 0 <= m <= 59
-        except Exception:
+        except ValueError:
             return False
 
     @staticmethod
@@ -98,7 +98,7 @@ class ScheduleAssistant(Star):
         """解析 YYYY-MM-DD HH:MM，失败返回 None。"""
         try:
             return datetime.strptime(value, "%Y-%m-%d %H:%M")
-        except Exception:
+        except ValueError:
             return None
 
     def _validate_and_normalize_config(self, raw_config: Optional[dict]) -> dict:
@@ -120,7 +120,7 @@ class ScheduleAssistant(Star):
 
         try:
             water_interval = int(cfg.get("water_interval", DEFAULT_WATER_INTERVAL))
-        except Exception:
+        except (ValueError, TypeError):
             water_interval = DEFAULT_WATER_INTERVAL
         if water_interval <= 0 or water_interval > MAX_WATER_INTERVAL_MINUTES:
             logger.warning(
@@ -925,6 +925,7 @@ Notion待办:
                     continue
 
                 due_time: Optional[datetime] = None
+                item_changed = False
 
                 # 1) snooze 优先级最高：未到点则不触发，到了按 snooze 时间触发
                 if item.snoozed_until:
@@ -936,6 +937,7 @@ Notion待办:
                     else:
                         # 脏数据自动清理，回退正常时间判断
                         item.snoozed_until = None
+                        item_changed = True
 
                 # 2) 正常时间判定
                 if due_time is None:
@@ -950,6 +952,9 @@ Notion待办:
                                 due_time = now.replace(hour=h, minute=m, second=0, microsecond=0)
                             else:
                                 logger.warning(f"{LOG_PREFIX} 跳过非法单次日程时间: {item.title} ({item.time})")
+                                item.enabled = False
+                                item_changed = True
+                                await self.store.update_item(user_id, item)
                                 continue
                     else:
                         # 习惯：优先使用当天 temp_override
@@ -965,6 +970,8 @@ Notion待办:
                         due_time = now.replace(hour=h, minute=m, second=0, microsecond=0)
 
                 if not due_time or not (window_start <= due_time <= now):
+                    if item_changed:
+                        await self.store.update_item(user_id, item)
                     continue
 
                 # 防重复触发：当前扫描窗口内只触发一次
@@ -974,7 +981,9 @@ Notion待办:
                         if last_dt >= window_start:
                             continue
                     except ValueError:
-                        pass
+                        logger.warning(f"{LOG_PREFIX} last_triggered 格式非法，已清理: {item.title} ({item.last_triggered})")
+                        item.last_triggered = None
+                        item_changed = True
                 
                 # 触发提醒
                 item.last_triggered = now.isoformat()
@@ -1098,7 +1107,7 @@ Notion待办:
     
     @filter.llm_tool(
         name="add_schedule",
-        description="添加新的日程或习惯。参数：title-名称，time-时间(HH:MM或YYYY-MM-DD HH:MM)，recur-重复周期(daily/weekly，空则单次)。边界：单次日程触发后自动关闭。"
+        description="添加新的日程或习惯。参数：title-名称，time-时间(HH:MM or YYYY-MM-DD HH:MM)，recur-重复周期(daily/weekly，空则单次)。边界：单次日程触发后自动关闭。"
     )
     async def add_schedule_llm(
         self, 
