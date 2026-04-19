@@ -9,6 +9,7 @@ Intelligent Schedule Assistant,支持自然语言创建日程,定时habit remind
 """
 
 import json
+import re
 import asyncio
 import aiohttp
 from pathlib import Path
@@ -26,7 +27,7 @@ from astrbot.api.platform import MessageType
 
 from astrbot.core.provider.entities import ProviderType
 from .schedule_store import ScheduleStore, ScheduleItem
-from .notion_client import NotionClient, notion_get_pending_async
+from .notion_client import NotionClient
 from .apple_calendar import AppleCalendar
 from .constants import (
     LOG_PREFIX, 
@@ -196,6 +197,14 @@ class ScheduleAssistant(Star):
                 replace_existing=True
             )
             
+            # 每小时扫描一次用户日程，到期触发私信提醒
+            self.scheduler.add_job(
+                self._schedule_scan,
+                CronTrigger(minute=1),  # 每小时01分执行，避开整点高峰
+                id="schedule_scan",
+                replace_existing=True
+            )
+            
             # 立即启动 scheduler
             if not self.scheduler.running:
                 self.scheduler.start()
@@ -209,9 +218,9 @@ class ScheduleAssistant(Star):
         logger.info(f"{LOG_PREFIX} 插件加载完成")
 
     async def on_unload(self):
-        """插件卸载/重启时清理 scheduler
+        """插件卸载/重启时清理资源
         
-        确保所有定时任务正确停止,避免资源泄漏.
+        停止调度器、关闭外部会话，避免连接泄漏。
         """
         try:
             if self.scheduler.running:
@@ -219,6 +228,22 @@ class ScheduleAssistant(Star):
                 logger.info(f"{LOG_PREFIX} 调度器已停止")
         except Exception as e:
             logger.error(f"{LOG_PREFIX} 调度器停止失败: {e}")
+        
+        # 关闭 Notion 会话
+        if self.notion:
+            try:
+                await self.notion.close()
+                logger.info(f"{LOG_PREFIX} Notion 会话已关闭")
+            except Exception as e:
+                logger.warning(f"{LOG_PREFIX} Notion 会话关闭失败: {e}")
+        
+        # 关闭日历会话（如果存在）
+        if self.calendar:
+            try:
+                await self.calendar.close()
+                logger.info(f"{LOG_PREFIX} 日历会话已关闭")
+            except Exception as e:
+                logger.warning(f"{LOG_PREFIX} 日历会话关闭失败: {e}")
 
     # ==================== 定时任务回调 ====================
     
@@ -243,14 +268,15 @@ class ScheduleAssistant(Star):
             calendar_task = self._fetch_calendar_events()
             schedule_task = self._fetch_local_schedules(user_id)
             notion_task = self._fetch_notion_pending()
+            late_night_task = self._fetch_late_night_events()
             
             # 同时获取Dashboard状态
             from .dashboard import get_dashboard_status
             dashboard = await get_dashboard_status()
             
             # 使用asyncio.gather并发执行
-            weather_result, calendar_info, schedule_info, notion_info = await asyncio.gather(
-                weather_task, calendar_task, schedule_task, notion_task,
+            weather_result, calendar_info, schedule_info, notion_info, late_night = await asyncio.gather(
+                weather_task, calendar_task, schedule_task, notion_task, late_night_task,
                 return_exceptions=True
             )
             
@@ -266,6 +292,8 @@ class ScheduleAssistant(Star):
                 schedule_info = "获取失败"
             if isinstance(notion_info, Exception):
                 notion_info = "获取失败"
+            if isinstance(late_night, Exception):
+                late_night = ""
             
             # ========== LLM 生成完整播报 ==========
             full_report = await self._generate_full_morning_report(
@@ -277,7 +305,8 @@ class ScheduleAssistant(Star):
                 calendar=calendar_info,
                 schedules=schedule_info,
                 notion=notion_info,
-                dashboard=dashboard
+                dashboard=dashboard,
+                late_night=late_night or ""
             )
             
             await self._send_to_user(user_id, full_report)
@@ -383,20 +412,29 @@ class ScheduleAssistant(Star):
         return weather_current, weather_forecast
 
     async def _fetch_calendar_events(self) -> str:
-        """获取日历事件
+        """获取今日日历事件
         
         Returns:
-            格式化的事件列表字符串
+            格式化的事件列表字符串（仅今日）
         """
         if not self.calendar:
             return "未启用日历同步"
         
         try:
-            events = await self.calendar.get_all_events(days=7)
-            if events:
-                return "\n".join([f"{e['start'][11:16] if len(e['start']) > 11 else ''} {e['summary']}" 
-                                 for e in events[:5]])
-            return "暂无日历事件"
+            # 拉取2天（今天+明天），避免跨天日程被截断
+            events = await self.calendar.get_all_events(days=2)
+            
+            # 过滤出今日的事件
+            from datetime import datetime
+            today = datetime.now().strftime("%Y-%m-%d")
+            today_events = [e for e in events if e.get("start", "")[:10] == today]
+            
+            if today_events:
+                return "\n".join([
+                    f"{e['start'][11:16] if len(e['start']) > 11 else ''} {e['summary']}"
+                    for e in today_events[:5]
+                ])
+            return "暂无今日日程"
         except asyncio.TimeoutError:
             logger.warning(f"{LOG_PREFIX} 日历获取超时")
             return "日历获取超时"
@@ -424,19 +462,65 @@ class ScheduleAssistant(Star):
             return "获取失败"
 
     async def _fetch_notion_pending(self) -> str:
-        """获取 Notion 待办
+        """获取 Notion 待办（包含 DDL 倒计时）
         
         Returns:
-            格式化的待办列表字符串
+            格式化的待办列表字符串，如 "还剩3天 | 论文初稿" 或 "已逾期3天 | 项目报告"
         """
+        def _format_ddl(ddl_str: str) -> str:
+            if not ddl_str:
+                return ""
+            try:
+                ddl_str = ddl_str.replace("Z", "+00:00")
+                due = datetime.fromisoformat(ddl_str)
+                due_local = due.astimezone().replace(tzinfo=None)
+                now = datetime.now()
+                diff = (due_local.date() - now.date()).days
+                if diff < 0:
+                    return f"已逾期{-diff}天"
+                elif diff == 0:
+                    return "今天截止"
+                elif diff == 1:
+                    return "还剩1天"
+                else:
+                    return f"还剩{diff}天"
+            except Exception:
+                return ""
+
         try:
             pending = await self.notion.get_pending_transactions()
             if pending:
-                return "\n".join([f"- {t['title']} ({t['status']})" for t in pending[:5]])
+                lines_out = []
+                for t in pending[:5]:
+                    ddl = _format_ddl(t.get("ddl", ""))
+                    if ddl:
+                        lines_out.append(f"- {ddl} | {t['title']}")
+                    else:
+                        lines_out.append(f"- {t['title']} ({t['status']})")
+                return "\n".join(lines_out)
             return "暂无待办"
         except Exception as e:
             logger.warning(f"{LOG_PREFIX} Notion 获取失败: {e}")
             return "获取失败"
+
+    async def _fetch_late_night_events(self) -> str:
+        """获取今日凌晨事件，判断是否熬夜
+        
+        Returns:
+            凌晨事件描述，无则返回空字符串
+        """
+        if not self.calendar:
+            return ""
+        
+        try:
+            events = await self.calendar.get_late_night_events()
+            if events:
+                lines = [f"{e['start'][11:16]} {e['summary']}" for e in events]
+                return "\n".join(lines)
+            return ""
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} 熬夜检测失败: {e}")
+            return ""
 
     async def _generate_full_morning_report(
         self,
@@ -448,7 +532,8 @@ class ScheduleAssistant(Star):
         calendar: str,
         schedules: str,
         notion: str,
-        dashboard: str = ""
+        dashboard: str = "",
+        late_night: str = ""
     ) -> str:
         """
         使用LLM生成完整的早安播报。
@@ -507,11 +592,12 @@ class ScheduleAssistant(Star):
 Notion待办:
 {chr(10).join(notion_lines) if notion_lines else "暂无"}
 设备状态: {dashboard if dashboard else "暂无"}
+熬夜检测: {"有深夜日程（" + late_night.strip() + "），昨晚辛苦了" if late_night and late_night.strip() else "无深夜日程"}
 
 【温馨建议生成规则】
 这部分最重要！需要结合设备状态和个人数据生成：
-- 如果设备显示熬夜到很晚，建议今天早点睡
-- 如果设备显示用户还在床上或游戏中，温和温和催促开始新的一天
+- 如果熬夜检测显示有深夜日程，要说"昨晚辛苦了/熬夜了，中午记得休息一下"之类关心的话
+- 如果设备显示用户还在床上或游戏中，温和催促开始新的一天
 - 如果有DDL临近的待办，重点提醒
 - 如果天气不好，提醒带伞添衣
 - 建议要有针对性，不要泛泛而谈
@@ -728,7 +814,7 @@ Notion待办:
         try:
             if not self.notion:
                 return
-            tasks = await notion_get_pending_async()
+            tasks = await self.notion.get_pending_transactions()
             now = datetime.now()
             
             for task in tasks:
@@ -753,6 +839,65 @@ Notion待办:
                         
         except Exception as e:
             logger.error(f"{LOG_PREFIX} DDL检查失败: {e}")
+
+    async def _schedule_scan(self):
+        """每小时扫描一次用户日程，到期触发私信提醒
+        
+        扫描今日所有单次日程和重复习惯，决定是否触发提醒。
+        每个日程只在对应小时的00-05分钟内触发一次（避免重复）。
+        """
+        try:
+            user_id = self.default_user_id
+            if not user_id:
+                return
+            
+            now = datetime.now()
+            current_hour_str = now.strftime("%H:00")  # 如 "14:00"
+            
+            items = await self.store.list_all_items(user_id)
+            
+            for item in items:
+                if not item.enabled:
+                    continue
+                
+                # 获取实际触发时间（优先用临时修改）
+                trigger_time = item.time
+                if item.temp_override:
+                    # 临时修改只在当天有效，格式 YYYY-MM-DD HH:MM
+                    try:
+                        override_dt = datetime.strptime(item.temp_override, "%Y-%m-%d %H:%M")
+                        if override_dt.date() == now.date():
+                            trigger_time = override_dt.strftime("%H:%M")
+                    except ValueError:
+                        pass
+                
+                # 判断是否在当前小时触发（HH:MM 只取 HH:00）
+                scheduled_hour = trigger_time[:5] if len(trigger_time) >= 5 else trigger_time
+                if scheduled_hour != current_hour_str:
+                    continue
+                
+                # 防重复触发：检查是否已在最近5分钟内触发过
+                if item.last_triggered:
+                    try:
+                        last_dt = datetime.fromisoformat(item.last_triggered)
+                        if (now - last_dt).total_seconds() < 300:
+                            continue  # 5分钟内已触发，跳过
+                    except ValueError:
+                        pass
+                
+                # 触发提醒
+                item.last_triggered = now.isoformat()
+                await self.store.update_item(user_id, item)
+                
+                recur_text = {"daily": "每天", "weekly": "每周"}.get(item.recur or "", "")
+                await self._send_to_user(
+                    user_id,
+                    f"📅 {recur_text}{item.title}提醒~ 时间到啦！"
+                )
+                logger.info(f"{LOG_PREFIX} 日程触发: {item.title} (类型: {item.type})")
+                
+        except Exception as e:
+            logger.error(f"{LOG_PREFIX} 日程扫描失败: {e}")
 
     async def _clear_expired_overrides(self):
         """每日清理过期的临时修改
@@ -845,6 +990,8 @@ Notion待办:
             )
             
             from astrbot.api.event import MessageChain
+            # 过滤表情标签（&&tag&&格式），避免标签被当作正文发送
+            message = re.sub(r'&&[^&]+&&', '', message)
             chain = MessageChain().message(message)
             await self.context.send_message(session, chain)
             logger.info(f"{LOG_PREFIX} 消息已发送给用户 {user_id}")
