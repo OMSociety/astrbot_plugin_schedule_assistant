@@ -1122,7 +1122,7 @@ Notion待办:
         Args:
             title (str): 日程/习惯的名称
             time (str): 执行时间,格式为 HH:MM,such as "09:00"
-            recur (str, optional): 重复周期,可选值: daily, weekly,空字符串表示不重复
+            recur (str, optional): 重复周期,可选值: daily, weekly（不支持 monthly）,空字符串表示不重复
             description (str, optional): 日程描述
         """
         user_id = str(event.sender_info.user_id)
