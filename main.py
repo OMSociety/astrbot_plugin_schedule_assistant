@@ -35,7 +35,9 @@ from .constants import (
     DEFAULT_SLEEP_TIME,
     DEFAULT_WATER_START,
     DEFAULT_WATER_END,
-    DEFAULT_WATER_INTERVAL
+    DEFAULT_WATER_INTERVAL,
+    MAX_WATER_INTERVAL_MINUTES,
+    SCHEDULE_SCAN_WINDOW_MINUTES
 )
 
 
@@ -112,7 +114,7 @@ class ScheduleAssistant(Star):
             water_interval = int(cfg.get("water_interval", DEFAULT_WATER_INTERVAL))
         except Exception:
             water_interval = DEFAULT_WATER_INTERVAL
-        if water_interval <= 0 or water_interval > 720:
+        if water_interval <= 0 or water_interval > MAX_WATER_INTERVAL_MINUTES:
             logger.warning(
                 f"{LOG_PREFIX} 配置 water_interval 非法（{water_interval}），回退默认值 {DEFAULT_WATER_INTERVAL}"
             )
@@ -905,7 +907,7 @@ Notion待办:
                 return
             
             now = datetime.now()
-            window_start = now - timedelta(minutes=65)
+            window_start = now - timedelta(minutes=SCHEDULE_SCAN_WINDOW_MINUTES)
             
             items = await self.store.list_all_items(user_id)
             
