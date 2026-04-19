@@ -1,14 +1,11 @@
 """
 Live Dashboard 状态获取模块
 
-提供异步和同步两种方式获取 Live Dashboard 设备状态，
-用于结合用户当前状态生成智能提醒。
+提供异步方式获取 Live Dashboard 设备状态, 用于结合用户当前状态生成智能提醒。
 """
 
-import asyncio
 import json
 from pathlib import Path
-from typing import Optional
 
 import aiohttp
 
@@ -64,38 +61,6 @@ async def get_dashboard_status() -> str:
     except Exception as e:
         logger.warning(f"[Dashboard] 获取状态异常: {e}")
         return "（获取 Dashboard 状态失败）"
-
-
-def get_dashboard_status_sync() -> str:
-    """
-    获取 Live Dashboard 设备状态（同步版本，供遗留调用）
-    
-    注意：此方法在新版本中不推荐使用，优先使用异步版本。
-    内部通过线程池在异步环境中运行。
-    
-    Returns:
-        格式化的设备状态描述字符串
-    """
-    try:
-        # 检查是否在异步事件循环中
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # 在异步环境中，使用线程池运行
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as pool:
-                    future = pool.submit(asyncio.run, get_dashboard_status())
-                    return future.result(timeout=10)
-            else:
-                # 不在运行中的事件循环，直接运行
-                return loop.run_until_complete(get_dashboard_status())
-        except RuntimeError:
-            # 没有事件循环，创建临时循环
-            return asyncio.run(get_dashboard_status())
-    except Exception as e:
-        logger.warning(f"[Dashboard] 同步获取失败: {e}")
-        return "（获取 Dashboard 状态失败）"
-
 
 def _format_dashboard(data: dict) -> str:
     """
