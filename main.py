@@ -1092,7 +1092,7 @@ Notion待办:
     
     @filter.llm_tool(
         name="add_schedule",
-        description="添加新的日程或习惯。参数：title-名称，time-时间(HH:MM或YYYY-MM-DD HH:MM)，recur-重复周期(daily/weekly/monthly，空则单次)。边界：单次日程触发后自动关闭。"
+        description="添加新的日程或习惯。参数：title-名称，time-时间(HH:MM或YYYY-MM-DD HH:MM)，recur-重复周期(daily/weekly，空则单次)。边界：单次日程触发后自动关闭。"
     )
     async def add_schedule_llm(
         self, 
@@ -1107,7 +1107,7 @@ Notion待办:
         Args:
             title (str): 日程/习惯的名称
             time (str): 执行时间,格式为 HH:MM,such as "09:00"
-            recur (str, optional): 重复周期,可选值: daily, weekly, monthly,空字符串表示不重复
+            recur (str, optional): 重复周期,可选值: daily, weekly,空字符串表示不重复
             description (str, optional): 日程描述
         """
         user_id = str(event.sender_info.user_id)
@@ -1176,8 +1176,6 @@ Notion待办:
                 recur_text = " 🔄 每天"
             elif item.recur == "weekly":
                 recur_text = " 🔄 每周"
-            elif item.recur == "monthly":
-                recur_text = " 🔄 每月"
             lines.append(f"  • {item.title} @ {item.time}{recur_text}")
         
         yield event.plain_result("\n".join(lines))
