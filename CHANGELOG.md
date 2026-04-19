@@ -9,7 +9,8 @@
 > 🏷️ 版本号升级
 
 ### 说明
-- 🔧 统一版本号到 `v1.6.0`（`metadata.yaml` / `main.py` / `__init__.py`）
+- 🔧 统一版本号到 `v1.6.0`（`metadata.yaml` / `__init__.py`）
+- 🧹 移除模块注释中的冗余版本号硬编码（`main.py` / `__init__.py`）
 
 ---
 
