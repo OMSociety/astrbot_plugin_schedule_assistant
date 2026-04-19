@@ -173,7 +173,7 @@ class ScheduleAssistant(Star):
         self._water_reminder_running = False
         
         # 从配置读取用户设置
-        whitelist = self.config.get("whitelist_qq_ids", [])
+        whitelist = self.config["whitelist_qq_ids"]
         self.default_user_id = str(
             self.config.get("default_user_id", "") or
             (whitelist[0] if whitelist else "")
@@ -1107,7 +1107,7 @@ Notion待办:
     
     @filter.llm_tool(
         name="add_schedule",
-        description="添加新的日程或习惯。参数：title-名称，time-时间(HH:MM or YYYY-MM-DD HH:MM)，recur-重复周期(daily/weekly，空则单次)。边界：单次日程触发后自动关闭。"
+        description="添加新的日程或习惯。参数：title-名称，time-时间(HH:MM or YYYY-MM-DD HH:MM)，recur-重复周期(仅支持 daily/weekly，空则单次)。边界：单次日程触发后自动关闭。"
     )
     async def add_schedule_llm(
         self, 
