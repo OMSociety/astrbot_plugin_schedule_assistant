@@ -228,7 +228,7 @@ class ScheduleAssistant(Star):
             # 使用辅助函数计算下次触发时间(支持重载时立即触发)
             now = datetime.now()
             next_trigger = self._get_water_next_trigger(now, water_start, water_end, water_interval)
-            initial_delay = (next_trigger - now).total_seconds()
+            initial_delay = max((next_trigger - now).total_seconds(), 30.0)  # 至少等30秒，防止立即触发
             
             # 显式移除旧的喝水任务（replace_existing=True 对 date 触发器无效）
             try:
