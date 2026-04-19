@@ -1,7 +1,7 @@
 """
 Live Dashboard 状态获取模块
 
-提供异步方式获取 Live Dashboard 设备状态，用于结合用户当前状态生成智能提醒。
+提供异步方式获取 Live Dashboard 设备状态, 用于结合用户当前状态生成智能提醒。
 """
 
 import json

@@ -85,7 +85,7 @@ class ScheduleAssistant(Star):
     @staticmethod
     def _is_valid_hhmm(value: str) -> bool:
         """校验时间格式是否为 HH:MM。"""
-        if not isinstance(value, str) or not re.match(r"^\d{2}:\d{2}$", value):
+        if not isinstance(value, str) or not re.match(r"^\d{1,2}:\d{2}$", value):
             return False
         try:
             h, m = map(int, value.split(":"))
@@ -173,7 +173,7 @@ class ScheduleAssistant(Star):
         self._water_reminder_running = False
         
         # 从配置读取用户设置
-        whitelist = self.config["whitelist_qq_ids"]
+        whitelist = self.config.get("whitelist_qq_ids", [])
         self.default_user_id = str(
             self.config.get("default_user_id", "") or
             (whitelist[0] if whitelist else "")
@@ -908,7 +908,7 @@ Notion待办:
         """每小时扫描一次用户日程，到期触发私信提醒
         
         扫描今日所有单次日程和重复习惯，决定是否触发提醒。
-        扫描窗口为最近65分钟，确保非整点时间也能被稳定命中。
+        扫描窗口为最近65分钟, 确保非整点时间也能被稳定命中。
         """
         try:
             user_id = self.default_user_id
@@ -1107,7 +1107,7 @@ Notion待办:
     
     @filter.llm_tool(
         name="add_schedule",
-        description="添加新的日程或习惯。参数：title-名称，time-时间(HH:MM or YYYY-MM-DD HH:MM)，recur-重复周期(仅支持 daily/weekly，空则单次)。边界：单次日程触发后自动关闭。"
+        description="添加新的日程或习惯。参数：title-名称，time-时间(HH:MM or YYYY-MM-DD HH:MM)，recur-重复周期（仅支持 daily/weekly，空则单次）。边界：单次日程触发后自动关闭。"
     )
     async def add_schedule_llm(
         self, 
