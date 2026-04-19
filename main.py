@@ -198,6 +198,14 @@ class ScheduleAssistant(Star):
         包括:早安播报,洗澡提醒,睡觉提醒,喝水提醒,Notion DDL检查
         """
         try:
+            # 显式清空所有旧任务（防止 AstrBot 重载时残留）
+            for job in list(self.scheduler.get_jobs()):
+                try:
+                    self.scheduler.remove_job(job.id)
+                    logger.debug(f"{LOG_PREFIX} 清理旧任务: {{job.id}}")
+                except Exception:
+                    pass
+
             # Morning briefing at 9:00
             morning_report_time = self.config.get("morning_report_time", "09:00")
             morning_hour, morning_minute = map(int, morning_report_time.split(":"))
