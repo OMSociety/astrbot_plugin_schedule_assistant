@@ -93,6 +93,14 @@ class ScheduleAssistant(Star):
         except Exception:
             return False
 
+    @staticmethod
+    def _parse_ymdhm(value: str) -> Optional[datetime]:
+        """解析 YYYY-MM-DD HH:MM，失败返回 None。"""
+        try:
+            return datetime.strptime(value, "%Y-%m-%d %H:%M")
+        except Exception:
+            return None
+
     def _validate_and_normalize_config(self, raw_config: Optional[dict]) -> dict:
         """校验并标准化配置，避免单个错误配置导致任务注册失败。"""
         cfg = dict(raw_config or {})
@@ -165,9 +173,10 @@ class ScheduleAssistant(Star):
         self._water_reminder_running = False
         
         # 从配置读取用户设置
+        whitelist = self.config.get("whitelist_qq_ids", [])
         self.default_user_id = str(
             self.config.get("default_user_id", "") or
-            (self.config.get("whitelist_qq_ids", [""])[0] if self.config.get("whitelist_qq_ids") else "")
+            (whitelist[0] if whitelist else "")
         ).strip()
         self.default_username = ""  # 从QQ API获取，获取不到用「用户」
         
@@ -919,12 +928,12 @@ Notion待办:
 
                 # 1) snooze 优先级最高：未到点则不触发，到了按 snooze 时间触发
                 if item.snoozed_until:
-                    try:
-                        snooze_dt = datetime.strptime(item.snoozed_until, "%Y-%m-%d %H:%M")
+                    snooze_dt = self._parse_ymdhm(item.snoozed_until)
+                    if snooze_dt:
                         if snooze_dt > now:
                             continue
                         due_time = snooze_dt
-                    except ValueError:
+                    else:
                         # 脏数据自动清理，回退正常时间判断
                         item.snoozed_until = None
 
@@ -946,12 +955,9 @@ Notion待办:
                         # 习惯：优先使用当天 temp_override
                         trigger_hhmm = item.time
                         if item.temp_override:
-                            try:
-                                override_dt = datetime.strptime(item.temp_override, "%Y-%m-%d %H:%M")
-                                if override_dt.date() == now.date():
-                                    trigger_hhmm = override_dt.strftime("%H:%M")
-                            except ValueError:
-                                pass
+                            override_dt = self._parse_ymdhm(item.temp_override)
+                            if override_dt and override_dt.date() == now.date():
+                                trigger_hhmm = override_dt.strftime("%H:%M")
                         if not self._is_valid_hhmm(trigger_hhmm):
                             logger.warning(f"{LOG_PREFIX} 跳过非法习惯时间: {item.title} ({trigger_hhmm})")
                             continue
