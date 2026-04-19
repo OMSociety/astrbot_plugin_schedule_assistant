@@ -22,7 +22,7 @@
 | 🚿 洗澡提醒 | 22:00 | 可推迟、可临时改时间 |
 | 😴 睡觉提醒 | 23:00 | 智能催睡，超时带吐槽 |
 | 💧 喝水提醒 | 每90分钟 | 9:30-21:30 循环，可跳过 |
-| 📅 用户日程 | 定时扫描 | 添加的日程到点私信提醒（每小时01分触发） |
+| 📅 用户日程 | 定时扫描 | 每小时01分扫描最近65分钟窗口，非整点时间也能触发 |
 
 **智能特性：**
 - 支持"只改今天"的临时调整
@@ -97,13 +97,19 @@ astrbot_plugin_schedule_assistant/
 
 | 工具名 | 说明 |
 |--------|------|
-| `add_schedule` | 添加日程或习惯 |
-| `remove_schedule` | 删除日程或习惯（模糊匹配） |
-| `list_schedules` | 查看所有日程和习惯 |
-| `snooze_schedule` | 推迟日程或习惯提醒 |
-| `temp_override_habit` | 临时修改习惯提醒时间（仅今天生效） |
-| `get_notion_tasks` | 查看 Notion 未完成待办 |
-| `skip_water` | 跳过本次喝水提醒 |
+| `add_schedule` | 添加日程或习惯；支持 `HH:MM` 或 `YYYY-MM-DD HH:MM` |
+| `remove_schedule` | 删除日程或习惯（模糊匹配，命中首项即删除） |
+| `list_schedules` | 查看当前用户所有日程和习惯 |
+| `snooze_schedule` | 推迟日程或习惯提醒（到点触发后自动清空 snooze） |
+| `temp_override_habit` | 临时修改习惯提醒时间（仅今天生效，仅影响习惯） |
+| `get_notion_tasks` | 查看 Notion 未完成待办（依赖 Maton 和数据库配置） |
+| `skip_water` | 跳过本次喝水提醒（仅影响当前用户喝水间隔计算） |
+
+### 工具边界说明
+- 单次日程触发后会自动关闭，避免重复提醒。
+- `snooze_schedule` 仅改变下次触发时间，不改变原始 `time` 字段。
+- 自动提醒仅发送给 `whitelist_qq_ids` 中的账号。
+- `apple_id` / `apple_app_password` 为兼容旧配置保留；当前日历同步仅使用 `webcal_urls`。
 
 ---
 
@@ -114,8 +120,8 @@ astrbot_plugin_schedule_assistant/
 - 确认 Bot 在 9:00 时在线
 
 **Q: Apple 日历同步失败？**
-- 专用密码不是登录密码，需在 appleid.apple.com 生成
-- 确保 Apple ID 开启了双重认证
+- 请确认 `webcal_urls` 已配置且可访问
+- 当前版本通过 WebCal 公共链接拉取日历，不依赖 Apple ID 登录
 
 **Q: 想改喝水提醒间隔？**
 - 修改 `water_interval` 配置项，单位为分钟

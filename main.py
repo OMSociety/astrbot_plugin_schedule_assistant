@@ -4,7 +4,7 @@ Schedule Assistant Plugin
 Intelligent Schedule Assistant,支持自然语言创建日程,定时habit reminders,结合Live Dashboard
 状态智能生成提醒,上下午感知提醒,私聊定向推送等功能.
 
-版本: v1.4.0
+版本: v1.5.2
 作者: Slandre & Flandre
 """
 
@@ -80,6 +80,51 @@ class ScheduleAssistant(Star):
         
         return current
 
+    @staticmethod
+    def _is_valid_hhmm(value: str) -> bool:
+        """校验时间格式是否为 HH:MM。"""
+        if not isinstance(value, str) or not re.match(r"^\d{2}:\d{2}$", value):
+            return False
+        try:
+            h, m = map(int, value.split(":"))
+            return 0 <= h <= 23 and 0 <= m <= 59
+        except Exception:
+            return False
+
+    def _validate_and_normalize_config(self, raw_config: Optional[dict]) -> dict:
+        """校验并标准化配置，避免单个错误配置导致任务注册失败。"""
+        cfg = dict(raw_config or {})
+
+        def _normalize_time(key: str, default: str):
+            value = str(cfg.get(key, default) or default).strip()
+            if not self._is_valid_hhmm(value):
+                logger.warning(f"{LOG_PREFIX} 配置 {key} 非法（{value}），回退默认值 {default}")
+                value = default
+            cfg[key] = value
+
+        _normalize_time("morning_report_time", "09:00")
+        _normalize_time("bath_time", DEFAULT_BATH_TIME)
+        _normalize_time("sleep_time", DEFAULT_SLEEP_TIME)
+        _normalize_time("water_start_time", DEFAULT_WATER_START)
+        _normalize_time("water_end_time", DEFAULT_WATER_END)
+
+        try:
+            water_interval = int(cfg.get("water_interval", DEFAULT_WATER_INTERVAL))
+        except Exception:
+            water_interval = DEFAULT_WATER_INTERVAL
+        if water_interval <= 0 or water_interval > 720:
+            logger.warning(
+                f"{LOG_PREFIX} 配置 water_interval 非法（{water_interval}），回退默认值 {DEFAULT_WATER_INTERVAL}"
+            )
+            water_interval = DEFAULT_WATER_INTERVAL
+        cfg["water_interval"] = water_interval
+
+        whitelist = cfg.get("whitelist_qq_ids", [])
+        if not isinstance(whitelist, list):
+            whitelist = []
+        cfg["whitelist_qq_ids"] = [str(x).strip() for x in whitelist if str(x).strip()]
+        return cfg
+
     def __init__(self, context: Context, config: dict = None):
         """Initialize ScheduleAssistant
         
@@ -90,7 +135,7 @@ class ScheduleAssistant(Star):
         super().__init__(context)
         
         # 配置必须最先初始化，后续代码依赖 self.config
-        self.config = config or {}
+        self.config = self._validate_and_normalize_config(config)
         
         # 使用 AstrBot Storage API 替代本地 JSON
         self.store = ScheduleStore(context)
@@ -118,7 +163,10 @@ class ScheduleAssistant(Star):
         self._water_reminder_running = False
         
         # 从配置读取用户设置
-        self.default_user_id = self.config.get("default_user_id", "") or                         (self.config.get("whitelist_qq_ids", [""])[0] if self.config.get("whitelist_qq_ids") else "")
+        self.default_user_id = str(
+            self.config.get("default_user_id", "") or
+            (self.config.get("whitelist_qq_ids", [""])[0] if self.config.get("whitelist_qq_ids") else "")
+        ).strip()
         self.default_username = ""  # 从QQ API获取，获取不到用「用户」
         
         # 在 __init__ 中直接注册定时任务
@@ -849,7 +897,7 @@ Notion待办:
         """每小时扫描一次用户日程，到期触发私信提醒
         
         扫描今日所有单次日程和重复习惯，决定是否触发提醒。
-        每个日程只在对应小时的00-05分钟内触发一次（避免重复）。
+        扫描窗口为最近65分钟，确保非整点时间也能被稳定命中。
         """
         try:
             user_id = self.default_user_id
@@ -857,41 +905,75 @@ Notion待办:
                 return
             
             now = datetime.now()
-            current_hour_str = now.strftime("%H:00")  # 如 "14:00"
+            window_start = now - timedelta(minutes=65)
             
             items = await self.store.list_all_items(user_id)
             
             for item in items:
                 if not item.enabled:
                     continue
-                
-                # 获取实际触发时间（优先用临时修改）
-                trigger_time = item.time
-                if item.temp_override:
-                    # 临时修改只在当天有效，格式 YYYY-MM-DD HH:MM
+
+                due_time: Optional[datetime] = None
+
+                # 1) snooze 优先级最高：未到点则不触发，到了按 snooze 时间触发
+                if item.snoozed_until:
                     try:
-                        override_dt = datetime.strptime(item.temp_override, "%Y-%m-%d %H:%M")
-                        if override_dt.date() == now.date():
-                            trigger_time = override_dt.strftime("%H:%M")
+                        snooze_dt = datetime.strptime(item.snoozed_until, "%Y-%m-%d %H:%M")
+                        if snooze_dt > now:
+                            continue
+                        due_time = snooze_dt
                     except ValueError:
-                        pass
-                
-                # 判断是否在当前小时触发（HH:MM 只取 HH:00）
-                scheduled_hour = trigger_time[:5] if len(trigger_time) >= 5 else trigger_time
-                if scheduled_hour != current_hour_str:
+                        # 脏数据自动清理，回退正常时间判断
+                        item.snoozed_until = None
+
+                # 2) 正常时间判定
+                if due_time is None:
+                    # 单次日程：优先解析完整时间 YYYY-MM-DD HH:MM
+                    if item.type == "schedule":
+                        try:
+                            due_time = datetime.strptime(item.time, "%Y-%m-%d %H:%M")
+                        except ValueError:
+                            # 兼容旧数据/LLM 输入：仅 HH:MM 则按今天计算
+                            if self._is_valid_hhmm(item.time):
+                                h, m = map(int, item.time.split(":"))
+                                due_time = now.replace(hour=h, minute=m, second=0, microsecond=0)
+                            else:
+                                logger.warning(f"{LOG_PREFIX} 跳过非法单次日程时间: {item.title} ({item.time})")
+                                continue
+                    else:
+                        # 习惯：优先使用当天 temp_override
+                        trigger_hhmm = item.time
+                        if item.temp_override:
+                            try:
+                                override_dt = datetime.strptime(item.temp_override, "%Y-%m-%d %H:%M")
+                                if override_dt.date() == now.date():
+                                    trigger_hhmm = override_dt.strftime("%H:%M")
+                            except ValueError:
+                                pass
+                        if not self._is_valid_hhmm(trigger_hhmm):
+                            logger.warning(f"{LOG_PREFIX} 跳过非法习惯时间: {item.title} ({trigger_hhmm})")
+                            continue
+                        h, m = map(int, trigger_hhmm.split(":"))
+                        due_time = now.replace(hour=h, minute=m, second=0, microsecond=0)
+
+                if not due_time or not (window_start <= due_time <= now):
                     continue
-                
-                # 防重复触发：检查是否已在最近5分钟内触发过
+
+                # 防重复触发：当前扫描窗口内只触发一次
                 if item.last_triggered:
                     try:
                         last_dt = datetime.fromisoformat(item.last_triggered)
-                        if (now - last_dt).total_seconds() < 300:
-                            continue  # 5分钟内已触发，跳过
+                        if last_dt >= window_start:
+                            continue
                     except ValueError:
                         pass
                 
                 # 触发提醒
                 item.last_triggered = now.isoformat()
+                item.snoozed_until = None  # snooze 到点后清空
+                if item.type == "schedule":
+                    # 单次任务触发后自动关闭，避免重复提醒
+                    item.enabled = False
                 await self.store.update_item(user_id, item)
                 
                 recur_text = {"daily": "每天", "weekly": "每周"}.get(item.recur or "", "")
@@ -1008,7 +1090,7 @@ Notion待办:
     
     @filter.llm_tool(
         name="add_schedule",
-        description="添加新的日程或习惯。参数：title-日程名称，time-执行时间(HH:MM)，recur-重复周期(daily/weekly/monthly，空则单次)，description-描述(可选)"
+        description="添加新的日程或习惯。参数：title-名称，time-时间(HH:MM或YYYY-MM-DD HH:MM)，recur-重复周期(daily/weekly/monthly，空则单次)。边界：单次日程触发后自动关闭。"
     )
     async def add_schedule_llm(
         self, 
@@ -1048,7 +1130,7 @@ Notion待办:
 
     @filter.llm_tool(
         name="remove_schedule",
-        description="删除指定的日程或习惯。支持模糊匹配，传入日程名称即可删除"
+        description="删除指定的日程或习惯。支持模糊匹配。边界：匹配到第一项即删除并返回。"
     )
     async def remove_schedule_llm(
         self, 
@@ -1073,7 +1155,7 @@ Notion待办:
 
     @filter.llm_tool(
         name="list_schedules",
-        description="查看用户当前所有的日程和习惯列表，包括执行时间和重复周期"
+        description="查看当前用户的日程和习惯列表。边界：仅展示当前用户数据。"
     )
     async def list_schedules_llm(self, event: AiocqhttpMessageEvent) -> Generator[str, Any, None]:
         """查看所有日程和习惯列表
@@ -1100,7 +1182,7 @@ Notion待办:
 
     @filter.llm_tool(
         name="snooze_schedule",
-        description="推迟指定的日程或习惯提醒。参数：title-日程名称，minutes-推迟的分钟数"
+        description="推迟指定日程或习惯提醒。参数：title-名称，minutes-分钟数。边界：snooze 生效后按新时间触发一次并自动清空。"
     )
     async def snooze_schedule_llm(
         self, 
@@ -1127,7 +1209,7 @@ Notion待办:
 
     @filter.llm_tool(
         name="temp_override_habit",
-        description="临时修改习惯的提醒时间，仅当天生效。参数：habit_name-习惯名称，new_time-新的提醒时间(HH:MM)"
+        description="临时修改习惯提醒时间，仅当天生效。参数：habit_name-习惯名，new_time-HH:MM。边界：只影响习惯，不影响单次日程。"
     )
     async def temp_override_habit_llm(
         self, 
@@ -1150,7 +1232,7 @@ Notion待办:
 
     @filter.llm_tool(
         name="get_notion_tasks",
-        description="查看Notion中所有未完成的待办任务，显示任务名称和状态"
+        description="查看 Notion 中未完成待办任务。边界：依赖 Maton API Key 与数据库配置。"
     )
     async def get_notion_tasks_llm(self, event: AiocqhttpMessageEvent) -> Generator[str, Any, None]:
         """查看 Notion 中标记为 PENDING 的待办任务
@@ -1175,7 +1257,7 @@ Notion待办:
 
     @filter.llm_tool(
         name="skip_water",
-        description="跳过本次喝水提醒，系统会记录跳过时间，下次提醒将在正常间隔后触发"
+        description="跳过本次喝水提醒并记录当前时间。边界：仅影响当前用户的喝水间隔计算。"
     )
     async def skip_water_llm(self, event: AiocqhttpMessageEvent) -> Generator[str, Any, None]:
         """跳过本次喝水提醒

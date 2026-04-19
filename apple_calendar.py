@@ -6,7 +6,6 @@ Apple iCloud Calendar (CalDAV) 适配器
 
 import uuid
 import re
-import base64
 import aiohttp
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
@@ -18,34 +17,16 @@ __all__ = ['AppleCalendar']
 class AppleCalendar:
     """Apple 日历客户端（当前仅支持 WebCal 公共日历订阅）"""
 
-    CALDAV_SERVERS = {
-        'icloud': 'https://caldav.icloud.com',
-        'icloud_cn': 'https://caldav.icloud.com.cn',
-        '163': 'https://caldav.163.com',
-    }
-
     def __init__(
         self,
         username: Optional[str] = None,
         app_password: Optional[str] = None,
         webcal_urls: Optional[List[str]] = None
     ):
-        self.username = username
-        self.app_password = app_password
         self.webcal_urls = webcal_urls or []
-
-        self.auth = None
-        self.BASE_URL = None
-        if username and app_password:
-            credentials = f"{username}:{app_password}"
-            self.auth = base64.b64encode(credentials.encode()).decode()
-            self.BASE_URL = self._detect_server(username)
-            logger.info(f"[AppleCalendar] 使用服务器: {self.BASE_URL}")
-
-    def _detect_server(self, username: str) -> str:
-        if "@163.com" in username:
-            return self.CALDAV_SERVERS.get('icloud_cn', self.CALDAV_SERVERS['icloud'])
-        return self.CALDAV_SERVERS['icloud']
+        # 兼容旧配置：当前实现仅使用 webcal_urls
+        if username or app_password:
+            logger.info("[AppleCalendar] 当前版本仅使用 WebCal 公共订阅，忽略 Apple ID/专用密码配置")
 
     async def fetch_webcal_async(self, url: str, days: int = 30) -> List[Dict]:
         """异步读取 WebCal 公共日历
