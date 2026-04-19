@@ -22,6 +22,7 @@
 | 🚿 洗澡提醒 | 22:00 | 可推迟、可临时改时间 |
 | 😴 睡觉提醒 | 23:00 | 智能催睡，超时带吐槽 |
 | 💧 喝水提醒 | 每90分钟 | 9:30-21:30 循环，可跳过 |
+| 📅 用户日程 | 定时扫描 | 添加的日程到点私信提醒（每小时01分触发） |
 
 **智能特性：**
 - 支持"只改今天"的临时调整
@@ -121,6 +122,17 @@ astrbot_plugin_schedule_assistant/
 
 **Q: 提醒太烦想关掉？**
 - 设置 `enable_bath_reminder` / `enable_sleep_reminder` / `enable_water_reminder` 为 `false`
+
+---
+
+## 技术说明
+
+- **数据存储**：使用 AstrBot 内置 Preference API，无需额外数据库
+- **异步框架**：全程 `asyncio` + `aiohttp`，兼容 AstrBot 异步环境
+- **定时调度**：使用 `APScheduler` 的 `AsyncIOScheduler`
+- **外部集成**：Notion（通过 Maton Gateway）、Apple 日历（WebCal）
+- **上下文感知**：结合 Live Dashboard 设备状态生成智能提醒
+- **资源管理**：`on_unload` 正确关闭所有外部会话
 
 ---
 
