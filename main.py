@@ -4,7 +4,7 @@ Schedule Assistant Plugin
 Intelligent Schedule Assistant,支持自然语言创建日程,定时habit reminders,结合Live Dashboard
 状态智能生成提醒,上下午感知提醒,私聊定向推送等功能.
 
-版本: v1.5.2
+版本: v1.6.0
 作者: Slandre & Flandre
 """
 
