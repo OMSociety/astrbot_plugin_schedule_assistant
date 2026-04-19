@@ -149,3 +149,38 @@ class AppleCalendar:
         for url in self.webcal_urls:
             all_events.extend(await self.fetch_webcal_async(url, days))
         return all_events
+
+    async def close(self):
+        """关闭日历会话（无持久连接，无需清理）"""
+        pass
+
+    async def get_late_night_events(self) -> List[Dict]:
+        """
+        获取今日凌晨(00:00-06:00)的事件，用于判断是否熬夜
+        
+        Returns:
+            凌晨事件列表，无则返回空列表
+        """
+        # 拉取今日事件
+        events = await self.get_all_events(days=1)
+        
+        from datetime import datetime
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        late_night_end = today.replace(hour=6)
+        
+        late_night = []
+        for e in events:
+            start_str = e.get("start", "")
+            if not start_str:
+                continue
+            try:
+                start = datetime.fromisoformat(start_str)
+                # 排除全天事件（00:00 开始的一般是全天日程）
+                if start.hour == 0 and start.minute == 0 and start.second == 0:
+                    continue
+                if today <= start < late_night_end:
+                    late_night.append(e)
+            except ValueError:
+                continue
+        
+        return late_night
