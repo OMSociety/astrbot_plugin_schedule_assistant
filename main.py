@@ -832,22 +832,11 @@ Notion待办:
             now = datetime.now()
             water_interval = self.config.get("water_interval", DEFAULT_WATER_INTERVAL)
             
-            # 读取上次喝水/跳过时间，计算真实间隔
-            water_last_str = await self.store.get_water_last(user_id)
-            time_since_last = water_interval
-            if water_last_str:
-                try:
-                    last_time = datetime.strptime(water_last_str, "%Y-%m-%d %H:%M:%S")
-                    time_since_last = int((now - last_time).total_seconds() / 60)
-                except ValueError:
-                    pass
-            
             prompt = f"""你是「{username}」的贴心日程助手，现在需要生成一条喝水提醒~
 
 【用户信息】
 - 用户名: {username}
 - 当前时间: {now.strftime("%H:%M")}
-- 距离上次喝水: {time_since_last}分钟
 - 用户当前状态: {dashboard}
 
 【生成要求】
