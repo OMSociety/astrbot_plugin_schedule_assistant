@@ -59,7 +59,7 @@ class ScheduleAssistant(Star):
         """
         if not event.message_str or not event.message_str.strip():
             return
-        user_id = str(getattr(event.sender_info, "user_id", "") or "")
+        user_id = event.get_sender_id()
         if user_id != self.default_user_id:
             return
         # 存入用户消息
