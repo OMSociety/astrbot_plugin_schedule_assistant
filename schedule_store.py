@@ -441,24 +441,34 @@ class ScheduleStore:
         ]
         return history
     
-    def format_history_for_prompt(self, history: List[Dict[str, str]]) -> str:
+    def format_history_for_prompt(self, history: List[Dict[str, str]], max_tokens: int = 500) -> str:
         """将对话历史格式化为 prompt 中的上下文字符串
         
         Args:
             history: 消息列表
+            max_tokens: 最大 token 数，超出则从旧消息开始截断
             
         Returns:
-            格式化的历史字符串，如 "用户: xxx
-芙兰: xxx
-用户: xxx"
+            格式化的历史字符串
         """
         if not history:
             return "（无近期对话历史）"
         
         lines = []
-        for msg in history:
+        total_chars = 0
+        # 从最新消息开始，逆序添加，超 token 限制则停止
+        for msg in reversed(history):
             role_label = "用户" if msg["role"] == "user" else "芙兰"
             ts = datetime.fromisoformat(msg["timestamp"]).strftime("%H:%M")
-            lines.append(f"[{ts}] {role_label}: {msg['content']}")
+            line = f"[{ts}] {role_label}: {msg['content']}"
+            # 粗估 token：中文 ~1.5 char/token，英文 ~0.25 char/token
+            line_chars = len(line)
+            line_tokens_est = int(line_chars * 1.5)
+            if total_chars + line_tokens_est > max_tokens * 1.5:  # 1.5 char/token 为保守估计
+                break
+            total_chars += line_chars
+            lines.append(line)
         
-        return "\n".join(lines)
+        # 还原正序（老的在前）
+        lines.reverse()
+        return "\n".join(lines) if lines else "（无近期对话历史）"
