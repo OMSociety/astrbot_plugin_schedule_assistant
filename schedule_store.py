@@ -386,3 +386,79 @@ class ScheduleStore:
         
         if changed:
             await self._save_user_data(user_id, data)
+
+    async def add_conversation_message(self, user_id: str, role: str, content: str) -> None:
+        """添加一条对话消息到历史记录
+        
+        Args:
+            user_id: 用户ID
+            role: 角色 ("user" 或 "assistant")
+            content: 消息内容
+        """
+        from .constants import CONVERSATION_KEY, CONVERSATION_MAX_AGE_HOURS, CONVERSATION_MAX_MESSAGES
+        
+        data = await self._get_user_data(user_id)
+        history = data.get(CONVERSATION_KEY, [])
+        
+        # 添加新消息
+        history.append({
+            "role": role,
+            "content": content,
+            "timestamp": datetime.now().isoformat()
+        })
+        
+        # 清理过期消息（超过3小时）和超出数量限制的旧消息
+        cutoff = datetime.now() - timedelta(hours=CONVERSATION_MAX_AGE_HOURS)
+        history = [
+            m for m in history
+            if datetime.fromisoformat(m["timestamp"]) > cutoff
+        ]
+        if len(history) > CONVERSATION_MAX_MESSAGES:
+            history = history[-CONVERSATION_MAX_MESSAGES:]
+        
+        data[CONVERSATION_KEY] = history
+        await self._save_user_data(user_id, data)
+    
+    async def get_conversation_history(self, user_id: str) -> List[Dict[str, str]]:
+        """获取用户对话历史
+        
+        Args:
+            user_id: 用户ID
+            
+        Returns:
+            消息列表 [{"role": "...", "content": "...", "timestamp": "..."}]
+        """
+        from .constants import CONVERSATION_KEY, CONVERSATION_MAX_AGE_HOURS
+        
+        data = await self._get_user_data(user_id)
+        history = data.get(CONVERSATION_KEY, [])
+        
+        # 再次清理（双保险）
+        cutoff = datetime.now() - timedelta(hours=CONVERSATION_MAX_AGE_HOURS)
+        history = [
+            m for m in history
+            if datetime.fromisoformat(m["timestamp"]) > cutoff
+        ]
+        return history
+    
+    def format_history_for_prompt(self, history: List[Dict[str, str]]) -> str:
+        """将对话历史格式化为 prompt 中的上下文字符串
+        
+        Args:
+            history: 消息列表
+            
+        Returns:
+            格式化的历史字符串，如 "用户: xxx
+芙兰: xxx
+用户: xxx"
+        """
+        if not history:
+            return "（无近期对话历史）"
+        
+        lines = []
+        for msg in history:
+            role_label = "用户" if msg["role"] == "user" else "芙兰"
+            ts = datetime.fromisoformat(msg["timestamp"]).strftime("%H:%M")
+            lines.append(f"[{ts}] {role_label}: {msg['content']}")
+        
+        return "\n".join(lines)
