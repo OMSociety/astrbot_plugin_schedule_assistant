@@ -47,9 +47,23 @@ _shared_scheduler = None
 class ScheduleAssistant(Star):
     """Main class for Schedule Assistant
     
-    Provides schedule management,habit reminders,intelligent morning reports.
+    Provides schedule management, habit reminders, intelligent morning reports.
     Uses AstrBot Preference API for data persistence.
     """
+    
+    @filter.event_message_type(filter.EventMessageType.PRIVATE_MESSAGE)
+    async def _capture_conversation(self, event: AiocqhttpMessageEvent):
+        """
+        捕获对话消息并存入历史（用于提醒时的上下文注入）
+        仅记录默认用户的消息和助手回复。
+        """
+        if not event.message_str or not event.message_str.strip():
+            return
+        user_id = str(getattr(event.sender_info, "user_id", "") or "")
+        if user_id != self.default_user_id:
+            return
+        # 存入用户消息
+        await self.store.add_conversation_message(user_id, "user", event.message_str.strip())
 
     @staticmethod
     def _get_water_next_trigger(now: datetime, water_start: str, water_end: str, interval: int) -> datetime:
@@ -745,6 +759,9 @@ Notion待办:
             dashboard = await get_dashboard_status()
             username = await self._get_username_from_qq(user_id) or "用户"
             
+            history = await self.store.get_conversation_history(user_id)
+            history_text = self.store.format_history_for_prompt(history)
+            
             prompt = f"""你是「{username}」的贴心日程助手，现在需要生成一条洗澡时间提醒~
 
 【用户信息】
@@ -752,6 +769,9 @@ Notion待办:
 - 当前时间: {datetime.now().strftime("%H:%M")}
 - 设定的洗澡时间: {self.config.get("bath_time", DEFAULT_BATH_TIME)}
 - 用户当前状态: {dashboard}
+
+【近期对话】
+{history_text}
 
 【生成要求】
 1. 语气活泼可爱，像朋友催你去洗澡
@@ -763,6 +783,7 @@ Notion待办:
             message = await self._generate_llm_message(prompt)
             if message:
                 await self._send_to_user(user_id, message)
+                await self.store.add_conversation_message(user_id, "assistant", message)
             else:
                 logger.warning(f"{LOG_PREFIX} 洗澡提醒消息为空，跳过发送")
             
@@ -786,6 +807,9 @@ Notion待办:
             now = datetime.now()
             is_late = now.hour >= 23 or now.hour < 2
             
+            history = await self.store.get_conversation_history(user_id)
+            history_text = self.store.format_history_for_prompt(history)
+            
             prompt = f"""你是「{username}」的贴心日程助手，现在需要生成一条睡觉时间提醒~
 
 【用户信息】
@@ -805,6 +829,7 @@ Notion待办:
             
             message = await self._generate_llm_message(prompt)
             if message:
+                await self.store.add_conversation_message(user_id, "assistant", message)
                 await self._send_to_user(user_id, message)
             else:
                 logger.warning(f"{LOG_PREFIX} 睡觉提醒消息为空，跳过发送")
@@ -832,12 +857,18 @@ Notion待办:
             now = datetime.now()
             water_interval = self.config.get("water_interval", DEFAULT_WATER_INTERVAL)
             
+            history = await self.store.get_conversation_history(user_id)
+            history_text = self.store.format_history_for_prompt(history)
+            
             prompt = f"""你是「{username}」的贴心日程助手，现在需要生成一条喝水提醒~
 
 【用户信息】
 - 用户名: {username}
 - 当前时间: {now.strftime("%H:%M")}
 - 用户当前状态: {dashboard}
+
+【近期对话】
+{history_text}
 
 【生成要求】
 1. 语气活泼俏皮，像闺蜜催你喝水
@@ -851,6 +882,7 @@ Notion待办:
             if message:
                 await self._send_to_user(user_id, message)
                 logger.info(f"{LOG_PREFIX} 喝水提醒已发送: {message[:30]}...")
+                await self.store.add_conversation_message(user_id, "assistant", message)
             else:
                 logger.warning(f"{LOG_PREFIX} 喝水提醒消息生成失败，跳过发送")
             
