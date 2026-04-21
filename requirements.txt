@@ -1,2 +1,0 @@
-# Schedule Assistant Plugin Dependencies
-aiohttp>=3.8.0
