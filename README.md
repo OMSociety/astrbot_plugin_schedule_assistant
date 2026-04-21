@@ -43,9 +43,23 @@
 
 ## 安装
 
+### 第一步：安装 AstrBot api-gateway Skill（必须）
+
+日程助手通过 Maton Gateway 读写 Notion，需要先配置 api-gateway Skill：
+
+1. 进入 AstrBot 管理面板 → **Plugins** → **Skills**
+2. 找到并启用 **api-gateway** Skill（如未安装请先安装）
+3. 在 api-gateway 配置中填入你的 **Maton API Key**
+   - 获取地址：https://maton.ai/settings → API Keys
+   - 在 Maton 后台也需将 Notion 接入 OAuth 连接：https://ctrl.maton.ai → Connect App → Notion
+
+> 💡 如果之前已在 Maton 接入了 Notion（OAuth2 方式），则只需配置 api-gateway Skill 的 Maton API Key，无需在插件中重复配置。
+
+### 第二步：安装日程助手插件
+
 1. 将插件文件夹放入 `/AstrBot/data/plugins/`
 2. 重启 AstrBot
-3. 在管理面板配置 API Key
+3. 在管理面板配置插件参数（参考下方配置项）
 
 ---
 
@@ -56,7 +70,6 @@
 | `morning_report_time` | 早报推送时间，默认 `09:00` | — |
 | `weather_api_key` | 心知天气 API Key | [seniverse.com](https://seniverse.com) 免费注册 |
 | `weather_city` | 天气查询城市，默认 `杭州` | — |
-| `maton_api_key` | Maton Gateway Key | [gateway.maton.ai](https://gateway.maton.ai) |
 | `transaction_db_id` | Notion 事务库 ID | Notion 页面链接中复制 |
 | `reading_db_id` | Notion 阅读库 ID（可选） | 同上 |
 | `apple_calendar_enabled` | 启用 Apple 日历同步 | `true` / `false` |
@@ -73,6 +86,8 @@
 | `enable_water_reminder` | 开启喝水提醒，默认 `true` | — |
 | `whitelist_qq_ids` | 白名单 QQ 号列表，只有这些账号能收到提醒 | 格式：`["123456"]` |
 
+> **Note:** `maton_api_key` 已不需要在插件中单独配置，Notion 连接统一由 api-gateway Skill 管理。
+
 ---
 
 ## 文件结构
@@ -80,15 +95,14 @@
 ```
 astrbot_plugin_schedule_assistant/
 ├── main.py              # 主逻辑、定时任务调度、LLM工具
-├── schedule_store.py    # 数据持久化（AstrBot Preference API）
-├── notion_client.py     # Notion API 调用（通过 Maton Gateway）
-├── apple_calendar.py    # Apple 日历同步（WebCal）
-├── dashboard.py         # Live Dashboard 状态获取
-├── constants.py         # 统一常量定义
-├── _conf_schema.json    # 配置项 schema
-├── metadata.yaml        # 插件元信息
-├── requirements.txt     # 依赖（仅需 aiohttp）
-└── README.md            # 本文档
+├── schedule_store.py     # 数据持久化（AstrBot Preference API）
+├── notion_client.py      # Notion API 调用（通过 Maton Gateway）
+├── apple_calendar.py     # Apple 日历同步（WebCal）
+├── dashboard.py          # Live Dashboard 状态获取
+├── constants.py          # 统一常量定义
+├── _conf_schema.json     # 配置项 schema
+├── metadata.yaml         # 插件元信息
+└── README.md             # 本文档
 ```
 
 ---
@@ -102,7 +116,7 @@ astrbot_plugin_schedule_assistant/
 | `list_schedules` | 查看当前用户所有日程和习惯 |
 | `snooze_schedule` | 推迟日程或习惯提醒（到点触发后自动清空推迟状态） |
 | `temp_override_habit` | 临时修改习惯提醒时间（仅今天生效，仅影响习惯） |
-| `get_notion_tasks` | 查看 Notion 未完成待办（依赖 Maton 和数据库配置） |
+| `get_notion_tasks` | 查看 Notion 未完成待办（依赖 api-gateway Skill 和数据库配置） |
 | `skip_water` | 跳过本次喝水提醒（仅影响当前用户喝水间隔计算） |
 
 ### 工具边界说明
@@ -114,6 +128,11 @@ astrbot_plugin_schedule_assistant/
 ---
 
 ## 常见问题
+
+**Q: Notion 待办同步不工作？**
+- 确认 api-gateway Skill 已启用且 Maton API Key 配置正确
+- 确认 Maton 后台 Notion OAuth 连接状态为 **ACTIVE**
+- 确认插件中 `transaction_db_id` 填写了正确的数据库 ID
 
 **Q: 没收到早报？**
 - 检查 `whitelist_qq_ids` 是否包含你的 QQ 号
