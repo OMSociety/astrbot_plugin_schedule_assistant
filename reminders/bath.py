@@ -3,6 +3,9 @@ from datetime import datetime
 from ..constants import DEFAULT_BATH_TIME
 
 
+_BATH_FALLBACK = "🚿 洗澡时间到啦~ 今天流汗了吗？快去洗个澡清爽一下！"
+
+
 class BathReminder:
     def __init__(self, config: dict, get_dashboard_status, llm_service, store):
         self.config = config
@@ -10,6 +13,7 @@ class BathReminder:
         self.llm_service = llm_service
         self.store = store
         self.default_user_id = config.get("default_user_id", "")
+        self.llm_service.set_fallback_template(_BATH_FALLBACK)
 
     async def generate(self, username: str, dashboard: str, history_text: str) -> str | None:
         now = datetime.now()
