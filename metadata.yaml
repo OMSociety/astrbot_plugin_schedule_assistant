@@ -3,8 +3,8 @@ name: astrbot_plugin_schedule_assistant
 display_name: 日程助手
 author: Slandre & Flandre
 description: |
-  智能日程提醒插件：每日9点自动推送天气+日程+待办，智能提醒洗澡/睡觉/喝水，支持自然语言添加日程。
+  智能日程提醒插件：支持 Apple iCloud 日历双向同步、Notion 待办、LLM 智能日程提醒，智能提醒洗澡/睡觉/喝水。
 
-version: v1.7.0
+version: v1.8.0
 autoupdate: false
 repo: https://github.com/OMSociety/astrbot_plugin_schedule_assistant
