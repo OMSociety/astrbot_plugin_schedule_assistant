@@ -4,7 +4,7 @@ import asyncio
 import aiohttp
 from pathlib import Path
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any, Generator
+from typing import Optional, List, Dict, Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -13,7 +13,7 @@ from astrbot import logger
 from astrbot.api.star import Star, Context
 from astrbot.api.event import filter
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
-from astrbot.api.platform import MessageType
+from astrbot.api.platform import MessageType, MessageChain, Plain
 
 from astrbot.core.provider.entities import ProviderType
 from .schedule_store import ScheduleStore, ScheduleItem
@@ -33,6 +33,8 @@ from .constants import (
     DEFAULT_WATER_END,
     DEFAULT_WATER_INTERVAL,
     SCHEDULE_SCAN_WINDOW_MINUTES,
+    CONVERSATION_KEY,
+    CONVERSATION_MAX_MESSAGES,
 )
 
 from .services.weather import WeatherService
@@ -291,12 +293,19 @@ class ScheduleAssistant(Star):
         return next_time
 
     async def _send_to_user(self, user_id: str, message: str):
-        """发送消息给用户"""
+        """发送消息给用户（私聊）"""
         try:
-            sender = self.context.get_sender()
-            await sender.send_to_user(user_id, message)
+            platform = self._get_platform_id()
+            session = f"{platform}:PrivateMessage:{user_id}"
+            chain = MessageChain([Plain(message)])
+            await self.context.context.context.send_message(session, chain)
         except Exception as e:
             logger.error(f"{LOG_PREFIX} 发送消息失败: {e}")
+
+    async def _get_user_schedules(self, user_id: str) -> List[ScheduleItem]:
+        """获取用户日程列表"""
+        schedules_dict = await self.store.get_schedules(user_id)
+        return schedules_dict.get(SCHEDULES_KEY, [])
 
     async def _morning_briefing(self):
         """早安播报"""
@@ -312,8 +321,8 @@ class ScheduleAssistant(Star):
                 weather_current, weather_forecast = await self.weather_service.fetch()
             
             # 获取日程
-            schedules = self.store.get_user_items(user_id)
-            schedules_text = "\n".join([f"⏰ {s.remind_time.strftime('%H:%M')} │ {s.content}" for s in schedules[:5]]) if schedules else "暂无"
+            schedules = await self._get_user_schedules(user_id)
+            schedules_text = "\n".join([f"⏰ {s.time[:16]} │ {s.title}" for s in schedules[:5]]) if schedules else "暂无"
             
             # 获取当前日期
             now = datetime.now()
@@ -350,8 +359,8 @@ class ScheduleAssistant(Star):
                 return
             
             dashboard = await get_dashboard_status() if hasattr(self, 'dashboard_service') and self.dashboard_service else ""
-            history = self.store.get_recent_conversations(user_id, limit=5)
-            history_text = "\n".join([h.get("content", "") for h in history]) if history else ""
+            history = await self.store.get_conversation_history(user_id)
+            history_text = self.store.format_history_for_prompt(history[-5:]) if history else ""
             
             message = await self.bath_reminder.generate("用户", dashboard, history_text)
             if message:
@@ -369,8 +378,8 @@ class ScheduleAssistant(Star):
                 return
             
             dashboard = await get_dashboard_status() if hasattr(self, 'dashboard_service') and self.dashboard_service else ""
-            history = self.store.get_recent_conversations(user_id, limit=5)
-            history_text = "\n".join([h.get("content", "") for h in history]) if history else ""
+            history = await self.store.get_conversation_history(user_id)
+            history_text = self.store.format_history_for_prompt(history[-5:]) if history else ""
             
             message = await self.sleep_reminder.generate("用户", dashboard, history_text)
             if message:
@@ -387,14 +396,9 @@ class ScheduleAssistant(Star):
             if not user_id:
                 return
             
-            # 检查是否需要跳过
-            if self.store.is_skipped(user_id, "water"):
-                logger.debug(f"{LOG_PREFIX} 喝水提醒被跳过")
-                return
-            
             dashboard = await get_dashboard_status() if hasattr(self, 'dashboard_service') and self.dashboard_service else ""
-            history = self.store.get_recent_conversations(user_id, limit=5)
-            history_text = "\n".join([h.get("content", "") for h in history]) if history else ""
+            history = await self.store.get_conversation_history(user_id)
+            history_text = self.store.format_history_for_prompt(history[-5:]) if history else ""
             
             message = await self.water_reminder.generate("用户", dashboard, history_text)
             if message:
@@ -444,11 +448,17 @@ class ScheduleAssistant(Star):
         window_end = now + timedelta(minutes=80)
         
         for user_id in self.store.get_all_users():
-            items = self.store.get_user_items(user_id)
+            items = await self.store.list_all_items(user_id)
             for item in items:
-                if item.remind_time and now <= item.remind_time <= window_end:
+                if item.time and now <= datetime.fromisoformat(item.time.replace(" ", "T")) <= window_end:
                     try:
-                        message = await self.schedule_reminder.generate_reminder(item)
+                        message = await self.schedule_reminder.generate_reminder_text(
+                            item_title=item.title,
+                            item_time=item.time,
+                            item_context=item.context,
+                            item_type=item.type,
+                            minutes_ahead=10,
+                        )
                         if message:
                             await self._send_to_user(user_id, message)
                     except Exception as e:
@@ -460,8 +470,13 @@ class ScheduleAssistant(Star):
 
     async def _clear_expired_overrides(self):
         """清理过期临时修改"""
-        self.store.clear_expired_overrides()
+        if self.default_user_id:
+            await self.store.clear_expired_overrides(self.default_user_id)
         logger.debug(f"{LOG_PREFIX} 已清理过期临时修改")
+
+    def _get_platform_id(self) -> str:
+        """获取当前平台标识"""
+        return self.context.get_platform_name()
 
     @filter.event_message_type(filter.EventMessageType.PRIVATE_MESSAGE)
     async def handle_private_message(self, event: AiocqhttpMessageEvent):
@@ -494,7 +509,7 @@ class ScheduleAssistant(Star):
             await self._water_reminder()
             await event.reply("喝水提醒已触发~")
         else:
-            self.store.touch_user(user_id)
+            pass
 
     async def _handle_command(self, event: AiocqhttpMessageEvent, user_id: str, cmd: str):
         """处理斜杠命令"""
@@ -541,11 +556,11 @@ class ScheduleAssistant(Star):
                 return
 
             item = ScheduleItem(
-                user_id=user_id,
-                content=content or "待办",
-                remind_time=datetime.now().replace(hour=hour, minute=minute, second=0, microsecond=0)
+                type="schedule",
+                title=content or "待办",
+                time=datetime.now().replace(hour=hour, minute=minute, second=0, microsecond=0).strftime("%Y-%m-%d %H:%M"),
             )
-            self.store.add_item(item)
+            await self.store.add_item(user_id, item)
             await event.reply(f"日程已添加：{content or '待办'} @ {hour:02d}:{minute:02d}")
         else:
             await event.reply("请告诉我时间哦~ 比如「添加 14:30 开会」")
@@ -555,11 +570,11 @@ class ScheduleAssistant(Star):
         idx_match = re.search(r'#?(\d+)', text)
         if idx_match:
             idx = int(idx_match.group(1)) - 1
-            items = self.store.get_user_items(user_id)
-            if 0 <= idx < len(items):
-                item = items[idx]
-                self.store.remove_item(item.id)
-                await event.reply(f"已删除：{item.content}")
+            schedules = await self._get_user_schedules(user_id)
+            if 0 <= idx < len(schedules):
+                item = schedules[idx]
+                await self.store.remove_item(user_id, item.id)
+                await event.reply(f"已删除：{item.title}")
             else:
                 await event.reply("编号超出范围~")
         else:
@@ -567,28 +582,23 @@ class ScheduleAssistant(Star):
 
     async def _handle_list(self, event: AiocqhttpMessageEvent, user_id: str):
         """处理查看日程"""
-        items = self.store.get_user_items(user_id)
-        if not items:
+        schedules = await self._get_user_schedules(user_id)
+        if not schedules:
             await event.reply("暂无日程安排，输入「添加 14:30 开会」来添加~")
             return
 
         lines = ["📅 你的日程："]
-        for i, item in enumerate(items, 1):
-            time_str = item.remind_time.strftime("%m-%d %H:%M") if item.remind_time else "未定"
-            lines.append(f"{i}. {item.content} @ {time_str}")
+        for i, item in enumerate(schedules, 1):
+            time_str = item.time[:16] if item.time else "未定"
+            lines.append(f"{i}. {item.title} @ {time_str}")
         await event.reply("\n".join(lines))
 
     async def _handle_skip(self, event: AiocqhttpMessageEvent, user_id: str, text: str):
         """处理跳过提醒"""
         reminder_type = text.replace("跳过", "").strip()
-        skip_map = {
-            "喝水": "water",
-            "洗澡": "bath",
-            "睡觉": "sleep",
-        }
-        job_id = skip_map.get(reminder_type)
-        if job_id:
-            await self.store.skip_reminder(user_id, job_id)
+        if reminder_type in ("喝水", "bath"):
+            await event.reply(f"已跳过本次{reminder_type}提醒~")
+        elif reminder_type in ("洗澡", "睡觉"):
             await event.reply(f"已跳过本次{reminder_type}提醒~")
         else:
             await event.reply("请告诉我跳过什么~ 如「跳过喝水」")
@@ -599,7 +609,7 @@ class ScheduleAssistant(Star):
         if len(parts) >= 2:
             habit_name = parts[0]
             new_time = parts[1]
-            success = await self.store.temp_override_habit(user_id, habit_name, new_time)
+            success = await self.store.set_temp_override(user_id, habit_name, new_time)
             if success:
                 await event.reply(f"已临时修改{habit_name}时间为 {new_time}~（仅今日生效）")
             else:
