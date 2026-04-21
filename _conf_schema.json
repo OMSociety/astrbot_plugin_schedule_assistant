@@ -20,7 +20,7 @@
   "description": "Apple 日历同步间隔（分钟），默认 30 分钟"
  },
  "apple_calendar": {
-  "type": "group",
+  "type": "object",
   "description": "Apple 日历设置",
   "children": {
    "enable_sync": {
