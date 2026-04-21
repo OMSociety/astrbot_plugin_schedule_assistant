@@ -2,6 +2,9 @@
 from datetime import datetime
 
 
+_WATER_FALLBACK = "💧 该喝水啦~ 站起来活动活动，倒杯水润润嗓吧！"
+
+
 class WaterReminder:
     def __init__(self, config: dict, get_dashboard_status, llm_service, store):
         self.config = config
@@ -9,6 +12,7 @@ class WaterReminder:
         self.llm_service = llm_service
         self.store = store
         self.default_user_id = config.get("default_user_id", "")
+        self.llm_service.set_fallback_template(_WATER_FALLBACK)
 
     async def generate(self, username: str, dashboard: str, history_text: str) -> str | None:
         now = datetime.now()
