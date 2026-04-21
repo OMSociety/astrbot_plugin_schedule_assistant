@@ -604,7 +604,7 @@ class ScheduleAssistant(Star):
         description: str = ""
     ) -> Generator[str, Any, None]:
         """添加日程或习惯"""
-        user_id = str(event.sender_info.user_id)
+        user_id = str(event.get_sender_id())
 
         item = ScheduleItem(
             type="habit" if recur else "schedule",
@@ -661,7 +661,7 @@ class ScheduleAssistant(Star):
         title: str
     ) -> Generator[str, Any, None]:
         """删除日程或习惯"""
-        user_id = str(event.sender_info.user_id)
+        user_id = str(event.get_sender_id())
 
         items = await self.store.list_all_items(user_id)
         for item in items:
@@ -682,7 +682,7 @@ class ScheduleAssistant(Star):
         event: AiocqhttpMessageEvent
     ) -> Generator[str, Any, None]:
         """查看所有日程"""
-        user_id = str(event.sender_info.user_id)
+        user_id = str(event.get_sender_id())
 
         data = await self.store.get_schedules(user_id)
         schedules = data.get(SCHEDULES_KEY, [])
@@ -721,7 +721,7 @@ class ScheduleAssistant(Star):
         minutes: int = 10
     ) -> Generator[str, Any, None]:
         """推迟日程或习惯"""
-        user_id = str(event.sender_info.user_id)
+        user_id = str(event.get_sender_id())
 
         items = await self.store.list_all_items(user_id)
         for item in items:
@@ -745,7 +745,7 @@ class ScheduleAssistant(Star):
         new_time: str
     ) -> Generator[str, Any, None]:
         """临时修改习惯时间"""
-        user_id = str(event.sender_info.user_id)
+        user_id = str(event.get_sender_id())
 
         if not self._is_valid_hhmm(new_time):
             yield event.plain_result(f"时间格式不对哦，应该是 HH:MM，比如 09:00")
@@ -834,7 +834,7 @@ class ScheduleAssistant(Star):
         reason: str = ""
     ) -> Generator[str, Any, None]:
         """跳过喝水提醒"""
-        user_id = str(event.sender_info.user_id)
+        user_id = str(event.get_sender_id())
 
         await self.store.set_water_last(user_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         water_interval = self.config.get("water_interval", DEFAULT_WATER_INTERVAL)
@@ -846,7 +846,7 @@ class ScheduleAssistant(Star):
     @filter.event_message_type(filter.EventMessageType.PRIVATE_MESSAGE)
     async def handle_private_message(self, event: AiocqhttpMessageEvent):
         """处理私聊消息（用于初始化外部服务）"""
-        user_id = str(event.sender_info.user_id)
+        user_id = str(event.get_sender_id())
 
         msg_text = event.message_str.strip()
         if msg_text:
