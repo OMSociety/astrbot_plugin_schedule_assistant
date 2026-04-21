@@ -1,1 +1,48 @@
-IiIi5aSp5rCU5pyN5YqhIC0g5b+D55+l5aSp5rCUIEFQSe+8jOW4piAzMCDliIbpkp/nvJPlrZgiIiIKaW1wb3J0IGFzeW5jaW8KaW1wb3J0IHRpbWUgYXMgX3RpbWUKaW1wb3J0IGFpb2h0dHAKZnJvbSB0eXBpbmcgaW1wb3J0IFR1cGxlCmZyb20gLi5jb25zdGFudHMgaW1wb3J0IExPR19QUkVGSVgKCgpjbGFzcyBXZWF0aGVyU2VydmljZToKICAgIGRlZiBfX2luaXRfXyhzZWxmLCBjb25maWc6IGRpY3QpOgogICAgICAgIHNlbGYud2VhdGhlcl9hcGlfa2V5ID0gY29uZmlnLmdldCgid2VhdGhlcl9hcGlfa2V5IiwgIiIpCiAgICAgICAgc2VsZi53ZWF0aGVyX2NpdHkgPSBjb25maWcuZ2V0KCJ3ZWF0aGVyX2NpdHkiLCAi5YyX5LqsIikKICAgICAgICBzZWxmLl9jYWNoZTogZGljdCA9IHsiZGF0YSI6ICgiIiwgIiIpLCAidGltZXN0YW1wIjogMH0KICAgICAgICBzZWxmLl9DQUNIRV9UVEwgPSAxODAwCgogICAgYXN5bmMgZGVmIGZldGNoKHNlbGYpIC0+IFR1cGxlW3N0ciwgc3RyXToKICAgICAgICB3ZWF0aGVyX2N1cnJlbnQsIHdlYXRoZXJfZm9yZWNhc3QgPSAiIiwgIiIKICAgICAgICBpZiBub3Qgc2VsZi53ZWF0aGVyX2FwaV9rZXk6CiAgICAgICAgICAgIHJldHVybiAi5pyq6YWN572u5aSp5rCUQVBJIiwgIiIKICAgICAgICBpZiBzZWxmLl9jYWNoZVsiZGF0YSJdWzBdIG9yIHNlbGYuX2NhY2hlWyJkYXRhIl1bMV06CiAgICAgICAgICAgIGlmIF90aW1lLnRpbWUoKSAtIHNlbGYuX2NhY2hlWyJ0aW1lc3RhbXAiXSA8IHNlbGYuX0NBQ0hFX1RUTDoKICAgICAgICAgICAgICAgIHJldHVybiBzZWxmLl9jYWNoZVsiZGF0YSJdCiAgICAgICAgdHJ5OgogICAgICAgICAgICBhc3luYyB3aXRoIGFpb2h0dHAuQ2xpZW50U2Vzc2lvbigpIGFzIHNlc3Npb246CiAgICAgICAgICAgICAgICBub3dfcGFyYW1zID0geyJrZXkiOiBzZWxmLndlYXRoZXJfYXBpX2tleSwgImxvY2F0aW9uIjogc2VsZi53ZWF0aGVyX2NpdHksICJsYW5ndWFnZSI6ICJ6aC1IYW5zIiwgInVuaXQiOiAiYyJ9CiAgICAgICAgICAgICAgICBhc3luYyB3aXRoIHNlc3Npb24uZ2V0KCJodHRwczovL2FwaS5zZW5pdmVyc2UuY29tL3YzL3dlYXRoZXIvbm93Lmpzb24iLCBwYXJhbXM9bm93X3BhcmFtcywgdGltZW91dD0yMCkgYXMgcmVzcDoKICAgICAgICAgICAgICAgICAgICBpZiByZXNwLnN0YXR1cyA9PSAyMDA6CiAgICAgICAgICAgICAgICAgICAgICAgIGRhdGEgPSBhd2FpdCByZXNwLmpzb24oKQogICAgICAgICAgICAgICAgICAgICAgICByZXN1bHRzID0gZGF0YS5nZXQoInJlc3VsdHMiLCBbXSkKICAgICAgICAgICAgICAgICAgICAgICAgaWYgcmVzdWx0czoKICAgICAgICAgICAgICAgICAgICAgICAgICAgIHcgPSByZXN1bHRzWzBdLmdldCgibm93Iiwge30pCiAgICAgICAgICAgICAgICAgICAgICAgICAgICB3ZWF0aGVyX2N1cnJlbnQgPSBmInt3LmdldCgndGV4dCcsICfmnKrnn6UnKX0sIHt3LmdldCgndGVtcGVyYXR1cmUnLCAnPycpfcKwQyIKICAgICAgICAgICAgICAgIGRhaWx5X3BhcmFtcyA9IHsia2V5Ijogc2VsZi53ZWF0aGVyX2FwaV9rZXksICJsb2NhdGlvbiI6IHNlbGYud2VhdGhlcl9jaXR5LCAibGFuZ3VhZ2UiOiAiemgtSGFucyIsICJ1bml0IjogImMifQogICAgICAgICAgICAgICAgYXN5bmMgd2l0aCBzZXNzaW9uLmdldCgiaHR0cHM6Ly9hcGkuc2VuaXZlcnNlLmNvbS92My93ZWF0aGVyL2RhaWx5Lmpzb24iLCBwYXJhbXM9ZGFpbHlfcGFyYW1zLCB0aW1lb3V0PTIwKSBhcyByZXNwOgogICAgICAgICAgICAgICAgICAgIGlmIHJlc3Auc3RhdHVzID09IDIwMDoKICAgICAgICAgICAgICAgICAgICAgICAgZGF0YSA9IGF3YWl0IHJlc3AuanNvbigpCiAgICAgICAgICAgICAgICAgICAgICAgIHJlc3VsdHMgPSBkYXRhLmdldCgicmVzdWx0cyIsIFtdKQogICAgICAgICAgICAgICAgICAgICAgICBpZiByZXN1bHRzOgogICAgICAgICAgICAgICAgICAgICAgICAgICAgZGFpbHkgPSByZXN1bHRzWzBdLmdldCgiZGFpbHkiLCBbXSkKICAgICAgICAgICAgICAgICAgICAgICAgICAgIGlmIGRhaWx5OgogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIHQgPSBkYWlseVswXQogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIHdlYXRoZXJfZm9yZWNhc3QgPSBmIueZveWkqXt0LmdldCgndGV4dF9kYXknLCfmnKrnn6UnKX0gLyDlpJzpl7R7dC5nZXQoJ3RleHRfbmlnaHQnLCfmnKrnn6UnKX0sIHt0LmdldCgnbG93JywnPycpfX57dC5nZXQoJ2hpZ2gnLCc/Jyl9wrBDLCDpmY3msLTmpoLnjod7dC5nZXQoJ3ByZWNpcCcsJzAnKX0lIgogICAgICAgIGV4Y2VwdCBhc3luY2lvLlRpbWVvdXRFcnJvcjoKICAgICAgICAgICAgd2VhdGhlcl9jdXJyZW50ID0gIuiOt+WPlui2heaXtiIKICAgICAgICBleGNlcHQgRXhjZXB0aW9uOgogICAgICAgICAgICB3ZWF0aGVyX2N1cnJlbnQgPSAi6I635Y+W5aSx6LSlIgogICAgICAgIHNlbGYuX2NhY2hlID0geyJkYXRhIjogKHdlYXRoZXJfY3VycmVudCwgd2VhdGhlcl9mb3JlY2FzdCksICJ0aW1lc3RhbXAiOiBfdGltZS50aW1lKCl9CiAgICAgICAgcmV0dXJuIHdlYXRoZXJfY3VycmVudCwgd2VhdGhlcl9mb3JlY2FzdAo=
+"""天气服务 - 心知天气 API，带 30 分钟缓存"""
+import asyncio
+import time as _time
+import aiohttp
+from typing import Tuple
+from ..constants import LOG_PREFIX
+
+
+class WeatherService:
+    def __init__(self, config: dict):
+        self.weather_api_key = config.get("weather_api_key", "")
+        self.weather_city = config.get("weather_city", "北京")
+        self._cache: dict = {"data": ("", ""), "timestamp": 0}
+        self._CACHE_TTL = 1800
+
+    async def fetch(self) -> Tuple[str, str]:
+        weather_current, weather_forecast = "", ""
+        if not self.weather_api_key:
+            return "未配置天气API", ""
+        if self._cache["data"][0] or self._cache["data"][1]:
+            if _time.time() - self._cache["timestamp"] < self._CACHE_TTL:
+                return self._cache["data"]
+        try:
+            async with aiohttp.ClientSession() as session:
+                now_params = {"key": self.weather_api_key, "location": self.weather_city, "language": "zh-Hans", "unit": "c"}
+                async with session.get("https://api.seniverse.com/v3/weather/now.json", params=now_params, timeout=20) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        results = data.get("results", [])
+                        if results:
+                            w = results[0].get("now", {})
+                            weather_current = f"{w.get('text', '未知')}, {w.get('temperature', '?')}°C"
+                daily_params = {"key": self.weather_api_key, "location": self.weather_city, "language": "zh-Hans", "unit": "c"}
+                async with session.get("https://api.seniverse.com/v3/weather/daily.json", params=daily_params, timeout=20) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        results = data.get("results", [])
+                        if results:
+                            daily = results[0].get("daily", [])
+                            if daily:
+                                t = daily[0]
+                                weather_forecast = f"白天{t.get('text_day','未知')} / 夜间{t.get('text_night','未知')}, {t.get('low','?')}~{t.get('high','?')}°C, 降水概率{t.get('precip','0')}%"
+        except asyncio.TimeoutError:
+            weather_current = "获取超时"
+        except Exception:
+            weather_current = "获取失败"
+        self._cache = {"data": (weather_current, weather_forecast), "timestamp": _time.time()}
+        return weather_current, weather_forecast
