@@ -1,1 +1,167 @@
-IiIiCkFwcGxlIGlDbG91ZCBDYWxlbmRhciAoQ2FsREFWKSDpgILphY3lmagKCuW9k+WJjeS7heaUr+aMgSBXZWJDYWwg5YWs5YWx5pel5Y6G6K6i6ZiF77yM5L2/55SoIGFpb2h0dHAg5a6e546w5a6M5YWo5byC5q2l44CCCiIiIgoKaW1wb3J0IHV1aWQKaW1wb3J0IHJlCmltcG9ydCBhaW9odHRwCmZyb20gZGF0ZXRpbWUgaW1wb3J0IGRhdGV0aW1lLCB0aW1lZGVsdGEKZnJvbSB0eXBpbmcgaW1wb3J0IExpc3QsIERpY3QsIE9wdGlvbmFsCmZyb20gYXN0cmJvdCBpbXBvcnQgbG9nZ2VyCgpfX2FsbF9fID0gWydBcHBsZUNhbGVuZGFyJ10KCgpjbGFzcyBBcHBsZUNhbGVuZGFyOgogICAgIiIiQXBwbGUg5pel5Y6G5a6i5oi356uv77yI5b2T5YmN5LuF5pSv5oyBIFdlYkNhbCDlhazlhbHml6XljoborqLpmIXvvIkiIiIKCiAgICBkZWYgX19pbml0X18oCiAgICAgICAgc2VsZiwKICAgICAgICB1c2VybmFtZTogT3B0aW9uYWxbc3RyXSA9IE5vbmUsCiAgICAgICAgYXBwX3Bhc3N3b3JkOiBPcHRpb25hbFtzdHJdID0gTm9uZSwKICAgICAgICB3ZWJjYWxfdXJsczogT3B0aW9uYWxbTGlzdFtzdHJdXSA9IE5vbmUKICAgICk6CiAgICAgICAgc2VsZi53ZWJjYWxfdXJscyA9IHdlYmNhbF91cmxzIG9yIFtdCiAgICAgICAgIyDlhbzlrrnml6fphY3nva7vvJrlvZPliY3lrp7njrDku4Xkvb/nlKggd2ViY2FsX3VybHMKICAgICAgICBpZiB1c2VybmFtZSBvciBhcHBfcGFzc3dvcmQ6CiAgICAgICAgICAgIGxvZ2dlci5pbmZvKCJbQXBwbGVDYWxlbmRhcl0g5b2T5YmN54mI5pys5LuF5L2/55SoIFdlYkNhbCDlhazlhbHorqLpmIXvvIzlv73nlaUgQXBwbGUgSUQv5LiT55So5a+G56CB6YWN572uIikKCiAgICBhc3luYyBkZWYgZmV0Y2hfd2ViY2FsX2FzeW5jKHNlbGYsIHVybDogc3RyLCBkYXlzOiBpbnQgPSAzMCkgLT4gTGlzdFtEaWN0XToKICAgICAgICAiIiLlvILmraXor7vlj5YgV2ViQ2FsIOWFrOWFseaXpeWOhgoKICAgICAgICBBcmdzOgogICAgICAgICAgICB1cmw6IFdlYkNhbCDorqLpmIUgVVJMCiAgICAgICAgICAgIGRheXM6IOWQkeWJjeiOt+WPlueahOWkqeaVsAoKICAgICAgICBSZXR1cm5zOgogICAgICAgICAgICDkuovku7bliJfooajvvIzmr4/pobnljIXlkKsgdWlkLCBzdW1tYXJ5LCBkZXNjcmlwdGlvbiwgc3RhcnQsIGVuZCwgYWxsX2RheQogICAgICAgICIiIgogICAgICAgIGV2ZW50cyA9IFtdCiAgICAgICAgdHJ5OgogICAgICAgICAgICBodHRwX3VybCA9IHVybC5yZXBsYWNlKCJ3ZWJjYWw6Ly8iLCAiaHR0cHM6Ly8iKQoKICAgICAgICAgICAgdGltZW91dCA9IGFpb2h0dHAuQ2xpZW50VGltZW91dCh0b3RhbD0zMCkKICAgICAgICAgICAgYXN5bmMgd2l0aCBhaW9odHRwLkNsaWVudFNlc3Npb24oKSBhcyBzZXNzaW9uOgogICAgICAgICAgICAgICAgYXN5bmMgd2l0aCBzZXNzaW9uLmdldCgKICAgICAgICAgICAgICAgICAgICBodHRwX3VybCwKICAgICAgICAgICAgICAgICAgICBoZWFkZXJzPXsKICAgICAgICAgICAgICAgICAgICAgICAgJ1VzZXItQWdlbnQnOiAnTW96aWxsYS81LjAgKE1hY2ludG9zaDsgSW50ZWwgTWFjIE9TIFggMTBfMTVfNykgQXBwbGVXZWJLaXQvNjA1LjEuMTUnLAogICAgICAgICAgICAgICAgICAgICAgICAnQWNjZXB0JzogJ3RleHQvY2FsZW5kYXIsdGV4dC94LXZjYWxlbmRhciwqLyonCiAgICAgICAgICAgICAgICAgICAgfSwKICAgICAgICAgICAgICAgICAgICB0aW1lb3V0PXRpbWVvdXQKICAgICAgICAgICAgICAgICkgYXMgcmVzcDoKICAgICAgICAgICAgICAgICAgICBpY2FsX2RhdGEgPSBhd2FpdCByZXNwLnRleHQoKQoKICAgICAgICAgICAgdmV2ZW50cyA9IHJlLmZpbmRhbGwocidCRUdJTjpWRVZFTlQoLio/KUVORDpWRVZFTlQnLCBpY2FsX2RhdGEsIHJlLkRPVEFMTCkKCiAgICAgICAgICAgIGxvY2FsX3R6ID0gZGF0ZXRpbWUubm93KCkuYXN0aW1lem9uZSgpLnR6aW5mbwogICAgICAgICAgICBub3cgPSBkYXRldGltZS5ub3coKS5yZXBsYWNlKHR6aW5mbz1Ob25lKQogICAgICAgICAgICAjIOagueaNriBkYXlzIOWPguaVsOiuoeeul+aXpeacn+iMg+WbtAogICAgICAgICAgICByYW5nZV9zdGFydCA9IG5vdy5yZXBsYWNlKGhvdXI9MCwgbWludXRlPTAsIHNlY29uZD0wLCBtaWNyb3NlY29uZD0wKQogICAgICAgICAgICByYW5nZV9lbmQgPSByYW5nZV9zdGFydCArIHRpbWVkZWx0YShkYXlzPWRheXMpCgogICAgICAgICAgICBmb3IgZXYgaW4gdmV2ZW50czoKICAgICAgICAgICAgICAgIHN1bW1hcnlfbWF0Y2ggPSByZS5zZWFyY2gocidTVU1NQVJZOihbXlxyXG5dKyknLCBldikKICAgICAgICAgICAgICAgIGR0c3RhcnRfbWF0Y2ggPSByZS5zZWFyY2gocidEVFNUQVJUKD86O1tcdz1dKyk/Oj8oW1xkVF0rKScsIGV2KQogICAgICAgICAgICAgICAgZHRlbmRfbWF0Y2ggPSByZS5zZWFyY2gocidEVEVORCg/OjtbXHc9XSspPzo/KFtcZFRdKyknLCBldikKICAgICAgICAgICAgICAgIHVpZF9tYXRjaCA9IHJlLnNlYXJjaChyJ1VJRDooW15cclxuXSspJywgZXYpCgogICAgICAgICAgICAgICAgc3VtbWFyeSA9IHN1bW1hcnlfbWF0Y2guZ3JvdXAoMSkuc3RyaXAoKSBpZiBzdW1tYXJ5X21hdGNoIGVsc2UgIuaXoOagh+mimCIKICAgICAgICAgICAgICAgIHVpZCA9IHVpZF9tYXRjaC5ncm91cCgxKS5zdHJpcCgpIGlmIHVpZF9tYXRjaCBlbHNlIHN0cih1dWlkLnV1aWQ0KCkpCgogICAgICAgICAgICAgICAgc3RhcnRfdGltZSA9IE5vbmUKICAgICAgICAgICAgICAgIGlmIGR0c3RhcnRfbWF0Y2g6CiAgICAgICAgICAgICAgICAgICAgZHMgPSBkdHN0YXJ0X21hdGNoLmdyb3VwKDEpLnN0cmlwKCkKICAgICAgICAgICAgICAgICAgICBpZiBsZW4oZHMpID09IDg6CiAgICAgICAgICAgICAgICAgICAgICAgIHN0YXJ0X3RpbWUgPSBkYXRldGltZS5zdHJwdGltZShkcywgIiVZJW0lZCIpCiAgICAgICAgICAgICAgICAgICAgZWxpZiBsZW4oZHMpID49IDE1OgogICAgICAgICAgICAgICAgICAgICAgICB0cnk6CiAgICAgICAgICAgICAgICAgICAgICAgICAgICBmcm9tIGRhdGV0aW1lIGltcG9ydCB0aW1lem9uZQogICAgICAgICAgICAgICAgICAgICAgICAgICAgdXRjX3RpbWUgPSBkYXRldGltZS5zdHJwdGltZShkc1s6MTVdLCAiJVklbSVkVCVIJU0lUyIpCiAgICAgICAgICAgICAgICAgICAgICAgICAgICB1dGNfdGltZSA9IHV0Y190aW1lLnJlcGxhY2UodHppbmZvPXRpbWV6b25lLnV0YykKICAgICAgICAgICAgICAgICAgICAgICAgICAgIHN0YXJ0X3RpbWUgPSB1dGNfdGltZS5hc3RpbWV6b25lKGxvY2FsX3R6KS5yZXBsYWNlKHR6aW5mbz1Ob25lKQogICAgICAgICAgICAgICAgICAgICAgICBleGNlcHQgVmFsdWVFcnJvcjoKICAgICAgICAgICAgICAgICAgICAgICAgICAgIHN0YXJ0X3RpbWUgPSBkYXRldGltZS5zdHJwdGltZShkc1s6OF0sICIlWSVtJWQiKQoKICAgICAgICAgICAgICAgIGVuZF90aW1lID0gTm9uZQogICAgICAgICAgICAgICAgaWYgZHRlbmRfbWF0Y2g6CiAgICAgICAgICAgICAgICAgICAgZHMgPSBkdGVuZF9tYXRjaC5ncm91cCgxKS5zdHJpcCgpCiAgICAgICAgICAgICAgICAgICAgaWYgbGVuKGRzKSA9PSA4OgogICAgICAgICAgICAgICAgICAgICAgICBlbmRfdGltZSA9IGRhdGV0aW1lLnN0cnB0aW1lKGRzLCAiJVklbSVkIikKICAgICAgICAgICAgICAgICAgICBlbGlmIGxlbihkcykgPj0gMTU6CiAgICAgICAgICAgICAgICAgICAgICAgIHRyeToKICAgICAgICAgICAgICAgICAgICAgICAgICAgIGZyb20gZGF0ZXRpbWUgaW1wb3J0IHRpbWV6b25lCiAgICAgICAgICAgICAgICAgICAgICAgICAgICB1dGNfdGltZSA9IGRhdGV0aW1lLnN0cnB0aW1lKGRzWzoxNV0sICIlWSVtJWRUJUglTSVTIikKICAgICAgICAgICAgICAgICAgICAgICAgICAgIHV0Y190aW1lID0gdXRjX3RpbWUucmVwbGFjZSh0emluZm89dGltZXpvbmUudXRjKQogICAgICAgICAgICAgICAgICAgICAgICAgICAgZW5kX3RpbWUgPSB1dGNfdGltZS5hc3RpbWV6b25lKGxvY2FsX3R6KS5yZXBsYWNlKHR6aW5mbz1Ob25lKQogICAgICAgICAgICAgICAgICAgICAgICBleGNlcHQgVmFsdWVFcnJvcjoKICAgICAgICAgICAgICAgICAgICAgICAgICAgIGVuZF90aW1lID0gZGF0ZXRpbWUuc3RycHRpbWUoZHNbOjhdLCAiJVklbSVkIikKCiAgICAgICAgICAgICAgICBpZiBzdGFydF90aW1lOgogICAgICAgICAgICAgICAgICAgIGlmIHN0YXJ0X3RpbWUgPCByYW5nZV9zdGFydCBvciBzdGFydF90aW1lID49IHJhbmdlX2VuZDoKICAgICAgICAgICAgICAgICAgICAgICAgY29udGludWUKICAgICAgICAgICAgICAgICAgICBldmVudHMuYXBwZW5kKHsKICAgICAgICAgICAgICAgICAgICAgICAgInVpZCI6IHVpZCwKICAgICAgICAgICAgICAgICAgICAgICAgInN1bW1hcnkiOiBzdW1tYXJ5LAogICAgICAgICAgICAgICAgICAgICAgICAiZGVzY3JpcHRpb24iOiAiIiwKICAgICAgICAgICAgICAgICAgICAgICAgInN0YXJ0Ijogc3RhcnRfdGltZS5pc29mb3JtYXQoKSwKICAgICAgICAgICAgICAgICAgICAgICAgImVuZCI6IGVuZF90aW1lLmlzb2Zvcm1hdCgpIGlmIGVuZF90aW1lIGVsc2UgTm9uZSwKICAgICAgICAgICAgICAgICAgICAgICAgImFsbF9kYXkiOiBsZW4oZHRzdGFydF9tYXRjaC5ncm91cCgxKS5zdHJpcCgpKSA9PSA4IGlmIGR0c3RhcnRfbWF0Y2ggZWxzZSBGYWxzZQogICAgICAgICAgICAgICAgICAgIH0pCgogICAgICAgICAgICBsb2dnZXIuaW5mbyhmIltBcHBsZUNhbGVuZGFyXSBXZWJDYWzor7vlj5bmiJDlip86IHtsZW4oZXZlbnRzKX0g5Liq5LqL5Lu2IikKICAgICAgICBleGNlcHQgRXhjZXB0aW9uIGFzIGU6CiAgICAgICAgICAgIGxvZ2dlci5lcnJvcihmIltBcHBsZUNhbGVuZGFyXSBXZWJDYWzor7vlj5blpLHotKU6IHtlfSIpCgogICAgICAgIHJldHVybiBldmVudHMKCiAgICBhc3luYyBkZWYgZ2V0X2FsbF9ldmVudHMoc2VsZiwgZGF5czogaW50ID0gMSkgLT4gTGlzdFtEaWN0XToKICAgICAgICAiIiLojrflj5bmiYDmnInml6Xljobkuovku7bvvIjlvILmraXvvIkKCiAgICAgICAgQXJnczoKICAgICAgICAgICAgZGF5czog6I635Y+W55qE5aSp5pWwCgogICAgICAgIFJldHVybnM6CiAgICAgICAgICAgIOWQiOW5tuWQjueahOaJgOacieS6i+S7tuWIl+ihqAogICAgICAgICIiIgogICAgICAgIGFsbF9ldmVudHMgPSBbXQogICAgICAgIGZvciB1cmwgaW4gc2VsZi53ZWJjYWxfdXJsczoKICAgICAgICAgICAgYWxsX2V2ZW50cy5leHRlbmQoYXdhaXQgc2VsZi5mZXRjaF93ZWJjYWxfYXN5bmModXJsLCBkYXlzKSkKICAgICAgICByZXR1cm4gYWxsX2V2ZW50cwoKICAgIGFzeW5jIGRlZiBjbG9zZShzZWxmKToKICAgICAgICAiIiLlhbPpl63ml6XljobkvJror53vvIjml6DmjIHkuYXov57mjqXvvIzml6DpnIDmuIXnkIbvvIkiIiIKICAgICAgICBwYXNzCgogICAgYXN5bmMgZGVmIGdldF9sYXRlX25pZ2h0X2V2ZW50cyhzZWxmKSAtPiBMaXN0W0RpY3RdOgogICAgICAgICIiIgogICAgICAgIOiOt+WPluS7iuaXpeWHjOaZqCgwMDowMC0wNjowMCnnmoTkuovku7bvvIznlKjkuo7liKTmlq3mmK/lkKbnhqzlpJwKICAgICAgICAKICAgICAgICBSZXR1cm5zOgogICAgICAgICAgICDlh4zmmajkuovku7bliJfooajvvIzml6DliJnov5Tlm57nqbrliJfooagKICAgICAgICAiIiIKICAgICAgICAjIOaLieWPluS7iuaXpeS6i+S7tgogICAgICAgIGV2ZW50cyA9IGF3YWl0IHNlbGYuZ2V0X2FsbF9ldmVudHMoZGF5cz0xKQogICAgICAgIAogICAgICAgIGZyb20gZGF0ZXRpbWUgaW1wb3J0IGRhdGV0aW1lCiAgICAgICAgdG9kYXkgPSBkYXRldGltZS5ub3coKS5yZXBsYWNlKGhvdXI9MCwgbWludXRlPTAsIHNlY29uZD0wLCBtaWNyb3NlY29uZD0wKQogICAgICAgIGxhdGVfbmlnaHRfZW5kID0gdG9kYXkucmVwbGFjZShob3VyPTYpCiAgICAgICAgCiAgICAgICAgbGF0ZV9uaWdodCA9IFtdCiAgICAgICAgZm9yIGUgaW4gZXZlbnRzOgogICAgICAgICAgICBzdGFydF9zdHIgPSBlLmdldCgic3RhcnQiLCAiIikKICAgICAgICAgICAgaWYgbm90IHN0YXJ0X3N0cjoKICAgICAgICAgICAgICAgIGNvbnRpbnVlCiAgICAgICAgICAgIHRyeToKICAgICAgICAgICAgICAgIHN0YXJ0ID0gZGF0ZXRpbWUuZnJvbWlzb2Zvcm1hdChzdGFydF9zdHIpCiAgICAgICAgICAgICAgICAjIOaOkumZpOWFqOWkqeS6i+S7tu+8iDAwOjAwIOW8gOWni+eahOS4gOiIrOaYr+WFqOWkqeaXpeeoi++8iQogICAgICAgICAgICAgICAgaWYgc3RhcnQuaG91ciA9PSAwIGFuZCBzdGFydC5taW51dGUgPT0gMCBhbmQgc3RhcnQuc2Vjb25kID09IDA6CiAgICAgICAgICAgICAgICAgICAgY29udGludWUKICAgICAgICAgICAgICAgIGlmIHRvZGF5IDw9IHN0YXJ0IDwgbGF0ZV9uaWdodF9lbmQ6CiAgICAgICAgICAgICAgICAgICAgbGF0ZV9uaWdodC5hcHBlbmQoZSkKICAgICAgICAgICAgZXhjZXB0IFZhbHVlRXJyb3I6CiAgICAgICAgICAgICAgICBjb250aW51ZQogICAgICAgIAogICAgICAgIHJldHVybiBsYXRlX25pZ2h0Cg==
+"""
+Apple iCloud Calendar (CalDAV) 适配器
+
+当前仅支持 WebCal 公共日历订阅，使用 aiohttp 实现完全异步。
+"""
+
+import uuid
+import re
+import aiohttp
+from datetime import datetime, timedelta
+from typing import List, Dict, Optional
+from astrbot import logger
+
+__all__ = ['AppleCalendar']
+
+
+class AppleCalendar:
+    """Apple 日历客户端（当前仅支持 WebCal 公共日历订阅）"""
+
+    def __init__(
+        self,
+        username: Optional[str] = None,
+        app_password: Optional[str] = None,
+        webcal_urls: Optional[List[str]] = None
+    ):
+        self.webcal_urls = webcal_urls or []
+        # 兼容旧配置：当前实现仅使用 webcal_urls
+        if username or app_password:
+            logger.info("[AppleCalendar] 当前版本仅使用 WebCal 公共订阅，忽略 Apple ID/专用密码配置")
+
+    async def fetch_webcal_async(self, url: str, days: int = 30) -> List[Dict]:
+        """异步读取 WebCal 公共日历
+
+        Args:
+            url: WebCal 订阅 URL
+            days: 向前获取的天数
+
+        Returns:
+            事件列表，每项包含 uid, summary, description, start, end, all_day
+        """
+        events = []
+        try:
+            http_url = url.replace("webcal://", "https://")
+
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    http_url,
+                    headers={
+                        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15',
+                        'Accept': 'text/calendar,text/x-vcalendar,*/*'
+                    },
+                    timeout=timeout
+                ) as resp:
+                    ical_data = await resp.text()
+
+            vevents = re.findall(r'BEGIN:VEVENT(.*?)END:VEVENT', ical_data, re.DOTALL)
+
+            local_tz = datetime.now().astimezone().tzinfo
+            now = datetime.now().replace(tzinfo=None)
+            # 根据 days 参数计算日期范围
+            range_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            range_end = range_start + timedelta(days=days)
+
+            for ev in vevents:
+                summary_match = re.search(r'SUMMARY:([^\r\n]+)', ev)
+                dtstart_match = re.search(r'DTSTART(?:;[\w=]+)?:?([\dT]+)', ev)
+                dtend_match = re.search(r'DTEND(?:;[\w=]+)?:?([\dT]+)', ev)
+                uid_match = re.search(r'UID:([^\r\n]+)', ev)
+
+                summary = summary_match.group(1).strip() if summary_match else "无标题"
+                uid = uid_match.group(1).strip() if uid_match else str(uuid.uuid4())
+
+                start_time = None
+                if dtstart_match:
+                    ds = dtstart_match.group(1).strip()
+                    if len(ds) == 8:
+                        start_time = datetime.strptime(ds, "%Y%m%d")
+                    elif len(ds) >= 15:
+                        try:
+                            from datetime import timezone
+                            utc_time = datetime.strptime(ds[:15], "%Y%m%dT%H%M%S")
+                            utc_time = utc_time.replace(tzinfo=timezone.utc)
+                            start_time = utc_time.astimezone(local_tz).replace(tzinfo=None)
+                        except ValueError:
+                            start_time = datetime.strptime(ds[:8], "%Y%m%d")
+
+                end_time = None
+                if dtend_match:
+                    ds = dtend_match.group(1).strip()
+                    if len(ds) == 8:
+                        end_time = datetime.strptime(ds, "%Y%m%d")
+                    elif len(ds) >= 15:
+                        try:
+                            from datetime import timezone
+                            utc_time = datetime.strptime(ds[:15], "%Y%m%dT%H%M%S")
+                            utc_time = utc_time.replace(tzinfo=timezone.utc)
+                            end_time = utc_time.astimezone(local_tz).replace(tzinfo=None)
+                        except ValueError:
+                            end_time = datetime.strptime(ds[:8], "%Y%m%d")
+
+                if start_time:
+                    if start_time < range_start or start_time >= range_end:
+                        continue
+                    events.append({
+                        "uid": uid,
+                        "summary": summary,
+                        "description": "",
+                        "start": start_time.isoformat(),
+                        "end": end_time.isoformat() if end_time else None,
+                        "all_day": len(dtstart_match.group(1).strip()) == 8 if dtstart_match else False
+                    })
+
+            logger.info(f"[AppleCalendar] WebCal读取成功: {len(events)} 个事件")
+        except Exception as e:
+            logger.error(f"[AppleCalendar] WebCal读取失败: {e}")
+
+        return events
+
+    async def get_all_events(self, days: int = 1) -> List[Dict]:
+        """获取所有日历事件（异步）
+
+        Args:
+            days: 获取的天数
+
+        Returns:
+            合并后的所有事件列表
+        """
+        all_events = []
+        for url in self.webcal_urls:
+            all_events.extend(await self.fetch_webcal_async(url, days))
+        return all_events
+
+    async def close(self):
+        """关闭日历会话（无持久连接，无需清理）"""
+        pass
+
+    async def get_late_night_events(self) -> List[Dict]:
+        """
+        获取今日凌晨(00:00-06:00)的事件，用于判断是否熬夜
+        
+        Returns:
+            凌晨事件列表，无则返回空列表
+        """
+        # 拉取今日事件
+        events = await self.get_all_events(days=1)
+        
+        from datetime import datetime
+        today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        late_night_end = today.replace(hour=6)
+        
+        late_night = []
+        for e in events:
+            start_str = e.get("start", "")
+            if not start_str:
+                continue
+            try:
+                start = datetime.fromisoformat(start_str)
+                # 排除全天事件（00:00 开始的一般是全天日程）
+                if start.hour == 0 and start.minute == 0 and start.second == 0:
+                    continue
+                if today <= start < late_night_end:
+                    late_night.append(e)
+            except ValueError:
+                continue
+        
+        return late_night
