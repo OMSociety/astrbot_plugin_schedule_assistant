@@ -1,113 +1,95 @@
 {
  "enable_schedule_reminder": {
   "type": "bool",
-  "default": false,
   "description": "开启日程 LLM 智能提醒",
   "hint": "开启后，AI 会在日程快到时生成自然语言提醒，结合对话上下文"
  },
  "schedule_reminder_minutes": {
   "type": "int",
-  "default": 10,
   "description": "日程提前提醒分钟数",
   "hint": "日程开始前多少分钟提醒，比如设为10则10分钟前提醒"
  },
  "enable_morning_report": {
   "type": "bool",
-  "default": true,
   "description": "开启早安播报",
   "hint": "每天自动推送早安播报，包含天气、日历、待办等"
  },
  "morning_report_time": {
   "type": "string",
-  "default": "09:00",
   "description": "早安播报时间",
   "hint": "格式：HH:MM，如 09:00 表示早上9点"
  },
  "enable_bath_reminder": {
   "type": "bool",
-  "default": true,
   "description": "开启洗澡提醒",
   "hint": "每天固定时间提醒洗澡"
  },
  "bath_time": {
   "type": "string",
-  "default": "22:00",
   "description": "洗澡提醒时间",
   "hint": "格式：HH:MM，如 22:00 表示晚上10点"
  },
  "enable_sleep_reminder": {
   "type": "bool",
-  "default": true,
   "description": "开启睡觉提醒",
   "hint": "每天固定时间提醒睡觉"
  },
  "sleep_time": {
   "type": "string",
-  "default": "23:00",
   "description": "睡觉提醒时间",
   "hint": "格式：HH:MM，如 23:00 表示晚上11点"
  },
  "enable_water_reminder": {
   "type": "bool",
-  "default": true,
   "description": "开启喝水提醒",
   "hint": "定时提醒喝水，可配置间隔和时段"
  },
  "water_interval": {
   "type": "int",
-  "default": 90,
   "description": "喝水提醒间隔",
   "hint": "每隔多少分钟提醒一次，单位：分钟"
  },
  "water_start_time": {
   "type": "string",
-  "default": "09:30",
   "description": "喝水提醒开始时间",
   "hint": "太早不会吵你，格式：HH:MM"
  },
  "water_end_time": {
   "type": "string",
-  "default": "21:30",
   "description": "喝水提醒结束时间",
   "hint": "太晚就不提醒了，格式：HH:MM"
  },
  "enable_apple_calendar_sync": {
   "type": "bool",
-  "default": false,
   "description": "Apple 日历双向同步",
   "hint": "同步 iCloud 日历事件到本地，支持读取和写入"
  },
  "apple_calendar_sync_interval": {
   "type": "int",
-  "default": 30,
   "description": "Apple 日历同步间隔",
   "hint": "每隔多少分钟同步一次，单位：分钟"
  },
  "apple_calendar": {
   "type": "object",
   "description": "Apple 日历认证与同步配置",
-  "children": {
+  "items": {
    "enable_sync": {
     "type": "bool",
-    "default": false,
     "description": "启用写入功能",
     "hint": "开启后，通过机器人添加的日程会写入 Apple 日历"
    },
    "username": {
     "type": "string",
-    "default": "",
     "description": "Apple ID 邮箱",
     "hint": "如 xxx@icloud.com，需开启两步验证"
    },
    "app_password": {
     "type": "string",
-    "default": "",
     "description": "Apple App 专用密码",
     "hint": "不是登录密码！去 appleid.apple.com → 安全性 → 生成 App 专用密码"
    },
    "calendar_id": {
     "type": "string",
-    "default": "",
     "description": "目标日历 ID",
     "hint": "填写日历 UUID 或名称（如「日程」），留空默认第一个日历"
    }
@@ -116,39 +98,33 @@
  "webcal_urls": {
   "type": "list",
   "items": {"type": "string"},
-  "default": [],
   "description": "WebCal 共享日历链接",
   "hint": "格式：webcal://pXXX-caldav.icloud.com.cn/published/..."
  },
  "notion_db_ids": {
   "type": "list",
   "items": {"type": "string"},
-  "default": [],
   "description": "Notion 数据库 ID 列表",
   "hint": "在 Notion 页面链接里找，如 notion.so/workspace/xxxxxxxx-xxxxxxxxxx?v=... 中的 ID，多个用换行分隔"
  },
  "maton_api_key": {
   "type": "string",
-  "default": "",
   "description": "Maton API Key",
   "hint": "用于 Notion 功能，从 https://www.maton.ai 注册获取"
  },
  "weather_api_key": {
   "type": "string",
-  "default": "",
   "description": "心知天气 API Key",
   "hint": "用于早报天气，从 https://seniverse.com 获取（免费版够用）"
  },
  "weather_city": {
   "type": "string",
-  "default": "杭州",
   "description": "天气查询城市",
   "hint": "填写城市名称，如 北京、杭州、上海"
  },
  "whitelist_qq_ids": {
   "type": "list",
   "items": {"type": "string"},
-  "default": [],
   "description": "白名单 QQ 号",
   "hint": "只有这些 QQ 能收到自动提醒，格式：[\"123456789\"]"
  }
