@@ -1,1 +1,48 @@
-IiIiTm90aW9uIOacjeWKoSIiIgpmcm9tIGRhdGV0aW1lIGltcG9ydCBkYXRldGltZQpmcm9tIHR5cGluZyBpbXBvcnQgTGlzdCwgRGljdApmcm9tIC4ubm90aW9uX2NsaWVudCBpbXBvcnQgTm90aW9uQ2xpZW50CgoKY2xhc3MgTm90aW9uU2VydmljZToKICAgIGRlZiBfX2luaXRfXyhzZWxmLCBub3Rpb25fY2xpZW50OiBOb3Rpb25DbGllbnQgfCBOb25lKToKICAgICAgICBzZWxmLm5vdGlvbiA9IG5vdGlvbl9jbGllbnQKCiAgICBAc3RhdGljbWV0aG9kCiAgICBkZWYgZm9ybWF0X2RkbChkZGxfc3RyOiBzdHIpIC0+IHN0cjoKICAgICAgICBpZiBub3QgZGRsX3N0cjoKICAgICAgICAgICAgcmV0dXJuICIiCiAgICAgICAgdHJ5OgogICAgICAgICAgICBkdWUgPSBkYXRldGltZS5mcm9taXNvZm9ybWF0KGRkbF9zdHIucmVwbGFjZSgiWiIsICIrMDA6MDAiKSkKICAgICAgICAgICAgZHVlX2xvY2FsID0gZHVlLmFzdGltZXpvbmUoKS5yZXBsYWNlKHR6aW5mbz1Ob25lKQogICAgICAgICAgICBkaWZmID0gKGR1ZV9sb2NhbC5kYXRlKCkgLSBkYXRldGltZS5ub3coKS5kYXRlKCkpLmRheXMKICAgICAgICAgICAgaWYgZGlmZiA8IDA6CiAgICAgICAgICAgICAgICByZXR1cm4gZiLlt7LpgL7mnJ97LWRpZmZ95aSpIgogICAgICAgICAgICBlbGlmIGRpZmYgPT0gMDoKICAgICAgICAgICAgICAgIHJldHVybiAi5LuK5aSp5oiq5q2iIgogICAgICAgICAgICBlbGlmIGRpZmYgPT0gMToKICAgICAgICAgICAgICAgIHJldHVybiAi6L+Y5YmpMeWkqSIKICAgICAgICAgICAgZWxzZToKICAgICAgICAgICAgICAgIHJldHVybiBmIui/mOWJqXtkaWZmfeWkqSIKICAgICAgICBleGNlcHQgRXhjZXB0aW9uOgogICAgICAgICAgICByZXR1cm4gIiIKCiAgICBhc3luYyBkZWYgZ2V0X3BlbmRpbmdfdGFza3Moc2VsZikgLT4gTGlzdFtEaWN0XToKICAgICAgICBpZiBzZWxmLm5vdGlvbjoKICAgICAgICAgICAgcmV0dXJuIGF3YWl0IHNlbGYubm90aW9uLmdldF9wZW5kaW5nX3RyYW5zYWN0aW9ucygpCiAgICAgICAgcmV0dXJuIFtdCgogICAgYXN5bmMgZGVmIGdldF9wZW5kaW5nX3N0cihzZWxmKSAtPiBzdHI6CiAgICAgICAgdHJ5OgogICAgICAgICAgICBpZiBub3Qgc2VsZi5ub3Rpb246CiAgICAgICAgICAgICAgICByZXR1cm4gIuaaguaXoOW+heWKniIKICAgICAgICAgICAgcGVuZGluZyA9IGF3YWl0IHNlbGYubm90aW9uLmdldF9wZW5kaW5nX3RyYW5zYWN0aW9ucygpCiAgICAgICAgICAgIGlmIG5vdCBwZW5kaW5nOgogICAgICAgICAgICAgICAgcmV0dXJuICLmmoLml6DlvoXlip4iCiAgICAgICAgICAgIGxpbmVzID0gW10KICAgICAgICAgICAgZm9yIHQgaW4gcGVuZGluZ1s6NV06CiAgICAgICAgICAgICAgICBkZGwgPSBzZWxmLmZvcm1hdF9kZGwodC5nZXQoImRkbCIsICIiKSkKICAgICAgICAgICAgICAgIGxpbmVzLmFwcGVuZChmIi0ge2RkbH0gfCB7dFsndGl0bGUnXX0iIGlmIGRkbCBlbHNlIGYiLSB7dFsndGl0bGUnXX0gKHt0WydzdGF0dXMnXX0pIikKICAgICAgICAgICAgcmV0dXJuICJcbiIuam9pbihsaW5lcykKICAgICAgICBleGNlcHQgRXhjZXB0aW9uOgogICAgICAgICAgICByZXR1cm4gIuiOt+WPluWksei0pSIK
+"""Notion 服务"""
+from datetime import datetime
+from typing import List, Dict
+from ..notion_client import NotionClient
+
+
+class NotionService:
+    def __init__(self, notion_client: NotionClient | None):
+        self.notion = notion_client
+
+    @staticmethod
+    def format_ddl(ddl_str: str) -> str:
+        if not ddl_str:
+            return ""
+        try:
+            due = datetime.fromisoformat(ddl_str.replace("Z", "+00:00"))
+            due_local = due.astimezone().replace(tzinfo=None)
+            diff = (due_local.date() - datetime.now().date()).days
+            if diff < 0:
+                return f"已逾期{-diff}天"
+            elif diff == 0:
+                return "今天截止"
+            elif diff == 1:
+                return "还剩1天"
+            else:
+                return f"还剩{diff}天"
+        except Exception:
+            return ""
+
+    async def get_pending_tasks(self) -> List[Dict]:
+        if self.notion:
+            return await self.notion.get_pending_transactions()
+        return []
+
+    async def get_pending_str(self) -> str:
+        try:
+            if not self.notion:
+                return "暂无待办"
+            pending = await self.notion.get_pending_transactions()
+            if not pending:
+                return "暂无待办"
+            lines = []
+            for t in pending[:5]:
+                ddl = self.format_ddl(t.get("ddl", ""))
+                lines.append(f"- {ddl} | {t['title']}" if ddl else f"- {t['title']} ({t['status']})")
+            return "\n".join(lines)
+        except Exception:
+            return "获取失败"
