@@ -517,6 +517,20 @@ class ScheduleAssistant(Star):
             logger.warning(f"{LOG_PREFIX} 熬夜检测失败: {e}")
             return ""
 
+    def _get_platform_id(self) -> str:
+        """获取平台 ID
+        
+        Returns:
+            平台标识符
+        """
+        try:
+            for platform in self.context.platform_manager.platform_insts:
+                return platform.meta().id
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} 获取平台ID失败: {e}")
+        return "aiocqhttp"
+
+
     # ==================== LLM Tools ====================
     
     @filter.llm_tool(
