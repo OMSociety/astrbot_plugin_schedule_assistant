@@ -4,6 +4,49 @@
 
 ---
 
+## v1.8.0
+
+> 🌟 **Apple iCloud 双向同步 + LLM 智能日程提醒**
+
+### ✨ 新功能
+
+**Apple iCloud 日历双向同步**
+- `enable_apple_calendar_sync` + `apple_calendar_sync_interval` 定时从 Apple 日历拉取事件到本地
+- `sync_from_apple_calendar()` 以 Apple 为准同步（新增/修改/删除本地）
+- `add_schedule_llm` 写入时同步写入 Apple 日历，记录 `apple_uid`
+- 支持 `VALUE=DATE` 全天事件、正确处理 `TZID=Asia/Shanghai` 时区
+- 修复 iCloud 不支持 `calendar-query` REPORT 的兼容性问题，改用 PROPFIND + 并发 GET .ics
+
+**日程 LLM 智能提醒**
+- `enable_schedule_reminder` 开关 + `schedule_reminder_minutes` 提前量
+- `ScheduleReminder` 类用 LLM 生成自然语言提醒，结合 Dashboard 状态和对话上下文
+- 扫描窗口从 65 分钟扩大到 80 分钟，覆盖最大提前量
+- 每分钟触发一次，不打扰用户
+
+### 🐛 Bug 修复
+
+- iCloud CalDAV XML 命名空间兼容（有无 `D:` 前缀均支持）
+- DTSTART 带 `TZID=Asia/Shanghai` 时区错误问题（有 TZID 标记的跳过 UTC 转换）
+- PUT 写入事件时加上 `;TZID=Asia/Shanghai`（解决写入后时间偏差）
+- `VALUE=DATE` 全天事件解析、`DTEND` 缺失时的默认一小时
+- UUID 正则从 8 字符改为 36 字符完整匹配
+- `ScheduleItem.temp_override` 字段缺失导致旧数据反序列化报错
+- `notion_db_ids` 兼容旧字符串列表格式
+
+### ⚙️ 配置优化
+
+- 拆分 `description`/`hint`：标题在前端显示，详细说明在 hint
+- 新增 `enable_morning_report`、`enable_schedule_reminder` 独立开关
+- `notion_db_ids` 合并为列表，兼容新/旧两种格式
+- 配置项顺序重排：开关组 → 时间组 → 其他
+
+### 📝 文档更新
+
+- 重写 Apple 日历双向同步说明
+- 更新 README.md 所有配置项说明
+
+---
+
 ## v1.7.0
 
 > 🏗️ **架构重构版本** — 模块化拆分 + 稳定性全面提升
@@ -42,12 +85,12 @@
 > 🧩 体检修复版本 — 触发闭环 + 配置校验 + 文档对齐
 
 ### 关键修复
-- 🐛 修复日程扫描判定：改为“最近65分钟窗口”扫描，非整点日程可稳定触发
+- 🐛 修复日程扫描判定：改为"最近65分钟窗口"扫描，非整点日程可稳定触发
 - 🐛 打通 `snooze_schedule` 生效链路：扫描逻辑消费 `snoozed_until`，到点触发后自动清空
 - 🐛 单次日程触发后自动禁用，避免重复提醒
 
 ### 稳定性
-- ✨ 新增配置合法性校验与回退（时间格式、`water_interval` 范围、白名单标准化）
+- ✨ 新增配置合法性校验与回退（时间格式、`water_interval` 范围，白名单标准化）
 
 ### 清理与一致性
 - 🗑️ 清理 `AppleCalendar` 在 WebCal 模式下未使用的 CalDAV 字段/逻辑
