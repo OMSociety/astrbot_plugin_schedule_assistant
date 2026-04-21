@@ -693,6 +693,191 @@ class ScheduleAssistant(Star):
         yield event.plain_result("好的,已Skip this water reminder~")
 
 
+    async def _notion_ddl_check(self):
+        """Notion DDL 检查任务
+        
+        每小时检查一次即将到期的 Notion 任务.
+        """
+        try:
+            if not self.notion:
+                return
+            tasks = await self.notion.get_pending_transactions()
+            now = datetime.now()
+            
+            for task in tasks:
+                # 检查是否快到期(24小时内)
+                due = task.get('ddl')
+                if due:
+                    try:
+                        due_date = datetime.fromisoformat(due.replace('Z', '+00:00'))
+                        due_date_local = due_date.astimezone().replace(tzinfo=None)
+                        diff = (due_date_local - now).total_seconds()
+                        if 0 < diff < 86400:  # 24小时内
+                            title = task.get('title', '未命名任务')
+                            ddl_time = due_date_local.strftime('%m-%d %H:%M')
+                            logger.info(f"{LOG_PREFIX} DDL提醒: {title} 将在 {diff/3600:.1f} 小时后到期")
+                            # 发送私信提醒
+                            await self._send_to_user(
+                                self.default_user_id,
+                                f"📌 DDL提醒：{title} 截止于 {ddl_time}，还剩 {int(diff/3600)} 小时了~"
+                            )
+                    except Exception as e:
+                        logger.debug(f"{LOG_PREFIX} 解析任务截止日期失败: {e}")
+                        
+        except Exception as e:
+            logger.error(f"{LOG_PREFIX} DDL检查失败: {e}")
+
+
+    async def _schedule_scan(self):
+        """每小时扫描一次用户日程，到期触发私信提醒
+        
+        扫描今日所有单次日程和重复习惯，决定是否触发提醒。
+        扫描窗口为最近65分钟, 确保非整点时间也能被稳定命中。
+        """
+        try:
+            user_id = self.default_user_id
+            if not user_id:
+                return
+            
+            now = datetime.now()
+            window_start = now - timedelta(minutes=SCHEDULE_SCAN_WINDOW_MINUTES)
+            
+            items = await self.store.list_all_items(user_id)
+            
+            for item in items:
+                if not item.enabled:
+                    continue
+
+                due_time: Optional[datetime] = None
+                item_changed = False
+
+                # 1) snooze 优先级最高：未到点则不触发，到了按 snooze 时间触发
+                if item.snoozed_until:
+                    snooze_dt = self._parse_ymdhm(item.snoozed_until)
+                    if snooze_dt:
+                        if snooze_dt > now:
+                            continue
+                        due_time = snooze_dt
+                    else:
+                        # 脏数据自动清理，回退正常时间判断
+                        item.snoozed_until = None
+                        item_changed = True
+
+                # 2) 正常时间判定
+                if due_time is None:
+                    # 单次日程：优先解析完整时间 YYYY-MM-DD HH:MM
+                    if item.type == "schedule":
+                        try:
+                            due_time = datetime.strptime(item.time, "%Y-%m-%d %H:%M")
+                        except ValueError:
+                            # 兼容旧数据/LLM 输入：仅 HH:MM 则按今天计算
+                            if self._is_valid_hhmm(item.time):
+                                h, m = map(int, item.time.split(":"))
+                                due_time = now.replace(hour=h, minute=m, second=0, microsecond=0)
+                            else:
+                                logger.warning(f"{LOG_PREFIX} 跳过非法单次日程时间: {item.title} ({item.time})")
+                                item.enabled = False
+                                item_changed = True
+                                await self.store.update_item(user_id, item)
+                                continue
+                    else:
+                        # 习惯：优先使用当天 temp_override
+                        trigger_hhmm = item.time
+                        if item.temp_override:
+                            override_dt = self._parse_ymdhm(item.temp_override)
+                            if override_dt and override_dt.date() == now.date():
+                                trigger_hhmm = override_dt.strftime("%H:%M")
+                        if not self._is_valid_hhmm(trigger_hhmm):
+                            logger.warning(f"{LOG_PREFIX} 跳过非法习惯时间: {item.title} ({trigger_hhmm})")
+                            continue
+                        h, m = map(int, trigger_hhmm.split(":"))
+                        due_time = now.replace(hour=h, minute=m, second=0, microsecond=0)
+
+                if not due_time or not (window_start <= due_time <= now):
+                    if item_changed:
+                        await self.store.update_item(user_id, item)
+                    continue
+
+                # 防重复触发：当前扫描窗口内只触发一次
+                if item.last_triggered:
+                    try:
+                        last_dt = datetime.fromisoformat(item.last_triggered)
+                        if last_dt >= window_start:
+                            continue
+                    except ValueError:
+                        logger.warning(f"{LOG_PREFIX} last_triggered 格式非法，已清理: {item.title} ({item.last_triggered})")
+                        item.last_triggered = None
+                        item_changed = True
+                
+                # 触发提醒
+                item.last_triggered = now.isoformat()
+                item.snoozed_until = None  # snooze 到点后清空
+                if item.type == "schedule":
+                    # 单次任务触发后自动关闭，避免重复提醒
+                    item.enabled = False
+                await self.store.update_item(user_id, item)
+                
+                recur_text = {"daily": "每天", "weekly": "每周"}.get(item.recur or "", "")
+                await self._send_to_user(
+                    user_id,
+                    f"📅 {recur_text}{item.title}提醒~ 时间到啦！"
+                )
+                logger.info(f"{LOG_PREFIX} 日程触发: {item.title} (类型: {item.type})")
+                
+        except Exception as e:
+            logger.error(f"{LOG_PREFIX} 日程扫描失败: {e}")
+
+
+    async def _clear_expired_overrides(self):
+        """每日清理过期的临时修改
+        
+        在凌晨00:05执行,清理所有习惯的过期temp_override.
+        """
+        try:
+            user_id = self.default_user_id
+            if user_id:
+                await self.store.clear_expired_overrides(user_id)
+                logger.info(f"{LOG_PREFIX} 已清理过期的临时修改")
+        except Exception as e:
+            logger.error(f"{LOG_PREFIX} 清理过期临时修改失败: {e}")
+
+
+    async def _send_to_user(self, user_id: str, message: str):
+        """发送私聊消息给用户
+        
+        Args:
+            user_id: 用户ID
+            message: 消息内容
+        """
+        try:
+            # 检查白名单
+            allowed = self.config.get("whitelist_qq_ids", [])
+            
+            if user_id not in allowed:
+                logger.warning(f"{LOG_PREFIX} 用户 {user_id} 不在白名单,跳过发送")
+                return
+            
+            from astrbot.core.platform.message_session import MessageSession
+            
+            session = MessageSession(
+                platform_name=self._get_platform_id(),
+                message_type=MessageType.FRIEND_MESSAGE,
+                session_id=user_id
+            )
+            
+            from astrbot.api.event import MessageChain
+            # 过滤表情标签（&&tag&&格式），避免标签被当作正文发送
+            message = re.sub(r'&&[^&]+&&', '', message)
+            chain = MessageChain().message(message)
+            await self.context.send_message(session, chain)
+            logger.info(f"{LOG_PREFIX} 消息已发送给用户 {user_id}")
+            
+        except Exception as e:
+            logger.error(f"{LOG_PREFIX} 发送消息失败: {e}")
+
+    # ==================== LLM Tools ====================
+    
+
 async def __initialize(context: Context):
     """插件初始化入口
     
