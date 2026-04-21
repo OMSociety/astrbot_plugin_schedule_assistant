@@ -15,7 +15,6 @@ class SleepReminder:
         self.store = store
 
     def _get_fallback(self) -> str:
-        from datetime import datetime
         return _SLEEP_FALLBACK_LATE if datetime.now().hour >= 23 else _SLEEP_FALLBACK_NORMAL
 
     def _is_late(self, now: datetime) -> bool:
