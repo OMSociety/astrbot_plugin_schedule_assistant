@@ -1,7 +1,8 @@
 # Schedule Assistant 日程助手
 
 > 🤖 **AI Generated** — 本插件全是AI写的
-> 图标 Pixiv ID: [130776279](https://www.pixiv.net/130776279)
+
+> 图标 Pixiv ID: [130776279](https://www.pixiv.net/artworks/130776279)
 
 你的贴心日程管家，每日自动提醒、智能同步日历与待办事项
 
