@@ -108,16 +108,25 @@ class ScheduleAssistant(Star):
         # Dashboard
         self.dashboard_service = DashboardService()
 
-        # Notion
-        transaction_db = self.config.get("transaction_db_id")
-        reading_db = self.config.get("reading_db_id")
+        # Notion（支持多数据库配置）
+        notion_db_ids = self.config.get("notion_db_ids", [])
         maton_key = self.config.get("maton_api_key")
-        if transaction_db and maton_key:
+        if notion_db_ids and maton_key:
             try:
+                transaction_db = ""
+                reading_db = ""
+                for item in notion_db_ids:
+                    if isinstance(item, dict):
+                        name = item.get("name", "")
+                        db_id = item.get("id", "")
+                        if name == "事务" or name == "transaction":
+                            transaction_db = db_id
+                        elif name == "阅读" or name == "reading":
+                            reading_db = db_id
                 self.notion = NotionClient(
-                    transaction_db_id=transaction_db,
-                    reading_db_id=reading_db,
-                    maton_api_key=maton_key,
+                    maton_key,
+                    transaction_db,
+                    reading_db,
                 )
             except Exception as e:
                 logger.warning(f"{LOG_PREFIX} Notion 初始化失败: {e}")
@@ -171,6 +180,7 @@ class ScheduleAssistant(Star):
                 id="sleep_reminder",
                 replace_existing=True,
             )
+            logger.info(f"{LOG_PREFIX} 睡觉提醒已注册: {sleep_time}")
 
             # Apple 日历双向同步定时任务
             if conf.get("enable_apple_calendar_sync"):
@@ -183,9 +193,9 @@ class ScheduleAssistant(Star):
                     replace_existing=True,
                     max_instances=1,
                 )
-                logger.info(f"{LOG_PREFIX} Apple 日历同步任务已注册（每 {sync_interval} 分钟）")
-
-            # 日程 LLM 提醒定时扫描
+                logger.debug(f"{LOG_PREFIX} Apple 日历同步任务已注册（每 {sync_interval} 分钟）")
+            
+            # 日程 LLM 提醒定时扫描（每分钟一次，覆盖 80 分钟窗口）
             if conf.get("enable_schedule_reminder"):
                 self.scheduler.add_job(
                     self._schedule_reminder_scan,
@@ -410,7 +420,7 @@ class ScheduleAssistant(Star):
             if events:
                 stats = await self.store.sync_from_apple_calendar(user_id, events, target_calendar_id)
                 if any(stats.values()):
-                    logger.info(f"{LOG_PREFIX} Apple 日历同步: 新增={stats['added']} 更新={stats['updated']} 删除={stats['deleted']}")
+                    logger.debug(f"{LOG_PREFIX} Apple 日历同步: 新增={stats['added']} 更新={stats['updated']} 删除={stats['deleted']}")
 
         except Exception as e:
             logger.error(f"{LOG_PREFIX} Apple 日历同步失败: {e}")
@@ -621,7 +631,6 @@ class ScheduleAssistant(Star):
             recur_text = ",每天重复"
         elif recur == "weekly":
             recur_text = ",每周重复"
-
         yield event.plain_result(f"已添加: {title} @ {time}{recur_text}")
 
         # 写入 Apple 日历
@@ -815,7 +824,6 @@ class ScheduleAssistant(Star):
                 lines.append(f"• {title} {due_str}")
                 if time_str:
                     lines.append(f"  截止: {time_str}")
-
             if len(tasks) > 10:
                 lines.append(f"...还有 {len(tasks) - 10} 项")
 
