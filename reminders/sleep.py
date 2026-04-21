@@ -3,6 +3,10 @@ from datetime import datetime
 from ..constants import DEFAULT_SLEEP_TIME
 
 
+_SLEEP_FALLBACK_LATE = "🌙 都几点了还不睡！快去睡觉！"
+_SLEEP_FALLBACK_NORMAL = "😴 睡觉时间到啦~ 晚安，早点休息哦~"
+
+
 class SleepReminder:
     def __init__(self, config: dict, get_dashboard_status, llm_service, store):
         self.config = config
@@ -11,12 +15,17 @@ class SleepReminder:
         self.store = store
         self.default_user_id = config.get("default_user_id", "")
 
+    def _get_fallback(self) -> str:
+        from datetime import datetime
+        return _SLEEP_FALLBACK_LATE if datetime.now().hour >= 23 else _SLEEP_FALLBACK_NORMAL
+
     def _is_late(self, now: datetime) -> bool:
         return now.hour >= 23 or now.hour < 2
 
     async def generate(self, username: str, dashboard: str, history_text: str) -> str | None:
         now = datetime.now()
         is_late = self._is_late(now)
+        self.llm_service.set_fallback_template(self._get_fallback())
         prompt = f"""你是「{username}」的贴心日程助手，现在需要生成一条睡觉时间提醒~
 
 【用户信息】
