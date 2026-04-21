@@ -47,6 +47,7 @@
  },
  "webcal_urls": {
   "type": "list",
+  "items": {"type": "string"},
   "default": [],
   "description": "WebCal 共享日历链接列表",
   "placeholder": "webcal://pXXX-caldav.icloud.com.cn/published/..."
@@ -128,6 +129,7 @@
  },
  "whitelist_qq_ids": {
   "type": "list",
+  "items": {"type": "string"},
   "default": [],
   "description": "白名单QQ号，只有这些QQ能收到自动提醒。格式如 [\"123456789\"]，第一个会作为默认用户"
  }
