@@ -34,3 +34,14 @@ class SleepReminder:
 5. 不要markdown，纯文本输出
 6. 只输出提醒消息本身"""
         return await self.llm_service.generate(prompt)
+
+    async def _trigger(self, parent):
+        username = await parent._get_username_from_qq(parent.default_user_id) or "用户"
+        dashboard = await parent.dashboard_service.func()
+        history = await parent.store.get_conversation_history(parent.default_user_id)
+        history_text = parent.store.format_history_for_prompt(history)
+        message = await self.generate(username, dashboard, history_text)
+        if message:
+            await parent.store.add_conversation_message(parent.default_user_id, "assistant", message)
+            await parent._send_to_user(parent.default_user_id, message)
+        return message
