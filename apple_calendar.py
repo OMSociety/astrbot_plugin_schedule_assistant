@@ -340,21 +340,43 @@ class AppleCalendar:
 
         return all_events
 
+    async def _resolve_calendar_id(self, calendar_id: Optional[str] = None) -> Optional[str]:
+        """将配置中的 calendar_id（UUID 或名称）解析为实际 UUID"""
+        calendars = await self._list_calendars()
+        if not calendars:
+            logger.error("[AppleCalendar] 未找到可写日历")
+            return None
+
+        # 不指定 → 默认第一个
+        if not calendar_id:
+            return calendars[0]["id"]
+
+        # UUID 或完整名称精确匹配
+        for c in calendars:
+            if c["id"] == calendar_id or c["name"] == calendar_id:
+                return c["id"]
+
+        # 名称模糊匹配（如配置"日程"，匹配"我的日程"）
+        for c in calendars:
+            if calendar_id.lower() in c["name"].lower():
+                return c["id"]
+
+        # 没找到 → 用默认第一个并记录警告
+        logger.warning(f"[AppleCalendar] 日历「{calendar_id}」未找到，使用第一个日历")
+        return calendars[0]["id"]
+
     async def create_event(self, summary: str, start: datetime, end: Optional[datetime] = None, calendar_id: Optional[str] = None, description: str = "") -> Optional[str]:
         """在 iCloud 日历中创建事件，返回事件 UID 或 None"""
         if not await self._discover():
             logger.error("[AppleCalendar] CalDAV 未连接，无法创建事件")
             return None
 
-        # 选择日历
-        if not calendar_id:
-            calendars = await self._list_calendars()
-            if not calendars:
-                logger.error("[AppleCalendar] 未找到可写日历")
-                return None
-            calendar_id = calendars[0]["id"]
+        # 选择日历（支持 UUID 或名称）
+        resolved_id = await self._resolve_calendar_id(calendar_id)
+        if not resolved_id:
+            return None
 
-        cal_url = self._caldav_base_url + "/" + calendar_id + "/"
+        cal_url = self._caldav_base_url + "/" + resolved_id + "/"
         uid = str(uuid.uuid4())
 
         # 构建 VEVENT
@@ -409,14 +431,10 @@ END:VCALENDAR
         if not await self._discover():
             return False
 
-        if not calendar_id:
-            calendars = await self._list_calendars()
-            if calendars:
-                calendar_id = calendars[0]["id"]
-            else:
-                return False
-
-        cal_url = self._caldav_base_url + "/" + calendar_id + "/"
+        resolved_id = await self._resolve_calendar_id(calendar_id)
+        if not resolved_id:
+            return False
+        cal_url = self._caldav_base_url + "/" + resolved_id + "/"
         event_url = f"{cal_url}{uid}.ics"
 
         auth = base64.b64encode(f"{self.username}:{self.app_password}".encode()).decode()
