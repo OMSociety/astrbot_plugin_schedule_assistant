@@ -1,8 +1,7 @@
-"""AstrBot 插件元数据"""
-name = "schedule_assistant"
-version = "1.8.0"
-description = "智能日程助手：早安播报 / 洗澡 / 睡觉 / 喝水 / 日程 LLM 智能提醒 / Apple 日历双向同步"
-author = "OMSociety"
-repository = "https://github.com/OMSociety/astrbot_plugin_schedule_assistant"
-required_abilities = []
-platforms = []  # 所有平台通用，不限制
+name: schedule_assistant
+version: 1.8.0
+description: 智能日程助手：早安播报 / 洗澡 / 睡觉 / 喝水 / 日程 LLM 智能提醒 / Apple 日历双向同步
+author: OMSociety
+repository: https://github.com/OMSociety/astrbot_plugin_schedule_assistant
+required_abilities: []
+platforms: []
