@@ -25,7 +25,7 @@ DEFAULT_WATER_START = "09:30"       # 默认喝水提醒开始时间
 DEFAULT_WATER_END = "21:30"         # 默认喝水提醒结束时间
 DEFAULT_WATER_INTERVAL = 90         # 默认喝水提醒间隔（分钟）
 MAX_WATER_INTERVAL_MINUTES = 720    # 喝水提醒间隔上限（分钟）
-SCHEDULE_SCAN_WINDOW_MINUTES = 65   # 日程扫描窗口（分钟）
+SCHEDULE_SCAN_WINDOW_MINUTES = 80   # 日程扫描窗口（分钟）
 
 # ==================== 日志前缀 ====================
 LOG_PREFIX = "[ScheduleAssistant]"
