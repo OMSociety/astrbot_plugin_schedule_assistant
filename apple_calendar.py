@@ -158,21 +158,28 @@ class AppleCalendar:
 
                 calendars = []
                 # 提取所有日历路径
-                all_hrefs = re.findall(r'>([^<>]+)</D:href>', text)
-                for href in all_hrefs:
-                    href = href.strip()
-                    if not href or href.endswith("/"):
+                # namespace prefix causes <D:href> pattern; use looser regex and strip
+                raw_hrefs = re.findall(r'href>([^<]+)<', text)
+                for raw in raw_hrefs:
+                    href = raw.strip()
+                    if not href or href == "/17170844336/calendars/":
                         continue
                     # 判断是否为日历（包含 UUID 格式路径，不是系统文件夹）
-                    if any(frag in href for frag in ["inbox", "outbox", "notification"]):
+                    if any(frag in href for frag in ["/inbox/", "/outbox/", "/notification/"]):
                         continue
-                    if re.match(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}', href.split("/")[-1]):
-                        cal_url = self._caldav_base_url + "/" + href.strip("/") + "/"
+                    # UUID 格式的路径才是日历
+                    path_parts = [p for p in href.strip("/").split("/") if p]
+                    if len(path_parts) >= 2 and re.match(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}', path_parts[-1]):
+                        # href like /17170844336/calendars/UUID/ → strip the user-prefix part
+                        # base = https://p218-caldav.icloud.com.cn/17170844336/calendars
+                        # href = /17170844336/calendars/UUID/ → just use UUID
+                        cal_id = path_parts[-1]
+                        cal_url = self._caldav_base_url + "/" + cal_id
                         calendars.append({
                             "href": href,
                             "url": cal_url,
-                            "id": href.strip("/").split("/")[-1],
-                            "name": "",  # displayname 可能为空，需要单独查
+                            "id": cal_id,
+                            "name": "",
                         })
 
                 # 对每个日历单独查询 displayname
