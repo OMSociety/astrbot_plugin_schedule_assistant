@@ -34,6 +34,11 @@
   "default": "",
   "description": "Apple 专用密码（不是登录密码！去 appleid.apple.com 生成）"
  },
+ "apple_calendar_id": {
+  "type": "string",
+  "default": "",
+  "description": "Apple 日历 ID（UUID 或日历名称如「日程」），用于写入日程。不填则默认使用第一个日历"
+ },
  "webcal_urls": {
   "type": "list",
   "default": [],
