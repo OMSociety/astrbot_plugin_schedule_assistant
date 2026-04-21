@@ -7,7 +7,7 @@
  "maton_api_key": {
   "type": "string",
   "default": "",
-  "description": "Maton API Key，用于读取 Notion 数据库。从 https://gateway.maton.ai 注册获取"
+  "description": "Maton API Key（建议填写，与 api-gateway Skill 保持一致）。从 https://gateway.maton.ai 注册获取"
  },
  "transaction_db_id": {
   "type": "string",
