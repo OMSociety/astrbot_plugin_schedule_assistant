@@ -193,8 +193,7 @@ class ScheduleAssistant(Star):
             _shared_scheduler = AsyncIOScheduler()
         self.scheduler = _shared_scheduler
         
-        # 防重入锁 - 防止任务重复触发
-        self._water_reminder_running = False
+        self._water_lock = asyncio.Lock()
         
         # 从配置读取用户设置
         whitelist = self.config.get("whitelist_qq_ids", [])
@@ -382,7 +381,11 @@ class ScheduleAssistant(Star):
                 username = self.default_username
             
             # ========== 并发获取所有数据 ==========
-            weather_current, weather_forecast = await self.weather_service.fetch()
+            # 心知 API Key 预检查，无效则跳过天气模块
+            if not self.weather_service.weather_api_key:
+                weather_current, weather_forecast = "未配置天气API", ""
+            else:
+                weather_current, weather_forecast = await self.weather_service.fetch()
             calendar_info = await self._fetch_calendar_events()
             schedule_info = await self._fetch_local_schedules(user_id)
             notion_info = await self.notion_service.get_pending_str()
