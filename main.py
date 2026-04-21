@@ -84,10 +84,10 @@ class ScheduleAssistant(Star):
         if now > end_time:
             return start_time + timedelta(days=1)
         
-        # 情况2:未到开始时间 --> 等开始
-        if now < start_time:
+        # 情况2:未到或正好到开始时间 --> 等开始
+        if now <= start_time:
             return start_time
-        
+
         # 情况1:在水时段内,找下一个interval分钟周期的整点
         current = start_time
         while current <= now:
@@ -440,12 +440,17 @@ class ScheduleAssistant(Star):
             logger.warning(f"{LOG_PREFIX} 获取用户 {user_id} 昵称失败: {e}")
             return user_id
 
+    # 天气缓存：30分钟内不重复请求
+    _weather_cache: dict = {"data": ("", ""), "timestamp": 0}
+    _CACHE_TTL = 1800  # 30分钟
+
     async def _fetch_weather(self) -> tuple[str, str]:
-        """获取天气信息
-        
+        """获取天气信息（带30分钟内存缓存）
+
         Returns:
             (当前天气, 预报信息)
         """
+        import time as _time
         weather_api_key = self.config.get("weather_api_key", "")
         weather_city = self.config.get("weather_city", "北京")
         
@@ -454,6 +459,12 @@ class ScheduleAssistant(Star):
         
         if not weather_api_key:
             return "未配置天气API", ""
+
+        # 命中缓存
+        if self._weather_cache["data"][0] or self._weather_cache["data"][1]:
+            if _time.time() - self._weather_cache["timestamp"] < self._CACHE_TTL:
+                logger.debug(f"{LOG_PREFIX} 天气数据命中缓存")
+                return self._weather_cache["data"]
         
         try:
             async with aiohttp.ClientSession() as session:
@@ -501,7 +512,9 @@ class ScheduleAssistant(Star):
         except Exception as e:
             logger.warning(f"{LOG_PREFIX} 天气获取失败: {e}")
             weather_current = "获取失败"
-        
+
+        # 更新缓存
+        self._weather_cache = {"data": (weather_current, weather_forecast), "timestamp": _time.time()}
         return weather_current, weather_forecast
 
     async def _fetch_calendar_events(self) -> str:
