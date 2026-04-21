@@ -1,1 +1,31 @@
-IiIi5Zad5rC05o+Q6YaS5pyN5YqhIiIiCmZyb20gZGF0ZXRpbWUgaW1wb3J0IGRhdGV0aW1lCgoKY2xhc3MgV2F0ZXJSZW1pbmRlcjoKICAgIGRlZiBfX2luaXRfXyhzZWxmLCBjb25maWc6IGRpY3QsIGdldF9kYXNoYm9hcmRfc3RhdHVzLCBsbG1fc2VydmljZSwgc3RvcmUpOgogICAgICAgIHNlbGYuY29uZmlnID0gY29uZmlnCiAgICAgICAgc2VsZi5nZXRfZGFzaGJvYXJkX3N0YXR1cyA9IGdldF9kYXNoYm9hcmRfc3RhdHVzCiAgICAgICAgc2VsZi5sbG1fc2VydmljZSA9IGxsbV9zZXJ2aWNlCiAgICAgICAgc2VsZi5zdG9yZSA9IHN0b3JlCiAgICAgICAgc2VsZi5kZWZhdWx0X3VzZXJfaWQgPSBjb25maWcuZ2V0KCJkZWZhdWx0X3VzZXJfaWQiLCAiIikKCiAgICBhc3luYyBkZWYgZ2VuZXJhdGUoc2VsZiwgdXNlcm5hbWU6IHN0ciwgZGFzaGJvYXJkOiBzdHIsIGhpc3RvcnlfdGV4dDogc3RyKSAtPiBzdHIgfCBOb25lOgogICAgICAgIG5vdyA9IGRhdGV0aW1lLm5vdygpCiAgICAgICAgcHJvbXB0ID0gZiIiIuS9oOaYr+OAjHt1c2VybmFtZX3jgI3nmoTotLTlv4Pml6XnqIvliqnmiYvvvIznjrDlnKjpnIDopoHnlJ/miJDkuIDmnaHllp3msLTmj5DphpJ+CgrjgJDnlKjmiLfkv6Hmga/jgJEKLSDnlKjmiLflkI06IHt1c2VybmFtZX0KLSDlvZPliY3ml7bpl7Q6IHtub3cuc3RyZnRpbWUoIiVIOiVNIil9Ci0g55So5oi35b2T5YmN54q25oCBOiB7ZGFzaGJvYXJkfQoK44CQ6L+R5pyf5a+56K+d44CRCntoaXN0b3J5X3RleHQgb3IgIu+8iOaXoOi/keacn+Wvueivne+8iSJ9CgrjgJDnlJ/miJDopoHmsYLjgJEKMS4g6K+t5rCU5rS75rO85L+P55qu77yM5YOP6Ze66Jyc5YKs5L2g5Zad5rC0CjIuIOe7k+WQiOW9k+WJjeaXtumXtOOAgWRhc2hib2FyZOeKtuaAgeOAgei/keacn+WvueivneS4iuS4i+aWh+WPkeaMpeWIm+aEj++8jOWkmuagt+WMluiwg+S+g+aWueW8jwozLiAzMOWtl+S7peWGhe+8jOW4pjEtMuS4qmVtb2ppCjQuIOS4jeimgW1hcmtkb3du77yM57qv5paH5pys6L6T5Ye6CjUuIOWPqui+k+WHuuaPkOmGkua2iOaBr+acrOi6qyIiIgogICAgICAgIHJldHVybiBhd2FpdCBzZWxmLmxsbV9zZXJ2aWNlLmdlbmVyYXRlKHByb21wdCkK
+"""喝水提醒服务"""
+from datetime import datetime
+
+
+class WaterReminder:
+    def __init__(self, config: dict, get_dashboard_status, llm_service, store):
+        self.config = config
+        self.get_dashboard_status = get_dashboard_status
+        self.llm_service = llm_service
+        self.store = store
+        self.default_user_id = config.get("default_user_id", "")
+
+    async def generate(self, username: str, dashboard: str, history_text: str) -> str | None:
+        now = datetime.now()
+        prompt = f"""你是「{username}」的贴心日程助手，现在需要生成一条喝水提醒~
+
+【用户信息】
+- 用户名: {username}
+- 当前时间: {now.strftime("%H:%M")}
+- 用户当前状态: {dashboard}
+
+【近期对话】
+{history_text or "（无近期对话）"}
+
+【生成要求】
+1. 语气活泼俏皮，像闺蜜催你喝水
+2. 结合当前时间、dashboard状态、近期对话上下文发挥创意，多样化调侃方式
+3. 30字以内，带1-2个emoji
+4. 不要markdown，纯文本输出
+5. 只输出提醒消息本身"""
+        return await self.llm_service.generate(prompt)
