@@ -1,0 +1,62 @@
+async def handle_private_message(self, event, conf):
+        """处理私聊消息"""
+        user_id = event.get_sender_id()
+        text = event.message_str.strip()
+        
+        if not text:
+            return
+        
+        if conf.get("whitelist_qq_ids") and str(user_id) not in [str(q) for q in conf.get("whitelist_qq_ids", [])]:
+            return
+        
+        await self.store.add_conversation_message(user_id, "user", text)
+        
+        if text in ("stop", "/stop"):
+            await self._handle_stop(user_id)
+            return
+        elif text in ("继续", "继续提醒", "/resume"):
+            await self._handle_resume(user_id)
+            return
+        elif text.startswith("/list"):
+            await self._handle_list(user_id)
+            return
+        elif text.startswith("/delete "):
+            item_id = text.split(" ", 1)[1].strip()
+            await self._handle_delete(user_id, item_id)
+            return
+        elif text.startswith("/snooze "):
+            parts = text.split(" ", 2)
+            item_id = parts[1].strip() if len(parts) > 1 else ""
+            minutes = int(parts[2].strip()) if len(parts) > 2 else 10
+            await self._handle_snooze(user_id, item_id, minutes)
+            return
+        elif text.startswith("喝水"):
+            await self._handle_water(user_id)
+            return
+        elif text.startswith("/早安"):
+            await self._handle_morning(user_id)
+            return
+        elif text.startswith("/苹果日历"):
+            await self._handle_apple_calendar(user_id)
+            return
+        elif text.startswith("提醒我"):
+            schedule_text = text[3:].strip()
+            if schedule_text:
+                await self._handle_add_schedule(user_id, schedule_text)
+            return
+        elif text.startswith("每天"):
+            habit_text = text[2:].strip()
+            if habit_text:
+                await self._handle_add_habit(user_id, habit_text)
+            return
+        elif text.startswith("/"):
+            await self._send_reply(event, "未知指令~可用：/list /delete /snooze /早安 /苹果日历\n自然语言：提醒我 xxx / 每天 xxx / 喝水")
+            return
+        else:
+            await self._send_reply(event, "日程助手收到啦~" + 
+                "\n📝 自然语言添加日程：提醒我 xxx" +
+                "\n🔄 添加习惯：每天 xxx" +
+                "\n💧 立即喝水：喝水" +
+                "\n📋 查看列表：/list" +
+                "\n📒 苹果日历：/苹果日历")
+            return
