@@ -4,6 +4,39 @@
 
 ---
 
+## v1.7.0
+
+> 🏗️ **架构重构版本** — 模块化拆分 + 稳定性全面提升
+
+### 🔥 核心重构
+- 🗂️ **services/ 模块拆分**：将 `weather` / `notion` / `dashboard` / `llm` 各自独立为服务类，配合 `services/__init__.py` 统一导出
+- 🗂️ **reminders/ 模块拆分**：将 `bath` / `sleep` / `water` / `briefing` 各自独立为提醒类，职责边界清晰
+- 📉 **main.py 精简**：从 1332 行重构至 894 行，职责从"全能类"变为"编排层"
+- 🔌 **DashboardService 单例注入**：替代原有 4 处动态 `from .dashboard import`，带 5 分钟模块级缓存
+- 🔌 **LLMService 统一封装**：provider 获取 + 人格注入 + 异常处理三合一，移除 `main.py` 中 30 行冗余代码
+
+### ⚡ 稳定性改进
+- 🛡️ **喝水重入锁升级**：`self._water_reminder_running` 布尔锁 → `asyncio.Lock()`，更安全的并发控制
+- 🛡️ **提醒 LLM Fallback 机制**：bath / sleep / water 各有 fallback 模板文案，LLM 调用失败时自动回退，避免沉默
+- 🛡️ **Notion 5 分钟断路器**：请求失败后标记时间戳，5 分钟内不再重试，避免雪崩
+- 🛡️ **心知 API Key 预检查**：早报触发前检查 Key 有效性，无效则跳过天气模块而非报错
+- ✅ **对话历史过期清理**：`CONVERSATION_MAX_AGE_HOURS`（1小时）+ 数量上限均已启用
+
+### 🐛 修复
+- 🐛 reminders 各模块 `__init__` 参数名与 body 不一致（`generate_llm_message` → `llm_service`）
+- 🐛 `services/notion.py` 逻辑写反：`if not self.notion` → `if self.notion`
+- 🐛 `metadata.yaml` 双重 base64 编码导致 AstrBot 元数据加载失败（`'str' object has no attribute 'name'`）
+- 🐛 图标文件名错误：使用 `icon.png` 应为 `logo.png`（AstrBot 标准文件名）
+- 🗑️ 删除孤立 `dashboard.py`（已被 `services/dashboard.py` 替代）
+
+### 📝 文档
+- 🆕 添加插件图标（logo.png，Pixiv PID 130776279）
+- 🔧 README 补充「安装 api-gateway Skill」步骤说明
+- 🔧 README「文件结构」章节更新为当前目录结构
+- 🗑️ 删除 metadata.yaml 中不准确的「数据存储使用 AstrBot 自带数据库」描述
+
+---
+
 ## v1.6.0
 
 > 🧩 体检修复版本 — 触发闭环 + 配置校验 + 文档对齐
