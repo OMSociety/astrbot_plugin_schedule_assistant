@@ -12,6 +12,7 @@ https://developer.apple.com/documentation/cloudkit sign-in with apple id
 import uuid
 import re
 import base64
+import asyncio
 import aiohttp
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional
@@ -206,49 +207,86 @@ class AppleCalendar:
             return []
 
     async def _caldav_fetch(self, cal_url: str, days: int = 30) -> List[Dict]:
-        """通过 CalDAV 获取指定日历的事件"""
+        """通过 PROPFIND Depth:1 + GET .ics 获取日历事件
+        
+        iCloud CalDAV 不支持 calendar-query REPORT，改用文件列表 + 逐个读取
+        """
         auth = base64.b64encode(f"{self.username}:{self.app_password}".encode()).decode()
         headers = {
             "Authorization": f"Basic {auth}",
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15",
-            "Content-Type": "text/xml; charset=utf-8",
         }
 
-        # 计算日期范围
-        now = datetime.now()
-        range_start = now - timedelta(days=1)
-        range_end = now + timedelta(days=days)
+        all_events = []
+        local_tz = datetime.now().astimezone().tzinfo
 
-        calquery_body = f"""<?xml version="1.0" encoding="UTF-8"?>
-<C:calendar-query xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
-  <D:prop>
-    <D:href/>
-    <C:calendar-data/>
-  </D:prop>
-  <C:filter>
-    <C:comp-filter name="VCALENDAR">
-      <C:time-range start="{range_start.strftime('%Y%m%dT%H%M%S')}" end="{range_end.strftime('%Y%m%dT%H%M%S')}"/>
-    </C:comp-filter>
-  </C:filter>
-</C:calendar-query>""".encode()
+        # Step 1: PROPFIND Depth:1 列出日历下所有 .ics 文件
+        propfind_body = b"""<?xml version="1.0" encoding="UTF-8"?>
+<D:propfind xmlns:D="DAV:"><D:prop><D:href/></D:prop></D:propfind>"""
 
         try:
             async with aiohttp.ClientSession() as session:
                 resp = await session.request(
-                    "REPORT", cal_url,
-                    headers={**headers, "Depth": "1"},
-                    data=calquery_body,
+                    "PROPFIND", cal_url.rstrip("/") + "/",
+                    headers={**headers, "Depth": "1", "Content-Type": "text/xml"},
+                    data=propfind_body,
                     timeout=aiohttp.ClientTimeout(total=30)
                 )
                 text = await resp.text()
 
-                events = self._parse_vevents(text)
-                logger.info(f"[AppleCalendar] CalDAV 读取成功: {len(events)} 个事件 ({cal_url})")
-                return events
+                # 提取所有 .ics 文件路径
+                ics_hrefs = re.findall(r'href>([^<]+)<', text)
+                ics_files = []
+                for href in ics_hrefs:
+                    href = href.strip()
+                    if href.endswith(".ics"):
+                        # href like /17170844336/calendars/UUID/file.ics
+                        ics_url = f"https://{self._caldav_base_domain}{href.strip()}"
+                        ics_files.append(ics_url)
+
+                if not ics_files:
+                    logger.debug(f"[AppleCalendar] 日历无事件: {cal_url}")
+                    return []
+
+                logger.info(f"[AppleCalendar] 发现 {len(ics_files)} 个事件文件")
+
+                # 计算日期范围（用于过滤）
+                now = datetime.now().astimezone(local_tz).replace(tzinfo=None)
+                range_end = now + timedelta(days=days)
+
+                # Step 2: 批量 GET 每个 .ics 文件（限制并发数）
+                sem = asyncio.Semaphore(5)
+                fetched = 0
+
+                async def fetch_one(ics_url: str):
+                    nonlocal fetched
+                    async with sem:
+                        try:
+                            resp2 = await session.get(
+                                ics_url,
+                                headers={**headers, "Accept": "text/calendar,*/*"},
+                                timeout=aiohttp.ClientTimeout(total=10)
+                            )
+                            if resp2.status == 200:
+                                ical_data = await resp2.text()
+                                evts = self._parse_vevents(ical_data)
+                                fetched += len(evts)
+                                return evts
+                        except Exception as e:
+                            logger.debug(f"[AppleCalendar] 获取事件文件失败: {e}")
+                        return []
+
+                tasks = [fetch_one(url) for url in ics_files]
+                results = await asyncio.gather(*tasks)
+                for ev_list in results:
+                    all_events.extend(ev_list)
+
+                logger.info(f"[AppleCalendar] CalDAV 读取成功: {fetched} 个事件 ({cal_url})")
 
         except Exception as e:
             logger.error(f"[AppleCalendar] CalDAV 读取失败 ({cal_url}): {e}")
-            return []
+
+        return all_events
 
     def _parse_vevents(self, ical_data: str) -> List[Dict]:
         """解析 VEVENT 为事件字典"""
