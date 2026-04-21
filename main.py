@@ -221,6 +221,16 @@ class ScheduleAssistant(Star):
         
         logger.info(f"{LOG_PREFIX} 插件初始化完成,定时任务已注册")
 
+    # Wrapper methods for scheduler job references (actual reminder logic is in reminder classes)
+    async def _bath_reminder(self):
+        await self._reminder_bath._trigger(self)
+
+    async def _sleep_reminder(self):
+        await self._reminder_sleep._trigger(self)
+
+    async def _water_reminder(self):
+        await self._reminder_water._trigger(self)
+
     def _register_jobs(self):
         """注册所有定时任务
         
