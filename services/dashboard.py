@@ -1,1 +1,46 @@
-IiIiRGFzaGJvYXJkIOacjeWKoSIiIgppbXBvcnQgdGltZQppbXBvcnQgYWlvaHR0cAoKX2NhY2hlZF9zdGF0dXMgPSBOb25lCl9jYWNoZV90aW1lc3RhbXAgPSAwCl9DQUNIRV9UVEwgPSAzMDAKCgpjbGFzcyBEYXNoYm9hcmRTZXJ2aWNlOgogICAgZGVmIF9faW5pdF9fKHNlbGYpOgogICAgICAgIHNlbGYuZnVuYyA9IGdldF9kYXNoYm9hcmRfc3RhdHVzCgoKYXN5bmMgZGVmIGdldF9kYXNoYm9hcmRfc3RhdHVzKCkgLT4gc3RyOgogICAgZ2xvYmFsIF9jYWNoZWRfc3RhdHVzLCBfY2FjaGVfdGltZXN0YW1wCiAgICBub3cgPSB0aW1lLnRpbWUoKQogICAgaWYgX2NhY2hlZF9zdGF0dXMgaXMgbm90IE5vbmUgYW5kIChub3cgLSBfY2FjaGVfdGltZXN0YW1wKSA8IF9DQUNIRV9UVEw6CiAgICAgICAgcmV0dXJuIF9jYWNoZWRfc3RhdHVzCiAgICB0cnk6CiAgICAgICAgYXN5bmMgd2l0aCBhaW9odHRwLkNsaWVudFNlc3Npb24oKSBhcyBzZXNzaW9uOgogICAgICAgICAgICBhc3luYyB3aXRoIHNlc3Npb24uZ2V0KCJodHRwOi8vMTI3LjAuMC4xOjMwMDAvYXBpL3N0YXR1cyIsIHRpbWVvdXQ9YWlvaHR0cC5DbGllbnRUaW1lb3V0KHRvdGFsPTUpKSBhcyByZXNwOgogICAgICAgICAgICAgICAgaWYgcmVzcC5zdGF0dXMgPT0gMjAwOgogICAgICAgICAgICAgICAgICAgIGRhdGEgPSBhd2FpdCByZXNwLmpzb24oKQogICAgICAgICAgICAgICAgICAgIGRldmljZSA9IChkYXRhLmdldCgiZGV2aWNlcyIpIG9yIFt7fV0pWzBdCiAgICAgICAgICAgICAgICAgICAgc3RhdHVzID0gZGV2aWNlLmdldCgic3RhdHVzIiwgIm9mZmxpbmUiKQogICAgICAgICAgICAgICAgICAgIGFwcCA9IGRldmljZS5nZXQoImN1cnJlbnRBcHAiLCAi5pyq55+lIikKICAgICAgICAgICAgICAgICAgICBiYXR0ZXJ5ID0gZGV2aWNlLmdldCgiYmF0dGVyeUxldmVsIikKICAgICAgICAgICAgICAgICAgICBwYXJ0cyA9IFtdCiAgICAgICAgICAgICAgICAgICAgaWYgYXBwIGFuZCBhcHAgIT0gIuacquefpSI6CiAgICAgICAgICAgICAgICAgICAgICAgIHBhcnRzLmFwcGVuZChmIuato+WcqOeUqHthcHB9IikKICAgICAgICAgICAgICAgICAgICBpZiBzdGF0dXMgPT0gImFjdGl2ZSIgYW5kIGJhdHRlcnkgaXMgbm90IE5vbmU6CiAgICAgICAgICAgICAgICAgICAgICAgIHBhcnRzLmFwcGVuZChmIuWxj+W5leS6ruedgO+8jOeUtemHj3tiYXR0ZXJ5fSUiKQogICAgICAgICAgICAgICAgICAgIGVsaWYgc3RhdHVzID09ICJpZGxlIjoKICAgICAgICAgICAgICAgICAgICAgICAgcGFydHMuYXBwZW5kKCLlsY/luZXnqbrpl7LkuK0iKQogICAgICAgICAgICAgICAgICAgIGVsaWYgc3RhdHVzID09ICJzbGVlcGluZyI6CiAgICAgICAgICAgICAgICAgICAgICAgIHBhcnRzLmFwcGVuZCgi5Y+v6IO95bey552h6KeJIikKICAgICAgICAgICAgICAgICAgICBlbGlmIHN0YXR1cyA9PSAibG9ja2VkIjoKICAgICAgICAgICAgICAgICAgICAgICAgcGFydHMuYXBwZW5kKCLorr7lpIflt7LplIHlsY8iKQogICAgICAgICAgICAgICAgICAgIF9jYWNoZWRfc3RhdHVzID0gIu+8jCIuam9pbihwYXJ0cykgaWYgcGFydHMgZWxzZSAi5Zyo57q/IgogICAgICAgICAgICAgICAgICAgIF9jYWNoZV90aW1lc3RhbXAgPSBub3cKICAgICAgICAgICAgICAgICAgICByZXR1cm4gX2NhY2hlZF9zdGF0dXMKICAgIGV4Y2VwdCBFeGNlcHRpb246CiAgICAgICAgcGFzcwogICAgX2NhY2hlZF9zdGF0dXMgPSAiIgogICAgcmV0dXJuICIiCg==
+"""Dashboard 服务"""
+import time
+import aiohttp
+
+_cached_status = None
+_cache_timestamp = 0
+_CACHE_TTL = 300
+
+
+class DashboardService:
+    def __init__(self):
+        self.func = get_dashboard_status
+
+
+async def get_dashboard_status() -> str:
+    global _cached_status, _cache_timestamp
+    now = time.time()
+    if _cached_status is not None and (now - _cache_timestamp) < _CACHE_TTL:
+        return _cached_status
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get("http://127.0.0.1:3000/api/status", timeout=aiohttp.ClientTimeout(total=5)) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    device = (data.get("devices") or [{}])[0]
+                    status = device.get("status", "offline")
+                    app = device.get("currentApp", "未知")
+                    battery = device.get("batteryLevel")
+                    parts = []
+                    if app and app != "未知":
+                        parts.append(f"正在用{app}")
+                    if status == "active" and battery is not None:
+                        parts.append(f"屏幕亮着，电量{battery}%")
+                    elif status == "idle":
+                        parts.append("屏幕空闲中")
+                    elif status == "sleeping":
+                        parts.append("可能已睡觉")
+                    elif status == "locked":
+                        parts.append("设备已锁屏")
+                    _cached_status = "，".join(parts) if parts else "在线"
+                    _cache_timestamp = now
+                    return _cached_status
+    except Exception:
+        pass
+    _cached_status = ""
+    return ""
