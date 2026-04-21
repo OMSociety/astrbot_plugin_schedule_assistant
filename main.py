@@ -133,7 +133,7 @@ class ScheduleAssistant(Star):
 
     # ── 定时任务 ─────────────────────────────────────────────────────────
 
-    def _register_tasks(self):
+    async def _register_tasks(self):
         """注册所有定时任务（仅注册，不启动）"""
         conf = self.config
 
