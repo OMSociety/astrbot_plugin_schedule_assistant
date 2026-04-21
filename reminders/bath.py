@@ -1,1 +1,33 @@
-IiIi5rSX5r6h5o+Q6YaS5pyN5YqhIiIiCmZyb20gZGF0ZXRpbWUgaW1wb3J0IGRhdGV0aW1lCmZyb20gLi5jb25zdGFudHMgaW1wb3J0IERFRkFVTFRfQkFUSF9USU1FCgoKY2xhc3MgQmF0aFJlbWluZGVyOgogICAgZGVmIF9faW5pdF9fKHNlbGYsIGNvbmZpZzogZGljdCwgZ2V0X2Rhc2hib2FyZF9zdGF0dXMsIGxsbV9zZXJ2aWNlLCBzdG9yZSk6CiAgICAgICAgc2VsZi5jb25maWcgPSBjb25maWcKICAgICAgICBzZWxmLmdldF9kYXNoYm9hcmRfc3RhdHVzID0gZ2V0X2Rhc2hib2FyZF9zdGF0dXMKICAgICAgICBzZWxmLmxsbV9zZXJ2aWNlID0gbGxtX3NlcnZpY2UKICAgICAgICBzZWxmLnN0b3JlID0gc3RvcmUKICAgICAgICBzZWxmLmRlZmF1bHRfdXNlcl9pZCA9IGNvbmZpZy5nZXQoImRlZmF1bHRfdXNlcl9pZCIsICIiKQoKICAgIGFzeW5jIGRlZiBnZW5lcmF0ZShzZWxmLCB1c2VybmFtZTogc3RyLCBkYXNoYm9hcmQ6IHN0ciwgaGlzdG9yeV90ZXh0OiBzdHIpIC0+IHN0ciB8IE5vbmU6CiAgICAgICAgbm93ID0gZGF0ZXRpbWUubm93KCkKICAgICAgICBwcm9tcHQgPSBmIiIi5L2g5piv44CMe3VzZXJuYW1lfeOAjeeahOi0tOW/g+aXpeeoi+WKqeaJi++8jOeOsOWcqOmcgOimgeeUn+aIkOS4gOadoea0l+a+oeaXtumXtOaPkOmGkn4KCuOAkOeUqOaIt+S/oeaBr+OAkQotIOeUqOaIt+WQjToge3VzZXJuYW1lfQotIOW9k+WJjeaXtumXtDoge25vdy5zdHJmdGltZSgiJUg6JU0iKX0KLSDorr7lrprnmoTmtJfmvqHml7bpl7Q6IHtzZWxmLmNvbmZpZy5nZXQoImJhdGhfdGltZSIsIERFRkFVTFRfQkFUSF9USU1FKX0KLSDnlKjmiLflvZPliY3nirbmgIE6IHtkYXNoYm9hcmR9CgrjgJDov5HmnJ/lr7nor53jgJEKe2hpc3RvcnlfdGV4dCBvciAi77yI5peg6L+R5pyf5a+56K+d77yJIn0KCuOAkOeUn+aIkOimgeaxguOAkQoxLiDor63msJTmtLvms7zlj6/niLHvvIzlg4/mnIvlj4vlgqzkvaDljrvmtJfmvqEKMi4g5aaC5p6cIGRhc2hib2FyZCDmmL7npLrnlKjmiLfliJrov5Dliqgv5bmy5rS75LqG77yM5Y+v5Lul6LCD5L6DIuivpea0l+aOieaxl+WRs+WVpiIKMy4gNDDlrZfku6XlhoXvvIzluKYxLTLkuKplbW9qaQo0LiDkuI3opoFtYXJrZG93bu+8jOe6r+aWh+acrOi+k+WHugo1LiDlj6rovpPlh7rmj5DphpLmtojmga/mnKzouqsiIiIKICAgICAgICByZXR1cm4gYXdhaXQgc2VsZi5sbG1fc2VydmljZS5nZW5lcmF0ZShwcm9tcHQpCg==
+"""洗澡提醒服务"""
+from datetime import datetime
+from ..constants import DEFAULT_BATH_TIME
+
+
+class BathReminder:
+    def __init__(self, config: dict, get_dashboard_status, llm_service, store):
+        self.config = config
+        self.get_dashboard_status = get_dashboard_status
+        self.llm_service = llm_service
+        self.store = store
+        self.default_user_id = config.get("default_user_id", "")
+
+    async def generate(self, username: str, dashboard: str, history_text: str) -> str | None:
+        now = datetime.now()
+        prompt = f"""你是「{username}」的贴心日程助手，现在需要生成一条洗澡时间提醒~
+
+【用户信息】
+- 用户名: {username}
+- 当前时间: {now.strftime("%H:%M")}
+- 设定的洗澡时间: {self.config.get("bath_time", DEFAULT_BATH_TIME)}
+- 用户当前状态: {dashboard}
+
+【近期对话】
+{history_text or "（无近期对话）"}
+
+【生成要求】
+1. 语气活泼可爱，像朋友催你去洗澡
+2. 如果 dashboard 显示用户刚运动/干活了，可以调侃"该洗掉汗味啦"
+3. 40字以内，带1-2个emoji
+4. 不要markdown，纯文本输出
+5. 只输出提醒消息本身"""
+        return await self.llm_service.generate(prompt)
