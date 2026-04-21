@@ -1,64 +1,95 @@
 {
+ "enable_schedule_reminder": {
+  "type": "bool",
+  "default": false,
+  "description": "开启日程 LLM 智能提醒（由 AI 生成自然语言提醒，结合对话上下文）"
+ },
+ "schedule_reminder_minutes": {
+  "type": "int",
+  "default": 10,
+  "description": "日程提前提醒分钟数，LLM 会根据这个时间生成提醒"
+ },
+ "enable_apple_calendar_sync": {
+  "type": "bool",
+  "default": false,
+  "description": "开启 Apple 日历双向同步"
+ },
+ "apple_calendar_sync_interval": {
+  "type": "int",
+  "default": 30,
+  "description": "Apple 日历同步间隔（分钟），默认 30 分钟"
+ },
+ "apple_calendar": {
+  "type": "group",
+  "description": "Apple 日历设置",
+  "children": {
+   "enable_sync": {
+    "type": "bool",
+    "default": false,
+    "description": "启用日历写入（本地新建日程 → Apple 日历）"
+   },
+   "username": {
+    "type": "string",
+    "default": "",
+    "description": "Apple ID 邮箱（如 xxx@icloud.com）"
+   },
+   "app_password": {
+    "type": "string",
+    "default": "",
+    "description": "Apple 专用密码（不是登录密码！去 appleid.apple.com → 登录 → 安全性 → 生成 App 专用密码）"
+   },
+   "calendar_id": {
+    "type": "string",
+    "default": "",
+    "description": "日历 UUID 或名称（如「日程」），用于写入。不填默认第一个日历"
+   }
+  }
+ },
+ "webcal_urls": {
+  "type": "list",
+  "default": [],
+  "description": "WebCal 共享日历链接列表",
+  "placeholder": "webcal://pXXX-caldav.icloud.com.cn/published/..."
+ },
+ "enable_morning_report": {
+  "type": "bool",
+  "default": true,
+  "description": "开启早安播报"
+ },
  "morning_report_time": {
   "type": "string",
   "default": "09:00",
   "description": "早安播报时间，格式 HH:MM"
  },
- "maton_api_key": {
-  "type": "string",
-  "default": "",
-  "description": "Maton API Key（建议填写，与 api-gateway Skill 保持一致）。从 https://gateway.maton.ai 注册获取"
- },
- "transaction_db_id": {
-  "type": "string",
-  "default": "",
-  "description": "Notion 事务库 ID（在 Notion 页面链接里找）"
- },
- "reading_db_id": {
-  "type": "string",
-  "default": "",
-  "description": "Notion 阅读库 ID（可选）"
- },
- "apple_calendar_enabled": {
+ "enable_bath_reminder": {
   "type": "bool",
-  "default": false,
-  "description": "是否启用 Apple 日历同步"
- },
- "apple_id": {
-  "type": "string",
-  "default": "",
-  "description": "Apple ID 邮箱（如 xxx@icloud.com）"
- },
- "apple_app_password": {
-  "type": "string",
-  "default": "",
-  "description": "Apple 专用密码（不是登录密码！去 appleid.apple.com 生成）"
- },
- "apple_calendar_id": {
-  "type": "string",
-  "default": "",
-  "description": "Apple 日历 ID（UUID 或日历名称如「日程」），用于写入日程。不填则默认使用第一个日历"
- },
- "webcal_urls": {
-  "type": "list",
-  "default": [],
-  "description": "WebCal 共享日历链接列表（iCloud 日历可以复制公共链接）",
-  "placeholder": "webcal://pXXX-caldav.icloud.com.cn/published/..."
+  "default": true,
+  "description": "开启洗澡提醒"
  },
  "bath_time": {
   "type": "string",
   "default": "22:00",
   "description": "洗澡提醒时间，格式 HH:MM"
  },
+ "enable_sleep_reminder": {
+  "type": "bool",
+  "default": true,
+  "description": "开启睡觉提醒"
+ },
  "sleep_time": {
   "type": "string",
   "default": "23:00",
   "description": "睡觉提醒时间，格式 HH:MM"
  },
+ "enable_water_reminder": {
+  "type": "bool",
+  "default": true,
+  "description": "开启喝水提醒"
+ },
  "water_interval": {
   "type": "int",
   "default": 90,
-  "description": "喝水提醒间隔（分钟），默认90分钟一次"
+  "description": "喝水提醒间隔（分钟）"
  },
  "water_start_time": {
   "type": "string",
@@ -70,20 +101,10 @@
   "default": "21:30",
   "description": "喝水提醒结束时间（太晚就不提醒了）"
  },
- "enable_bath_reminder": {
-  "type": "bool",
-  "default": true,
-  "description": "开启洗澡提醒"
- },
- "enable_sleep_reminder": {
-  "type": "bool",
-  "default": true,
-  "description": "开启睡觉提醒"
- },
- "enable_water_reminder": {
-  "type": "bool",
-  "default": true,
-  "description": "开启喝水提醒"
+ "maton_api_key": {
+  "type": "string",
+  "default": "",
+  "description": "Maton API Key（建议填写，与 api-gateway Skill 保持一致）。从 https://gateway.maton.ai 注册获取"
  },
  "weather_api_key": {
   "type": "string",
@@ -94,6 +115,16 @@
   "type": "string",
   "default": "杭州",
   "description": "默认查询天气的城市"
+ },
+ "transaction_db_id": {
+  "type": "string",
+  "default": "",
+  "description": "Notion 事务库 ID（在 Notion 页面链接里找）"
+ },
+ "reading_db_id": {
+  "type": "string",
+  "default": "",
+  "description": "Notion 阅读库 ID（可选）"
  },
  "whitelist_qq_ids": {
   "type": "list",
