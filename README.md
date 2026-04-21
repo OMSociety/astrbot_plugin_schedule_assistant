@@ -92,15 +92,28 @@
 
 ```
 astrbot_plugin_schedule_assistant/
-├── main.py              # 主逻辑、定时任务调度、LLM工具
-├── schedule_store.py     # 数据持久化（AstrBot Preference API）
-├── notion_client.py      # Notion API 调用（通过 Maton Gateway）
-├── apple_calendar.py     # Apple 日历同步（WebCal）
-├── dashboard.py          # Live Dashboard 状态获取
-├── constants.py          # 统一常量定义
-├── _conf_schema.json     # 配置项 schema
-├── metadata.yaml         # 插件元信息
-└── README.md             # 本文档
+├── main.py                    # 主逻辑、定时任务调度、LLM工具
+├── schedule_store.py          # 数据持久化（AstrBot Preference API）
+├── notion_client.py           # Notion API 调用（通过 Maton Gateway）
+├── apple_calendar.py          # Apple 日历同步（WebCal）
+├── constants.py               # 统一常量定义
+├── _conf_schema.json          # 配置项 schema
+├── metadata.yaml              # 插件元信息
+├── logo.png                   # 插件图标（AstrBot 标准文件名）
+├── README.md                  # 本文档
+├── CHANGELOG.md               # 更新日志
+└── services/                  # 数据服务层
+│   ├── __init__.py
+│   ├── weather.py            # 心知天气 API（带30分钟缓存）
+│   ├── notion.py             # Notion 服务（5分钟断路器）
+│   ├── dashboard.py          # Live Dashboard 状态获取（单例）
+│   └── llm.py                # LLM 封装（fallback + 人格注入）
+└── reminders/                # 提醒服务层
+    ├── __init__.py
+    ├── bath.py               # 洗澡提醒（含 fallback）
+    ├── sleep.py              # 睡觉提醒（含 fallback）
+    ├── water.py              # 喝水提醒（含 fallback + 自动续期）
+    └── briefing.py           # 每日早安播报（LLM 生成）
 ```
 
 ---
