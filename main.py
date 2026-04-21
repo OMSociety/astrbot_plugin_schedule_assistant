@@ -37,7 +37,12 @@ from .constants import (
 
 from .services.weather import WeatherService
 from .services.notion import NotionService
+from .services.dashboard import DashboardService
+from .services.llm import LLMService
 from .reminders.briefing import BriefingReminder
+from .reminders.bath import BathReminder
+from .reminders.sleep import SleepReminder
+from .reminders.water import WaterReminder
 
 
 class ScheduleAssistant(Star):
