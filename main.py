@@ -37,7 +37,7 @@ from .constants import (
 
 from .services.weather import WeatherService
 from .services.notion import NotionService
-from .services.dashboard import DashboardService
+from .services.dashboard import DashboardService, get_dashboard_status
 from .services.llm import LLMService
 from .reminders.briefing import BriefingReminder
 from .reminders.bath import BathReminder
@@ -146,8 +146,10 @@ class ScheduleAssistant(Star):
                 logger.warning(f"{LOG_PREFIX} Notion 初始化失败: {e}")
 
         # 提醒服务
-        self.briefing_reminder = BriefingReminder(self.llm_service, self.weather_service, self.dashboard_service)
-        self.bath_reminder = BathReminder(self.llm_service, self.dashboard_service)
-        self.sleep_reminder = SleepReminder(self.llm_service, self.dashboard_service)
-        self.water_reminder = WaterReminder(self.llm_service, self.dashboard_service)
+        self.briefing_reminder = BriefingReminder(self.config, self.context, self.llm_service)
+        self.bath_reminder = BathReminder(self.config, get_dashboard_status, self.llm_service, self.store)
+        self.sleep_reminder = SleepReminder(self.config, get_dashboard_status, self.llm_service, self.store)
+        self.water_reminder = WaterReminder(self.config, get_dashboard_status, self.llm_service, self.store)
         self.schedule_reminder = ScheduleReminder(self.llm_service, self.dashboard_service)
+
+        logger.info(f"{LOG_PREFIX} 外部服务初始化完成")
