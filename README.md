@@ -38,6 +38,20 @@
 - `推迟组会20分钟`
 - `今天洗澡改到23点`
 
+### 📋 Apple 日历同步
+**两种方式，自动按配置选择：**
+
+**方式一：iCloud CalDAV（推荐，支持读写双向同步）**
+- 配置 `apple_id`（Apple ID 邮箱，如 `xxx@qq.com`）+ `apple_app_password`（专用密码，非登录密码！）
+- 自动获取 iCloud 日历列表并读取事件
+- 未来计划：用户通过机器人添加的日程可写入 Apple 日历
+
+**方式二：WebCal 公共订阅（只读）**
+- 配置 `webcal_urls` 为 iCloud 公开日历链接
+- 无需认证，只能读取
+
+> ⚠️ 两种方式二选一，`apple_id` 优先（配置了则忽略 WebCal）
+
 ### 📋 Notion 待办同步
 每小时检查一次 Notion 事务库，DDL 临近（24小时内）时私信提醒。
 
@@ -71,9 +85,9 @@
 | `transaction_db_id` | Notion 事务库 ID | Notion 页面链接中复制 |
 | `reading_db_id` | Notion 阅读库 ID（可选） | 同上 |
 | `apple_calendar_enabled` | 启用 Apple 日历同步 | `true` / `false` |
-| `apple_id` | Apple ID 邮箱 | — |
-| `apple_app_password` | Apple 专用密码 | [appleid.apple.com](https://appleid.apple.com) 生成 |
-| `webcal_urls` | WebCal 公共日历链接列表 | iCloud 日历 → 复制公共链接 |
+| `apple_id` | Apple ID 邮箱（**配置后优先使用 CalDAV**） | 如 `xxx@qq.com` |
+| `apple_app_password` | Apple 专用密码，**不是登录密码！** 在 [appleid.apple.com](https://appleid.apple.com) 生成后填入 |
+| `webcal_urls` | WebCal 公共日历链接列表（**apple_id 未配置时使用**） | iCloud 日历 → 复制公共链接 |
 | `bath_time` | 洗澡提醒时间，默认 `22:00` | — |
 | `sleep_time` | 睡觉提醒时间，默认 `23:00` | — |
 | `water_interval` | 喝水间隔（分钟），默认 `90` | — |
@@ -150,8 +164,9 @@ astrbot_plugin_schedule_assistant/
 - 确认 Bot 在 9:00 时在线
 
 **Q: Apple 日历同步失败？**
-- 请确认 `webcal_urls` 已配置且可访问
-- 当前版本通过 WebCal 公共链接拉取日历，不依赖 Apple ID 登录
+- 若配置了 `apple_id` + `apple_app_password`：确保 App Password 在 [appleid.apple.com](https://appleid.apple.com) 正确生成，且账号已开启两步验证
+- 若使用 `webcal_urls`：确认链接可公开访问，且以 `webcal://` 或 `https://` 开头
+- 两种方式优先使用 CalDAV（`apple_id` 配置后自动生效）
 
 **Q: 想改喝水提醒间隔？**
 - 修改 `water_interval` 配置项，单位为分钟
