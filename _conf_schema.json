@@ -104,9 +104,9 @@
  },
  "notion_db_ids": {
   "type": "list",
-  "items": {"type": "object", "properties": {"name": {"type": "string"}, "id": {"type": "string"}}},
+  "items": {"type": "string"},
   "default": [],
-  "description": "Notion 数据库 ID 列表（格式：[{"name": "事务", "id": "xxx..."}, ...]），在 Notion 页面链接里找（如 notion.so/workspace/xxxxxxxx-xxxxxxxxxx?v=... 中的 ID）"
+  "description": "Notion 数据库 ID 列表（如有多个，用换行分隔），在 Notion 页面链接里找（如 notion.so/workspace/xxxxxxxx-xxxxxxxxxx?v=... 中的 ID）"
  },
  "maton_api_key": {
   "type": "string",
