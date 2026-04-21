@@ -1,12 +1,1 @@
-astrbot_version: '>=3.0.0'
-name: astrbot_plugin_schedule_assistant
-display_name: 日程助手
-author: Slandre & Flandre
-description: |
-  智能日程提醒插件：每日9点自动推送天气+日程+待办，智能提醒洗澡/睡觉/喝水，支持自然语言添加日程。
-
-version: v1.7.0
-autoupdate: false
-support_platforms:
-  - aiocqhttp
-repo: https://github.com/OMSociety/astrbot_plugin_schedule_assistant
+YXN0cmJvdF92ZXJzaW9uOiAnPj0zLjAuMCcKbmFtZTogYXN0cmJvdF9wbHVnaW5fc2NoZWR1bGVfYXNzaXN0YW50CmRpc3BsYXlfbmFtZTog5pel56iL5Yqp5omLCmF1dGhvcjogU2xhbmRyZSAmIEZsYW5kcmUKZGVzY3JpcHRpb246IHwKICDmmbrog73ml6XnqIvmj5DphpLmj5Lku7bvvJrmr4/ml6U554K56Ieq5Yqo5o6o6YCB5aSp5rCUK+aXpeeoiyvlvoXlip7vvIzmmbrog73mj5DphpLmtJfmvqEv552h6KeJL+WWneawtO+8jOaUr+aMgeiHqueEtuivreiogOa3u+WKoOaXpeeoi+OAggoKdmVyc2lvbjogdjEuNy4wCmljb246IGljb24ucG5nCmF1dG91cGRhdGU6IGZhbHNlCnN1cHBvcnRfcGxhdGZvcm1zOgogIC0gYWlvY3FodHRwCnJlcG86IGh0dHBzOi8vZ2l0aHViLmNvbS9PTVNvY2lldHkvYXN0cmJvdF9wbHVnaW5fc2NoZWR1bGVfYXNzaXN0YW50Cg==
