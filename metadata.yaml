@@ -6,7 +6,6 @@ description: |
   智能日程提醒插件：每日9点自动推送天气+日程+待办，智能提醒洗澡/睡觉/喝水，支持自然语言添加日程。
 
 version: v1.7.0
-icon: icon.png
 autoupdate: false
 support_platforms:
   - aiocqhttp
