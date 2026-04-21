@@ -8,12 +8,11 @@ _SLEEP_FALLBACK_NORMAL = "😴 睡觉时间到啦~ 晚安，早点休息哦~"
 
 
 class SleepReminder:
-    def __init__(self, config: dict, get_dashboard_status, llm_service, store):
+    def __init__(self, config: dict, default_user_id: str, llm_service, store):
         self.config = config
-        self.get_dashboard_status = get_dashboard_status
+        self.default_user_id = default_user_id
         self.llm_service = llm_service
         self.store = store
-        self.default_user_id = config.get("default_user_id", "")
 
     def _get_fallback(self) -> str:
         from datetime import datetime
@@ -43,14 +42,3 @@ class SleepReminder:
 5. 不要markdown，纯文本输出
 6. 只输出提醒消息本身"""
         return await self.llm_service.generate(prompt)
-
-    async def _trigger(self, parent):
-        username = await parent._get_username_from_qq(parent.default_user_id) or "用户"
-        dashboard = await parent.dashboard_service.func()
-        history = await parent.store.get_conversation_history(parent.default_user_id)
-        history_text = parent.store.format_history_for_prompt(history)
-        message = await self.generate(username, dashboard, history_text)
-        if message:
-            await parent.store.add_conversation_message(parent.default_user_id, "assistant", message)
-            await parent._send_to_user(parent.default_user_id, message)
-        return message

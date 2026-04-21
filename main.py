@@ -112,12 +112,10 @@ class ScheduleAssistant(Star):
             self.weather_service = WeatherService({"weather_api_key": api_key, "weather_city": city})
 
         # LLM
-        maton_key = self.config.get("maton_api_key")
-        if maton_key:
-            try:
-                self.llm_service = LLMService(maton_key)
-            except Exception as e:
-                logger.warning(f"{LOG_PREFIX} LLM 服务初始化失败: {e}")
+        try:
+            self.llm_service = LLMService(self.context)
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} LLM 服务初始化失败: {e}")
 
         # Dashboard
         self.dashboard_service = DashboardService()
@@ -147,9 +145,9 @@ class ScheduleAssistant(Star):
 
         # 提醒服务
         self.briefing_reminder = BriefingReminder(self.config, self.context, self.llm_service)
-        self.bath_reminder = BathReminder(self.config, get_dashboard_status, self.llm_service, self.store)
-        self.sleep_reminder = SleepReminder(self.config, get_dashboard_status, self.llm_service, self.store)
-        self.water_reminder = WaterReminder(self.config, get_dashboard_status, self.llm_service, self.store)
+        self.bath_reminder = BathReminder(self.config, self.default_user_id, self.llm_service, self.store)
+        self.sleep_reminder = SleepReminder(self.config, self.default_user_id, self.llm_service, self.store)
+        self.water_reminder = WaterReminder(self.config, self.default_user_id, self.llm_service, self.store)
         self.schedule_reminder = ScheduleReminder(self.llm_service, self.dashboard_service)
 
         logger.info(f"{LOG_PREFIX} 外部服务初始化完成")
@@ -323,7 +321,7 @@ class ScheduleAssistant(Star):
             weekday_str = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][now.weekday()]
             
             # 获取 Dashboard 状态
-            dashboard_status = await get_dashboard_status() if get_dashboard_status else "暂无"
+            dashboard_status = await get_dashboard_status() if hasattr(self, 'dashboard_service') else "暂无"
             
             # 生成播报
             briefing = await self.briefing_reminder.generate_full_report(
@@ -351,7 +349,7 @@ class ScheduleAssistant(Star):
             if not user_id:
                 return
             
-            dashboard = await get_dashboard_status() if get_dashboard_status else ""
+            dashboard = await get_dashboard_status() if hasattr(self, 'dashboard_service') and self.dashboard_service else ""
             history = self.store.get_recent_conversations(user_id, limit=5)
             history_text = "\n".join([h.get("content", "") for h in history]) if history else ""
             
@@ -370,7 +368,7 @@ class ScheduleAssistant(Star):
             if not user_id:
                 return
             
-            dashboard = await get_dashboard_status() if get_dashboard_status else ""
+            dashboard = await get_dashboard_status() if hasattr(self, 'dashboard_service') and self.dashboard_service else ""
             history = self.store.get_recent_conversations(user_id, limit=5)
             history_text = "\n".join([h.get("content", "") for h in history]) if history else ""
             
@@ -394,7 +392,7 @@ class ScheduleAssistant(Star):
                 logger.debug(f"{LOG_PREFIX} 喝水提醒被跳过")
                 return
             
-            dashboard = await get_dashboard_status() if get_dashboard_status else ""
+            dashboard = await get_dashboard_status() if hasattr(self, 'dashboard_service') and self.dashboard_service else ""
             history = self.store.get_recent_conversations(user_id, limit=5)
             history_text = "\n".join([h.get("content", "") for h in history]) if history else ""
             
@@ -431,12 +429,10 @@ class ScheduleAssistant(Star):
     async def _schedule_scan(self):
         """定期扫描用户会话"""
         logger.debug(f"{LOG_PREFIX} 执行日程扫描")
-        # 简化实现
 
     async def _notion_ddl_check(self):
         """检查 Notion DDL"""
         logger.debug(f"{LOG_PREFIX} 执行 Notion DDL 检查")
-        # 简化实现
 
     async def _schedule_reminder_scan(self):
         """日程 LLM 提醒扫描"""
