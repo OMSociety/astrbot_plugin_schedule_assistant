@@ -1,4 +1,1 @@
-"""Schedule Assistant - 日程提醒助手插件"""
-
-__version__ = "1.7.0"
-__author__ = "Flandre Scarlet"
+IiIiU2NoZWR1bGUgQXNzaXN0YW50IC0g5pel56iL5o+Q6YaS5Yqp5omL5o+S5Lu2IiIiCgpfX3ZlcnNpb25fXyA9ICIxLjcuMCIKX19hdXRob3JfXyA9ICJGbGFuZHJlIFNjYXJsZXQiCg==
