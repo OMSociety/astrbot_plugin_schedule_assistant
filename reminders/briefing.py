@@ -1,1 +1,55 @@
-IiIi5pep5a6J5pKt5oql5pyN5YqhIiIiCmZyb20gLi5jb25zdGFudHMgaW1wb3J0IExPR19QUkVGSVgKCgpjbGFzcyBCcmllZmluZ1JlbWluZGVyOgogICAgZGVmIF9faW5pdF9fKHNlbGYsIGNvbmZpZzogZGljdCwgY29udGV4dCwgbGxtX3NlcnZpY2UpOgogICAgICAgIHNlbGYuY29uZmlnID0gY29uZmlnCiAgICAgICAgc2VsZi5jb250ZXh0ID0gY29udGV4dAogICAgICAgIHNlbGYubGxtX3NlcnZpY2UgPSBsbG1fc2VydmljZQoKICAgIGFzeW5jIGRlZiBnZW5lcmF0ZV9mdWxsX3JlcG9ydCgKICAgICAgICBzZWxmLAogICAgICAgIHVzZXJuYW1lOiBzdHIsIGRhdGU6IHN0ciwgd2Vla2RheTogc3RyLAogICAgICAgIHdlYXRoZXJfY3VycmVudDogc3RyLCB3ZWF0aGVyX2ZvcmVjYXN0OiBzdHIsCiAgICAgICAgY2FsZW5kYXI6IHN0ciwgc2NoZWR1bGVzOiBzdHIsIG5vdGlvbjogc3RyLAogICAgICAgIGRhc2hib2FyZDogc3RyID0gIiIsIGxhdGVfbmlnaHQ6IHN0ciA9ICIiCiAgICApIC0+IHN0cjoKICAgICAgICBjYWxfbGluZXMgPSBbbC5zdHJpcCgpLnJlcGxhY2UoInwiLCAiICIpIGZvciBsIGluIGNhbGVuZGFyLnNwbGl0KCJcbiIpIGlmIGwuc3RyaXAoKV0gaWYgY2FsZW5kYXIgYW5kIGNhbGVuZGFyIG5vdCBpbiAoIuaaguaXoCIsICLojrflj5blpLHotKUiKSBlbHNlIFtdCiAgICAgICAgbm90aW9uX2xpbmVzID0gW2wuc3RyaXAoKSBmb3IgbCBpbiBub3Rpb24uc3BsaXQoIlxuIikgaWYgbC5zdHJpcCgpXSBpZiBub3Rpb24gYW5kIG5vdGlvbiBub3QgaW4gKCLmmoLml6AiLCAi6I635Y+W5aSx6LSlIikgZWxzZSBbXQoKICAgICAgICBwcm9tcHQgPSBmIiIi5L2g55qE5Lq65qC86K6+5a6a77yI55Sx57O757uf5o+Q5L6b77yJ5Lya5Yaz5a6a5L2g55qE6K+06K+d6aOO5qC844CCCgrjgJDkvaDnmoTku7vliqHjgJEK6K+35Lul56ym5ZCI5Lq65qC86aOO5qC855qE5pa55byP77yM55Sf5oiQ5LiA5Lu95a6M5pW055qE5pep5a6J5pKt5oql44CC6KaB5rGC77yaCjEuIOW8gOWktOW/hemhu+acieensOWRvOivre+8iOWmgiLml6nlrol4eHh+Iu+8ie+8jOensOWRvOimgeiHqueEtuiejeWFpQoyLiDnu5PlkIjnlKjmiLflvZPliY3nirbmgIHnu5nlh7rpkojlr7nmgKflu7rorq4KMy4g6K+t6KiA6KaB56ym5ZCI5L2g55qE5Lq66K6+77yM5LiN6KaB55Sf56GsCgrjgJDku4rml6Xkv6Hmga/jgJEK5pel5pyfOiB7ZGF0ZX0ge3dlZWtkYXl9CuWkqeawlDoge3dlYXRoZXJfY3VycmVudH3vvIjpooTmiqU6IHt3ZWF0aGVyX2ZvcmVjYXN0IGlmIHdlYXRoZXJfZm9yZWNhc3QgZWxzZSAi5pqC5pegIn3vvIkK5pel56iLOgp7IlxuIi5qb2luKGNhbF9saW5lcykgaWYgY2FsX2xpbmVzIGVsc2UgIuaaguaXoCJ9CuW+heWKnjoKe3NjaGVkdWxlcyBpZiBzY2hlZHVsZXMgYW5kIHNjaGVkdWxlcyAhPSAi5pqC5pegIiBlbHNlICLmmoLml6AifQpOb3Rpb27lvoXlip46CnsiXG4iLmpvaW4obm90aW9uX2xpbmVzKSBpZiBub3Rpb25fbGluZXMgZWxzZSAi5pqC5pegIn0K6K6+5aSH54q25oCBOiB7ZGFzaGJvYXJkIGlmIGRhc2hib2FyZCBlbHNlICLmmoLml6AifQrnhqzlpJzmo4DmtYs6IHsi5pyJ5rex5aSc5pel56iL77yIIiArIGxhdGVfbmlnaHQuc3RyaXAoKSArICLvvInvvIzmmKjmmZrovpvoi6bkuoYiIGlmIGxhdGVfbmlnaHQgYW5kIGxhdGVfbmlnaHQuc3RyaXAoKSBlbHNlICLml6Dmt7HlpJzml6XnqIsifQoK44CQ5rip6aao5bu66K6u55Sf5oiQ6KeE5YiZ44CRCi0g5aaC5p6c54as5aSc5qOA5rWL5pi+56S65pyJ5rex5aSc5pel56iL77yM6KaB6K+05YWz5b+D55qE6K+dCi0g5aaC5p6c6K6+5aSH5pi+56S655So5oi36L+Y5Zyo5bqK5LiK5oiW5ri45oiP5Lit77yM5rip5ZKM5YKs5L+D5byA5aeL5paw55qE5LiA5aSpCi0g5aaC5p6c5pyJRERM5Li06L+R55qE5b6F5Yqe77yM6YeN54K55o+Q6YaSCi0g5aaC5p6c5aSp5rCU5LiN5aW977yM5o+Q6YaS5bim5Lye5re76KGjCi0g5bu66K6u6KaB5pyJ6ZKI5a+55oCn77yM5LiN6KaB5rOb5rOb6ICM6LCICgrjgJDmoLzlvI/opoHmsYLjgJEK77yI5pep5a6J6K+t77yM56ew5ZG8K+eugOefremXruWAme+8iQrml6XmnJ8K5aSp5rCU77yI5b2T5YmNK+mihOaKpe+8iQrml6XnqIvvvIjlpoLmnInvvIkK5b6F5Yqe77yI5aaC5pyJ77yJCua4qemmqOW7uuiuru+8iOS4gOauteS7peWGhe+8iSIiIgogICAgICAgIHJldHVybiBhd2FpdCBzZWxmLmxsbV9zZXJ2aWNlLmdlbmVyYXRlKHByb21wdCkK
+"""早安播报服务"""
+from ..constants import LOG_PREFIX
+
+
+class BriefingReminder:
+    def __init__(self, config: dict, context, llm_service):
+        self.config = config
+        self.context = context
+        self.llm_service = llm_service
+
+    async def generate_full_report(
+        self,
+        username: str, date: str, weekday: str,
+        weather_current: str, weather_forecast: str,
+        calendar: str, schedules: str, notion: str,
+        dashboard: str = "", late_night: str = ""
+    ) -> str:
+        cal_lines = [l.strip().replace("|", " ") for l in calendar.split("\n") if l.strip()] if calendar and calendar not in ("暂无", "获取失败") else []
+        notion_lines = [l.strip() for l in notion.split("\n") if l.strip()] if notion and notion not in ("暂无", "获取失败") else []
+
+        prompt = f"""你的人格设定（由系统提供）会决定你的说话风格。
+
+【你的任务】
+请以符合人格风格的方式，生成一份完整的早安播报。要求：
+1. 开头必须有称呼语（如"早安xxx~"），称呼要自然融入
+2. 结合用户当前状态给出针对性建议
+3. 语言要符合你的人设，不要生硬
+
+【今日信息】
+日期: {date} {weekday}
+天气: {weather_current}（预报: {weather_forecast if weather_forecast else "暂无"}）
+日程:
+{"\n".join(cal_lines) if cal_lines else "暂无"}
+待办:
+{schedules if schedules and schedules != "暂无" else "暂无"}
+Notion待办:
+{"\n".join(notion_lines) if notion_lines else "暂无"}
+设备状态: {dashboard if dashboard else "暂无"}
+熬夜检测: {"有深夜日程（" + late_night.strip() + "），昨晚辛苦了" if late_night and late_night.strip() else "无深夜日程"}
+
+【温馨建议生成规则】
+- 如果熬夜检测显示有深夜日程，要说关心的话
+- 如果设备显示用户还在床上或游戏中，温和催促开始新的一天
+- 如果有DDL临近的待办，重点提醒
+- 如果天气不好，提醒带伞添衣
+- 建议要有针对性，不要泛泛而谈
+
+【格式要求】
+（早安语，称呼+简短问候）
+日期
+天气（当前+预报）
+日程（如有）
+待办（如有）
+温馨建议（一段以内）"""
+        return await self.llm_service.generate(prompt)
