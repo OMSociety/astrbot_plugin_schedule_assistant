@@ -171,21 +171,21 @@ class ScheduleAssistant(Star):
                 id="sleep_reminder",
                 replace_existing=True,
             )
-            
+
             # Apple 日历双向同步定时任务
             if conf.get("enable_apple_calendar_sync"):
                 sync_interval = conf.get("apple_calendar_sync_interval", 30)
                 self.scheduler.add_job(
                     self._apple_calendar_sync,
-                    f"interval",
+                    "interval",
                     minutes=sync_interval,
                     id="apple_calendar_sync",
                     replace_existing=True,
                     max_instances=1,
                 )
                 logger.info(f"{LOG_PREFIX} Apple 日历同步任务已注册（每 {sync_interval} 分钟）")
-            
-            # 日程 LLM 提醒定时扫描（每分钟一次，覆盖 80 分钟窗口）
+
+            # 日程 LLM 提醒定时扫描
             if conf.get("enable_schedule_reminder"):
                 self.scheduler.add_job(
                     self._schedule_reminder_scan,
@@ -200,14 +200,11 @@ class ScheduleAssistant(Star):
             water_interval = conf.get("water_interval", DEFAULT_WATER_INTERVAL)
             water_start = conf.get("water_start_time", DEFAULT_WATER_START)
             water_end = conf.get("water_end_time", DEFAULT_WATER_END)
-            sleep_time = conf.get("sleep_time", DEFAULT_SLEEP_TIME)
-            
-            # 使用辅助函数计算下次触发时间(支持重载时立即触发)
+
             now = datetime.now()
             next_trigger = self._get_water_next_trigger(now, water_start, water_end, water_interval)
-            initial_delay = max((next_trigger - now).total_seconds(), 30.0)  # 至少等30秒，防止立即触发
-            
-            # 显式移除旧的喝水任务（replace_existing=True 对 date 触发器无效）
+            initial_delay = max((next_trigger - now).total_seconds(), 30.0)
+
             try:
                 self.scheduler.remove_job("water_reminder")
             except Exception:
@@ -220,41 +217,39 @@ class ScheduleAssistant(Star):
                 replace_existing=True
             )
             logger.info(f"{LOG_PREFIX} 喝水提醒首次触发: {next_trigger.strftime('%H:%M')} ({initial_delay/60:.1f}分钟后)")
-            
+
             # 每小时检查一次 Notion DDL
             self.scheduler.add_job(
                 self._notion_ddl_check,
-                CronTrigger(minute=0),  # 每小时整点
+                CronTrigger(minute=0),
                 id="notion_ddl_check",
                 replace_existing=True
             )
-            
-            # 每天凌晨清理过期的临时修改(00:05执行,避开0点高峰)
+
+            # 每天凌晨清理过期的临时修改
             self.scheduler.add_job(
                 self._clear_expired_overrides,
                 CronTrigger(hour=0, minute=5),
                 id="clear_expired_overrides",
                 replace_existing=True
             )
-            
-            # 每小时扫描一次用户日程，到期触发私信提醒
+
+            # 每小时扫描一次用户日程
             self.scheduler.add_job(
                 self._schedule_scan,
-                CronTrigger(minute=1),  # 每小时01分执行，避开整点高峰
+                CronTrigger(minute=1),
                 id="schedule_scan",
                 replace_existing=True
             )
-            
+
             # 立即启动 scheduler
             if not self.scheduler.running:
                 self.scheduler.start()
-            
+
             logger.info(f"{LOG_PREFIX} 所有定时任务已注册,调度器已启动")
-        except Exception as e:
-            logger.error(f"{LOG_PREFIX} 定时任务注册失败: {e}")
 
     def _get_water_next_trigger(self, now: datetime, water_start: str, water_end: str, water_interval: int) -> datetime:
-        """计算喝水提醒下次触发时间（从 start 开始，每 interval 分钟一次，到 end 截止）"""
+        """计算喝水提醒下次触发时间"""
         start_h, start_m = map(int, water_start.split(":"))
         end_h, end_m = map(int, water_end.split(":"))
         today_start = now.replace(hour=start_h, minute=start_m, second=0, microsecond=0)
@@ -263,10 +258,8 @@ class ScheduleAssistant(Star):
         if now < today_start:
             return today_start
         if now >= today_end:
-            # 明天 start
             return today_start + timedelta(days=1)
 
-        # 在区间内，找下一个整数倍
         interval_min = timedelta(minutes=water_interval)
         next_t = today_start
         while next_t <= now:
@@ -278,35 +271,28 @@ class ScheduleAssistant(Star):
     # ── 生命周期 ─────────────────────────────────────────────────────────
 
     async def on_load(self):
-        """插件加载回调(AstrBot 生命周期)"""
+        """插件加载回调"""
         logger.info(f"{LOG_PREFIX} 插件加载完成")
 
     async def on_unload(self):
-        """插件卸载/重启时清理资源
-        
-        停止调度器、关闭外部会话，避免连接泄漏。
-        """
+        """插件卸载时清理资源"""
         try:
             if self.scheduler.running:
                 self.scheduler.shutdown(wait=False)
                 logger.info(f"{LOG_PREFIX} 调度器已停止")
         except Exception as e:
             logger.error(f"{LOG_PREFIX} 调度器停止失败: {e}")
-        
-        # 关闭 Notion 会话
         if self.notion:
             await self.notion.close()
 
     # ── 定时任务实现 ─────────────────────────────────────────────────────
 
     async def _morning_briefing(self):
-        """早安播报"""
         try:
             await self._ensure_services()
             user_id = self.default_user_id
             if not user_id:
                 return
-
             briefing = await self.briefing_reminder.generate_briefing(user_id)
             await self._send_to_user(user_id, briefing)
             logger.info(f"{LOG_PREFIX} 早安播报已发送")
@@ -314,7 +300,6 @@ class ScheduleAssistant(Star):
             logger.error(f"{LOG_PREFIX} 早安播报失败: {e}")
 
     async def _bath_reminder(self):
-        """洗澡提醒"""
         try:
             await self._ensure_services()
             user_id = self.default_user_id
@@ -327,7 +312,6 @@ class ScheduleAssistant(Star):
             logger.error(f"{LOG_PREFIX} 洗澡提醒失败: {e}")
 
     async def _sleep_reminder(self):
-        """睡觉提醒"""
         try:
             await self._ensure_services()
             user_id = self.default_user_id
@@ -340,7 +324,6 @@ class ScheduleAssistant(Star):
             logger.error(f"{LOG_PREFIX} 睡觉提醒失败: {e}")
 
     async def _water_reminder(self):
-        """喝水提醒"""
         try:
             await self._ensure_services()
             user_id = self.default_user_id
@@ -350,12 +333,10 @@ class ScheduleAssistant(Star):
             await self._send_to_user(user_id, msg)
             logger.info(f"{LOG_PREFIX} 喝水提醒已发送")
 
-            # 计算下次喝水时间并调度
             conf = self.config
             water_interval = conf.get("water_interval", DEFAULT_WATER_INTERVAL)
             water_start = conf.get("water_start_time", DEFAULT_WATER_START)
             water_end = conf.get("water_end_time", DEFAULT_WATER_END)
-            sleep_time = conf.get("sleep_time", DEFAULT_SLEEP_TIME)
 
             now = datetime.now()
             next_trigger = self._get_water_next_trigger(now, water_start, water_end, water_interval)
@@ -377,7 +358,6 @@ class ScheduleAssistant(Star):
             logger.error(f"{LOG_PREFIX} 喝水提醒失败: {e}")
 
     async def _notion_ddl_check(self):
-        """每小时检查 Notion DDL，提前 24 小时提醒"""
         try:
             if not self.notion:
                 return
@@ -463,10 +443,7 @@ class ScheduleAssistant(Star):
             logger.error(f"{LOG_PREFIX} 日程提醒扫描失败: {e}")
 
     async def _clear_expired_overrides(self):
-        """每日清理过期的临时修改
-        
-        在凌晨00:05执行,清理所有习惯的过期temp_override.
-        """
+        """每日清理过期的临时修改"""
         try:
             user_id = self.default_user_id
             if user_id:
@@ -476,19 +453,17 @@ class ScheduleAssistant(Star):
             logger.error(f"{LOG_PREFIX} 清理过期临时修改失败: {e}")
 
     async def _schedule_scan(self):
-        """每小时扫描一次用户日程，到期触发私信提醒
-        
-        扫描今日所有单次日程和重复习惯，决定是否触发提醒。"""
+        """每小时扫描一次用户日程，到期触发私信提醒"""
         try:
             user_id = self.default_user_id
             if not user_id:
                 return
-            
+
             now = datetime.now()
             window_start = now - timedelta(minutes=SCHEDULE_SCAN_WINDOW_MINUTES)
-            
+
             items = await self.store.list_all_items(user_id)
-            
+
             for item in items:
                 if not item.enabled:
                     continue
@@ -496,7 +471,6 @@ class ScheduleAssistant(Star):
                 due_time: Optional[datetime] = None
                 item_changed = False
 
-                # 1) snooze 优先级最高：未到点则不触发，到了按 snooze 时间触发
                 if item.snoozed_until:
                     snooze_dt = self._parse_ymdhm(item.snoozed_until)
                     if snooze_dt:
@@ -504,18 +478,14 @@ class ScheduleAssistant(Star):
                             continue
                         due_time = snooze_dt
                     else:
-                        # 脏数据自动清理，回退正常时间判断
                         item.snoozed_until = None
                         item_changed = True
 
-                # 2) 正常时间判定
                 if due_time is None:
-                    # 单次日程：优先解析完整时间 YYYY-MM-DD HH:MM
                     if item.type == "schedule":
                         try:
                             due_time = datetime.strptime(item.time, "%Y-%m-%d %H:%M")
                         except ValueError:
-                            # 兼容旧数据/LLM 输入：仅 HH:MM 则按今天计算
                             if self._is_valid_hhmm(item.time):
                                 h, m = map(int, item.time.split(":"))
                                 due_time = now.replace(hour=h, minute=m, second=0, microsecond=0)
@@ -526,7 +496,6 @@ class ScheduleAssistant(Star):
                                 await self.store.update_item(user_id, item)
                                 continue
                     else:
-                        # 习惯：优先使用当天 temp_override
                         trigger_hhmm = item.time
                         if item.temp_override:
                             override_dt = self._parse_ymdhm(item.temp_override)
@@ -543,39 +512,35 @@ class ScheduleAssistant(Star):
                         await self.store.update_item(user_id, item)
                     continue
 
-                # 防重复触发：当前扫描窗口内只触发一次
                 if item.last_triggered:
                     try:
                         last_dt = datetime.fromisoformat(item.last_triggered)
                         if last_dt >= window_start:
                             continue
                     except ValueError:
-                        logger.warning(f"{LOG_PREFIX} last_triggered 格式非法，已清理: {item.title} ({item.last_triggered})")
+                        logger.warning(f"{LOG_PREFIX} last_triggered 格式非法: {item.title} ({item.last_triggered})")
                         item.last_triggered = None
                         item_changed = True
-                
-                # 触发提醒
+
                 item.last_triggered = now.isoformat()
-                item.snoozed_until = None  # snooze 到点后清空
+                item.snoozed_until = None
                 if item.type == "schedule":
-                    # 单次任务触发后自动关闭，避免重复提醒
                     item.enabled = False
                 await self.store.update_item(user_id, item)
-                
+
                 recur_text = {"daily": "每天", "weekly": "每周"}.get(item.recur or "", "")
                 await self._send_to_user(
                     user_id,
                     f"📅 {recur_text}{item.title}提醒~ 时间到啦！"
                 )
                 logger.info(f"{LOG_PREFIX} 日程触发: {item.title} (类型: {item.type})")
-                
+
         except Exception as e:
             logger.error(f"{LOG_PREFIX} 日程扫描失败: {e}")
 
     # ── 工具函数 ─────────────────────────────────────────────────────────
 
     def _is_valid_hhmm(self, time_str: str) -> bool:
-        """检查 HH:MM 格式是否合法"""
         if not time_str:
             return False
         parts = time_str.split(":")
@@ -588,7 +553,6 @@ class ScheduleAssistant(Star):
             return False
 
     def _parse_ymdhm(self, s: str) -> Optional[datetime]:
-        """解析 YYYY-MM-DD HH:MM 或 YYYY-MM-DD HH:MM:SS"""
         if not s:
             return None
         try:
@@ -600,62 +564,48 @@ class ScheduleAssistant(Star):
                 return None
 
     async def _send_to_user(self, user_id: str, message: str):
-        """发送私聊消息给用户
-        
-        Args:
-            user_id: 用户ID
-            message: 消息内容
-        """
+        """发送私聊消息给用户"""
         try:
-            # 检查白名单
             allowed = self.config.get("whitelist_qq_ids", [])
-            
+
             if user_id not in allowed:
                 logger.warning(f"{LOG_PREFIX} 用户 {user_id} 不在白名单,跳过发送")
                 return
-            
+
             from astrbot.core.platform.message_session import MessageSession
-            
+
             session = MessageSession(
                 platform_name=self._get_platform_id(),
                 message_type=MessageType.FRIEND_MESSAGE,
                 session_id=user_id
             )
-            
+
             from astrbot.api.event import MessageChain
-            # 过滤表情标签（&&tag&&格式），避免标签被当作正文发送
             message = re.sub(r'&&[^&]+&&', '', message)
             chain = MessageChain().message(message)
             await self.context.send_message(session, chain)
             logger.info(f"{LOG_PREFIX} 消息已发送给用户 {user_id}")
-            
+
         except Exception as e:
             logger.error(f"{LOG_PREFIX} 发送消息失败: {e}")
 
     # ==================== LLM Tools ====================
 
-    @filter_llm_tool(
+    @filter.llm_tool(
         name="add_schedule",
         description="添加新的日程或习惯。参数：title-名称，time-时间(HH:MM or YYYY-MM-DD HH:MM)，recur-重复周期（仅支持 daily/weekly，空则单次）。边界：单次日程触发后自动关闭。"
     )
     async def add_schedule_llm(
-        self, 
-        event: AiocqhttpMessageEvent, 
-        title: str, 
-        time: str, 
-        recur: Optional[str] = None, 
+        self,
+        event: AiocqhttpMessageEvent,
+        title: str,
+        time: str,
+        recur: Optional[str] = None,
         description: str = ""
     ) -> Generator[str, Any, None]:
-        """添加日程或习惯
-        
-        Args:
-            title (str): 日程/习惯的名称
-            time (str): 执行时间,格式为 HH:MM,such as "09:00"
-            recur (str, optional): 重复周期,可选值: daily, weekly（不支持 monthly）,空字符串表示不重复
-            description (str, optional): 日程描述
-        """
+        """添加日程或习惯"""
         user_id = str(event.sender_info.user_id)
-        
+
         item = ScheduleItem(
             type="habit" if recur else "schedule",
             title=title,
@@ -663,18 +613,18 @@ class ScheduleAssistant(Star):
             recur=recur,
             context=description
         )
-        
+
         await self.store.add_item(user_id, item)
-        
+
         recur_text = ""
         if recur == "daily":
             recur_text = ",每天重复"
         elif recur == "weekly":
             recur_text = ",每周重复"
-        
+
         yield event.plain_result(f"已添加: {title} @ {time}{recur_text}")
 
-        # 写入 Apple 日历（同步模式）
+        # 写入 Apple 日历
         apple_conf = self.config.get("apple_calendar", {})
         if apple_conf.get("enable_sync") and not recur:
             username = apple_conf.get("username")
@@ -692,7 +642,6 @@ class ScheduleAssistant(Star):
                     )
                     await ac.close()
                     if uid:
-                        # 找到刚创建的 item，补充 apple_uid
                         all_items = await self.store.list_all_items(user_id)
                         for it in reversed(all_items):
                             if it.title == title and it.time == time and not getattr(it, "apple_uid", None):
@@ -707,17 +656,13 @@ class ScheduleAssistant(Star):
         description="删除指定的日程或习惯。支持模糊匹配。边界：匹配到第一项即删除并返回。"
     )
     async def remove_schedule_llm(
-        self, 
-        event: AiocqhttpMessageEvent, 
+        self,
+        event: AiocqhttpMessageEvent,
         title: str
     ) -> Generator[str, Any, None]:
-        """删除日程或习惯
-        
-        Args:
-            title (str): 要删除的日程/习惯名称（支持模糊匹配）
-        """
+        """删除日程或习惯"""
         user_id = str(event.sender_info.user_id)
-        
+
         items = await self.store.list_all_items(user_id)
         for item in items:
             if title in item.title:
@@ -725,7 +670,7 @@ class ScheduleAssistant(Star):
                 if success:
                     yield event.plain_result(f"已删除: {item.title}")
                     return
-        
+
         yield event.plain_result(f"未找到包含「{title}」的日程或习惯")
 
     @filter.llm_tool(
@@ -733,16 +678,16 @@ class ScheduleAssistant(Star):
         description="查看当前用户所有日程和习惯。返回格式：日程列表 + 习惯列表。"
     )
     async def list_schedules_llm(
-        self, 
+        self,
         event: AiocqhttpMessageEvent
     ) -> Generator[str, Any, None]:
         """查看所有日程"""
         user_id = str(event.sender_info.user_id)
-        
+
         data = await self.store.get_schedules(user_id)
         schedules = data.get(SCHEDULES_KEY, [])
         habits = data.get(HABITS_KEY, [])
-        
+
         lines = []
         if schedules:
             lines.append("📅 单次日程:")
@@ -752,7 +697,7 @@ class ScheduleAssistant(Star):
                 lines.append(f"  • {s.title} @ {time_info}{recur_info}")
         else:
             lines.append("📅 无单次日程")
-        
+
         if habits:
             lines.append("\n🔄 习惯:")
             for h in habits:
@@ -762,7 +707,7 @@ class ScheduleAssistant(Star):
                 lines.append(f"  {status} {h.title} @ {h.time} ({recur_info})")
         else:
             lines.append("\n🔄 无习惯")
-        
+
         yield event.plain_result("\n".join(lines))
 
     @filter.llm_tool(
@@ -770,19 +715,14 @@ class ScheduleAssistant(Star):
         description="推迟指定的日程或习惯提醒。参数：title-日程名称（支持模糊匹配），minutes-推迟分钟数。"
     )
     async def snooze_schedule_llm(
-        self, 
-        event: AiocqhttpMessageEvent, 
-        title: str, 
+        self,
+        event: AiocqhttpMessageEvent,
+        title: str,
         minutes: int = 10
     ) -> Generator[str, Any, None]:
-        """推迟日程或习惯
-        
-        Args:
-            title (str): 日程/习惯名称（支持模糊匹配）
-            minutes (int): 推迟分钟数
-        """
+        """推迟日程或习惯"""
         user_id = str(event.sender_info.user_id)
-        
+
         items = await self.store.list_all_items(user_id)
         for item in items:
             if title in item.title:
@@ -791,7 +731,7 @@ class ScheduleAssistant(Star):
                     new_time = (datetime.now() + timedelta(minutes=minutes)).strftime("%H:%M")
                     yield event.plain_result(f"好的，{item.title}推迟到 {new_time} 再提醒~")
                     return
-        
+
         yield event.plain_result(f"未找到包含「{title}」的日程或习惯")
 
     @filter.llm_tool(
@@ -799,25 +739,18 @@ class ScheduleAssistant(Star):
         description="临时修改习惯提醒时间（仅今天生效）。参数：habit_name-习惯名称，new_time-新时间(HH:MM)。"
     )
     async def temp_override_habit_llm(
-        self, 
-        event: AiocqhttpMessageEvent, 
-        habit_name: str, 
+        self,
+        event: AiocqhttpMessageEvent,
+        habit_name: str,
         new_time: str
     ) -> Generator[str, Any, None]:
-        """临时修改习惯时间
-        
-        Args:
-            habit_name (str): 习惯名称
-            new_time (str): 新时间 HH:MM
-        """
+        """临时修改习惯时间"""
         user_id = str(event.sender_info.user_id)
-        
-        # 验证时间格式
+
         if not self._is_valid_hhmm(new_time):
             yield event.plain_result(f"时间格式不对哦，应该是 HH:MM，比如 09:00")
             return
-        
-        # 先查习惯是否存在
+
         data = await self.store.get_schedules(user_id)
         habits = data.get(HABITS_KEY, [])
         found = None
@@ -825,11 +758,11 @@ class ScheduleAssistant(Star):
             if habit_name in h.title:
                 found = h
                 break
-        
+
         if not found:
             yield event.plain_result(f"未找到习惯「{habit_name}」")
             return
-        
+
         success = await self.store.set_temp_override(user_id, found.title, new_time)
         if success:
             yield event.plain_result(f"好的，{found.title} 今天临时改到 {new_time}，明天恢复原时间~")
@@ -841,26 +774,26 @@ class ScheduleAssistant(Star):
         description="查看 Notion 中标记为 PENDING 的待办任务，显示任务名称、截止时间和 DDL 倒计时。"
     )
     async def get_notion_tasks_llm(
-        self, 
+        self,
         event: AiocqhttpMessageEvent
     ) -> Generator[str, Any, None]:
         """查看 Notion 待办"""
         if not self.notion:
             yield event.plain_result("Notion 功能未配置或初始化失败")
             return
-        
+
         try:
             tasks = await self.notion.get_pending_tasks()
             if not tasks:
                 yield event.plain_result("✅ Notion 待办列表为空，放轻松~")
                 return
-            
+
             lines = [f"📋 Notion 待办（共 {len(tasks)} 项）:"]
             for t in tasks[:10]:
                 title = t.get("title", "未命名")
                 deadline = t.get("deadline", "")
                 url = t.get("url", "")
-                
+
                 due_str = ""
                 if deadline:
                     try:
@@ -878,14 +811,14 @@ class ScheduleAssistant(Star):
                         time_str = str(deadline)
                 else:
                     time_str = "无截止时间"
-                
+
                 lines.append(f"• {title} {due_str}")
                 if time_str:
                     lines.append(f"  截止: {time_str}")
-            
+
             if len(tasks) > 10:
                 lines.append(f"...还有 {len(tasks) - 10} 项")
-            
+
             yield event.plain_result("\n".join(lines))
         except Exception as e:
             logger.error(f"{LOG_PREFIX} 获取 Notion 待办失败: {e}")
@@ -896,17 +829,17 @@ class ScheduleAssistant(Star):
         description="跳过本次喝水提醒。主要用于计算下次喝水间隔。参数：reason-跳过原因（可选）。"
     )
     async def skip_water_llm(
-        self, 
-        event: AiocqhttpMessageEvent, 
+        self,
+        event: AiocqhttpMessageEvent,
         reason: str = ""
     ) -> Generator[str, Any, None]:
         """跳过喝水提醒"""
         user_id = str(event.sender_info.user_id)
-        
+
         await self.store.set_water_last(user_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         water_interval = self.config.get("water_interval", DEFAULT_WATER_INTERVAL)
         next_time = (datetime.now() + timedelta(minutes=water_interval)).strftime("%H:%M")
-        
+
         reason_text = f"（{reason}）" if reason else ""
         yield event.plain_result(f"好的，本次跳过 {reason_text}，下次喝水提醒约 {next_time} ~")
 
@@ -914,27 +847,17 @@ class ScheduleAssistant(Star):
     async def handle_private_message(self, event: AiocqhttpMessageEvent):
         """处理私聊消息（用于初始化外部服务）"""
         user_id = str(event.sender_info.user_id)
-        
-        # 记录对话
+
         msg_text = event.message_str.strip()
         if msg_text:
             await self.store.add_conversation_message(user_id, "user", msg_text)
-        
-        # 延迟初始化外部服务（私聊时触发，不阻塞启动）
+
         asyncio.create_task(self._ensure_services())
         asyncio.create_task(self._register_tasks())
 
 
 async def __initialize(context: Context):
-    """插件初始化入口
-    
-    Args:
-        context: AstrBot 上下文
-        
-    Returns:
-        ScheduleAssistant 实例
-    """
-    # 从配置获取
+    """插件初始化入口"""
     config = context.get_config().get("schedule_assistant", {})
     assistant = ScheduleAssistant(context, config)
     return assistant
