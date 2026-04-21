@@ -1,1 +1,36 @@
-IiIi552h6KeJ5o+Q6YaS5pyN5YqhIiIiCmZyb20gZGF0ZXRpbWUgaW1wb3J0IGRhdGV0aW1lCmZyb20gLi5jb25zdGFudHMgaW1wb3J0IERFRkFVTFRfU0xFRVBfVElNRQoKCmNsYXNzIFNsZWVwUmVtaW5kZXI6CiAgICBkZWYgX19pbml0X18oc2VsZiwgY29uZmlnOiBkaWN0LCBnZXRfZGFzaGJvYXJkX3N0YXR1cywgbGxtX3NlcnZpY2UsIHN0b3JlKToKICAgICAgICBzZWxmLmNvbmZpZyA9IGNvbmZpZwogICAgICAgIHNlbGYuZ2V0X2Rhc2hib2FyZF9zdGF0dXMgPSBnZXRfZGFzaGJvYXJkX3N0YXR1cwogICAgICAgIHNlbGYubGxtX3NlcnZpY2UgPSBsbG1fc2VydmljZQogICAgICAgIHNlbGYuc3RvcmUgPSBzdG9yZQogICAgICAgIHNlbGYuZGVmYXVsdF91c2VyX2lkID0gY29uZmlnLmdldCgiZGVmYXVsdF91c2VyX2lkIiwgIiIpCgogICAgZGVmIF9pc19sYXRlKHNlbGYsIG5vdzogZGF0ZXRpbWUpIC0+IGJvb2w6CiAgICAgICAgcmV0dXJuIG5vdy5ob3VyID49IDIzIG9yIG5vdy5ob3VyIDwgMgoKICAgIGFzeW5jIGRlZiBnZW5lcmF0ZShzZWxmLCB1c2VybmFtZTogc3RyLCBkYXNoYm9hcmQ6IHN0ciwgaGlzdG9yeV90ZXh0OiBzdHIpIC0+IHN0ciB8IE5vbmU6CiAgICAgICAgbm93ID0gZGF0ZXRpbWUubm93KCkKICAgICAgICBpc19sYXRlID0gc2VsZi5faXNfbGF0ZShub3cpCiAgICAgICAgcHJvbXB0ID0gZiIiIuS9oOaYr+OAjHt1c2VybmFtZX3jgI3nmoTotLTlv4Pml6XnqIvliqnmiYvvvIznjrDlnKjpnIDopoHnlJ/miJDkuIDmnaHnnaHop4nml7bpl7Tmj5DphpJ+CgrjgJDnlKjmiLfkv6Hmga/jgJEKLSDnlKjmiLflkI06IHt1c2VybmFtZX0KLSDlvZPliY3ml7bpl7Q6IHtub3cuc3RyZnRpbWUoIiVIOiVNIil9Ci0g6K6+5a6a55qE552h6KeJ5pe26Ze0OiB7c2VsZi5jb25maWcuZ2V0KCJzbGVlcF90aW1lIiwgREVGQVVMVF9TTEVFUF9USU1FKX0KLSDmmK/lkKblt7LotoXmmZooMjPngrnlkI4pOiB7aXNfbGF0ZX0KLSDnlKjmiLflvZPliY3nirbmgIE6IHtkYXNoYm9hcmR9CgrjgJDnlJ/miJDopoHmsYLjgJEKMS4g5aaC5p6c5bey57uP6LaF5pmaMjPngrnvvIzor63msJTopoHluKbngrnlsI/otKPlpIfvvIzmr5TlpoIi6YO95Yeg54K55LqG6L+Y5LiN552h77yBIgoyLiDlpoLmnpzov5jmsqHlvojmmZrvvIzor63msJTmuKnmn5Tlgqzkv4MKMy4g57uT5ZCIIGRhc2hib2FyZCDnirbmgIHvvJrlpoLmnpzmmL7npLrov5jlnKjnhqzlpJwv5ri45oiP77yM6KaB6YeN54K55YKs552hCjQuIDQw5a2X5Lul5YaF77yM5bimMS0y5LiqZW1vamkKNS4g5LiN6KaBbWFya2Rvd27vvIznuq/mlofmnKzovpPlh7oKNi4g5Y+q6L6T5Ye65o+Q6YaS5raI5oGv5pys6LqrIiIiCiAgICAgICAgcmV0dXJuIGF3YWl0IHNlbGYubGxtX3NlcnZpY2UuZ2VuZXJhdGUocHJvbXB0KQo=
+"""睡觉提醒服务"""
+from datetime import datetime
+from ..constants import DEFAULT_SLEEP_TIME
+
+
+class SleepReminder:
+    def __init__(self, config: dict, get_dashboard_status, llm_service, store):
+        self.config = config
+        self.get_dashboard_status = get_dashboard_status
+        self.llm_service = llm_service
+        self.store = store
+        self.default_user_id = config.get("default_user_id", "")
+
+    def _is_late(self, now: datetime) -> bool:
+        return now.hour >= 23 or now.hour < 2
+
+    async def generate(self, username: str, dashboard: str, history_text: str) -> str | None:
+        now = datetime.now()
+        is_late = self._is_late(now)
+        prompt = f"""你是「{username}」的贴心日程助手，现在需要生成一条睡觉时间提醒~
+
+【用户信息】
+- 用户名: {username}
+- 当前时间: {now.strftime("%H:%M")}
+- 设定的睡觉时间: {self.config.get("sleep_time", DEFAULT_SLEEP_TIME)}
+- 是否已超晚(23点后): {is_late}
+- 用户当前状态: {dashboard}
+
+【生成要求】
+1. 如果已经超晚23点，语气要带点小责备，比如"都几点了还不睡！"
+2. 如果还没很晚，语气温柔催促
+3. 结合 dashboard 状态：如果显示还在熬夜/游戏，要重点催睡
+4. 40字以内，带1-2个emoji
+5. 不要markdown，纯文本输出
+6. 只输出提醒消息本身"""
+        return await self.llm_service.generate(prompt)
