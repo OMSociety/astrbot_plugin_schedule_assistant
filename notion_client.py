@@ -1,1 +1,128 @@
-IiIiCk5vdGlvbiBDbGllbnQgLSDpgJrov4cgTWF0b24gR2F0ZXdheSDlvILmraXojrflj5bmnKrlrozmiJDku7vliqEKCuWPquS/neeVmSBnZXRfcGVuZGluZ190cmFuc2FjdGlvbnMoKe+8jOWFtuS7luaWueazleW3suehruiupOWcqOaXpeeoi+WKqeaJi+S4reacquiiq+S9v+eUqOOAggrmiYDmnInnvZHnu5zor7fmsYLnu5/kuIDlsIHoo4XvvIzmlK/mjIHph43or5XjgIHnirbmgIHnoIHmo4Dmn6XlkozkvJror53lpI3nlKjjgIIKIiIiCgppbXBvcnQgdGltZQppbXBvcnQgYXN5bmNpbwppbXBvcnQgYWlvaHR0cApmcm9tIGRhdGV0aW1lIGltcG9ydCBkYXRldGltZSwgdGltZWRlbHRhCmZyb20gdHlwaW5nIGltcG9ydCBPcHRpb25hbCwgRGljdCwgTGlzdCwgQW55CgpHQVRFV0FZID0gImh0dHBzOi8vZ2F0ZXdheS5tYXRvbi5haS9ub3Rpb24vdjEiCkRFRkFVTFRfVElNRU9VVCA9IDMwCk1BWF9SRVRSSUVTID0gMwoKCmNsYXNzIE5vdGlvbkNsaWVudDoKICAgICIiIumAmui/hyBNYXRvbiBHYXRld2F5IOiOt+WPluacquWujOaIkOS7u+WKoe+8iOe6r+W8guatpe+8iSIiIgoKICAgIGRlZiBfX2luaXRfXyhzZWxmLCBhcGlfa2V5OiBzdHIgPSAiIiwgdHJhbnNhY3Rpb25fZGJfaWQ6IHN0ciA9ICIiLCByZWFkaW5nX2RiX2lkOiBzdHIgPSAiIik6CiAgICAgICAgc2VsZi5fYXBpX2tleSA9IGFwaV9rZXkKICAgICAgICBzZWxmLl9kYl9pZHM6IERpY3Rbc3RyLCBzdHJdID0ge30KICAgICAgICBpZiB0cmFuc2FjdGlvbl9kYl9pZDoKICAgICAgICAgICAgc2VsZi5fZGJfaWRzWyLkuovliqEiXSA9IHRyYW5zYWN0aW9uX2RiX2lkCiAgICAgICAgaWYgcmVhZGluZ19kYl9pZDoKICAgICAgICAgICAgc2VsZi5fZGJfaWRzWyLpmIXor7siXSA9IHJlYWRpbmdfZGJfaWQKCiAgICAgICAgIyDlrp7kvovnuqfnvJPlrZjvvIxUVEwgNSDliIbpkp8KICAgICAgICBzZWxmLl9wZW5kaW5nX2NhY2hlOiBEaWN0W3N0ciwgQW55XSA9IHsiZGF0YSI6IE5vbmUsICJ0aW1lc3RhbXAiOiAwLCAidHRsIjogMzAwfQogICAgICAgIHNlbGYuX2h0dHBfc2Vzc2lvbjogT3B0aW9uYWxbYWlvaHR0cC5DbGllbnRTZXNzaW9uXSA9IE5vbmUKCiAgICBkZWYgX2hlYWRlcnMoc2VsZikgLT4gRGljdFtzdHIsIHN0cl06CiAgICAgICAgcmV0dXJuIHsKICAgICAgICAgICAgIkF1dGhvcml6YXRpb24iOiBmIkJlYXJlciB7c2VsZi5fYXBpX2tleX0iLAogICAgICAgICAgICAiTm90aW9uLVZlcnNpb24iOiAiMjAyMi0wNi0yOCIsCiAgICAgICAgICAgICJDb250ZW50LVR5cGUiOiAiYXBwbGljYXRpb24vanNvbiIsCiAgICAgICAgfQoKICAgIGFzeW5jIGRlZiBfZ2V0X2h0dHBfc2Vzc2lvbihzZWxmKSAtPiBhaW9odHRwLkNsaWVudFNlc3Npb246CiAgICAgICAgaWYgc2VsZi5faHR0cF9zZXNzaW9uIGlzIE5vbmUgb3Igc2VsZi5faHR0cF9zZXNzaW9uLmNsb3NlZDoKICAgICAgICAgICAgc2VsZi5faHR0cF9zZXNzaW9uID0gYWlvaHR0cC5DbGllbnRTZXNzaW9uKCkKICAgICAgICByZXR1cm4gc2VsZi5faHR0cF9zZXNzaW9uCgogICAgYXN5bmMgZGVmIGNsb3NlKHNlbGYpOgogICAgICAgIGlmIHNlbGYuX2h0dHBfc2Vzc2lvbiBhbmQgbm90IHNlbGYuX2h0dHBfc2Vzc2lvbi5jbG9zZWQ6CiAgICAgICAgICAgIGF3YWl0IHNlbGYuX2h0dHBfc2Vzc2lvbi5jbG9zZSgpCgogICAgYXN5bmMgZGVmIF9yZXF1ZXN0KAogICAgICAgIHNlbGYsIG1ldGhvZDogc3RyLCBlbmRwb2ludDogc3RyLCBkYXRhOiBPcHRpb25hbFtEaWN0XSA9IE5vbmUsIHJldHJpZXM6IGludCA9IE1BWF9SRVRSSUVTCiAgICApIC0+IERpY3Q6CiAgICAgICAgdXJsID0gZiJ7R0FURVdBWX0ve2VuZHBvaW50fSIKICAgICAgICBsYXN0X2Vycm9yID0gTm9uZQogICAgICAgIGZvciBhdHRlbXB0IGluIHJhbmdlKHJldHJpZXMpOgogICAgICAgICAgICB0cnk6CiAgICAgICAgICAgICAgICBzZXNzID0gYXdhaXQgc2VsZi5fZ2V0X2h0dHBfc2Vzc2lvbigpCiAgICAgICAgICAgICAgICBhc3luYyB3aXRoIHNlc3MucmVxdWVzdCgKICAgICAgICAgICAgICAgICAgICBtZXRob2QsIHVybCwgaGVhZGVycz1zZWxmLl9oZWFkZXJzKCksIGpzb249ZGF0YSwKICAgICAgICAgICAgICAgICAgICB0aW1lb3V0PWFpb2h0dHAuQ2xpZW50VGltZW91dCh0b3RhbD1ERUZBVUxUX1RJTUVPVVQpCiAgICAgICAgICAgICAgICApIGFzIHJlc3A6CiAgICAgICAgICAgICAgICAgICAgaWYgcmVzcC5zdGF0dXMgPT0gMjAwOgogICAgICAgICAgICAgICAgICAgICAgICByZXR1cm4gYXdhaXQgcmVzcC5qc29uKCkKICAgICAgICAgICAgICAgICAgICBlbGlmIHJlc3Auc3RhdHVzID09IDQyOToKICAgICAgICAgICAgICAgICAgICAgICAgYXdhaXQgYXN5bmNpby5zbGVlcChpbnQocmVzcC5oZWFkZXJzLmdldCgiUmV0cnktQWZ0ZXIiLCAiNSIpKSkKICAgICAgICAgICAgICAgICAgICAgICAgY29udGludWUKICAgICAgICAgICAgICAgICAgICBlbHNlOgogICAgICAgICAgICAgICAgICAgICAgICB0ZXh0ID0gYXdhaXQgcmVzcC50ZXh0KCkKICAgICAgICAgICAgICAgICAgICAgICAgcmV0dXJuIHsiZXJyb3IiOiBmIkhUVFAge3Jlc3Auc3RhdHVzfToge3RleHRbOjIwMF19In0KICAgICAgICAgICAgZXhjZXB0IEV4Y2VwdGlvbiBhcyBlOgogICAgICAgICAgICAgICAgbGFzdF9lcnJvciA9IHN0cihlKQogICAgICAgICAgICBpZiBhdHRlbXB0IDwgcmV0cmllcyAtIDE6CiAgICAgICAgICAgICAgICBhd2FpdCBhc3luY2lvLnNsZWVwKDAuNSAqIChhdHRlbXB0ICsgMSkpCiAgICAgICAgcmV0dXJuIHsiZXJyb3IiOiBmIuivt+axguWksei0pe+8iOW3sumHjeivlXtyZXRyaWVzfeasoe+8iToge2xhc3RfZXJyb3J9In0KCiAgICBkZWYgX3JlbGV2YW50KHNlbGYsIGRkbDogT3B0aW9uYWxbc3RyXSkgLT4gYm9vbDoKICAgICAgICBpZiBub3QgZGRsOgogICAgICAgICAgICByZXR1cm4gVHJ1ZQogICAgICAgIHRyeToKICAgICAgICAgICAgZHVlID0gZGF0ZXRpbWUuZnJvbWlzb2Zvcm1hdChkZGwucmVwbGFjZSgiWiIsICIrMDA6MDAiKSkuYXN0aW1lem9uZSgpLnJlcGxhY2UodHppbmZvPU5vbmUpCiAgICAgICAgICAgIHJldHVybiBkdWUgPD0gZGF0ZXRpbWUubm93KCkgb3IgZHVlIDw9IGRhdGV0aW1lLm5vdygpICsgdGltZWRlbHRhKGRheXM9NykKICAgICAgICBleGNlcHQgRXhjZXB0aW9uOgogICAgICAgICAgICByZXR1cm4gVHJ1ZQoKICAgIGFzeW5jIGRlZiBnZXRfcGVuZGluZ190cmFuc2FjdGlvbnMoc2VsZiwgdXNlX2NhY2hlOiBib29sID0gVHJ1ZSkgLT4gTGlzdFtEaWN0XToKICAgICAgICAiIiLojrflj5bmiYDmnInmnKrlrozmiJDku7vliqHvvIjluKYgNSDliIbpkp/nvJPlrZjvvIkiIiIKICAgICAgICBpZiB1c2VfY2FjaGUgYW5kIHNlbGYuX3BlbmRpbmdfY2FjaGVbImRhdGEiXSBhbmQgXAogICAgICAgICAgICh0aW1lLnRpbWUoKSAtIHNlbGYuX3BlbmRpbmdfY2FjaGVbInRpbWVzdGFtcCJdKSA8IHNlbGYuX3BlbmRpbmdfY2FjaGVbInR0bCJdOgogICAgICAgICAgICByZXR1cm4gc2VsZi5fcGVuZGluZ19jYWNoZVsiZGF0YSJdCgogICAgICAgIHJlc3VsdHM6IExpc3RbRGljdF0gPSBbXQogICAgICAgIGZvciBkYl9uYW1lLCBkYl9pZCBpbiBzZWxmLl9kYl9pZHMuaXRlbXMoKToKICAgICAgICAgICAgcmVzdWx0cy5leHRlbmQoYXdhaXQgc2VsZi5fcXVlcnlfZGIoZGJfaWQsIGRiX25hbWUpKQoKICAgICAgICBzZWxmLl9wZW5kaW5nX2NhY2hlID0geyJkYXRhIjogcmVzdWx0cywgInRpbWVzdGFtcCI6IHRpbWUudGltZSgpLCAidHRsIjogMzAwfQogICAgICAgIHJldHVybiByZXN1bHRzCgogICAgYXN5bmMgZGVmIF9xdWVyeV9kYihzZWxmLCBkYl9pZDogc3RyLCBkYl9uYW1lOiBzdHIpIC0+IExpc3RbRGljdF06CiAgICAgICAgcmVzdWx0czogTGlzdFtEaWN0XSA9IFtdCiAgICAgICAgY3Vyc29yID0gTm9uZQogICAgICAgIHdoaWxlIFRydWU6CiAgICAgICAgICAgIGJvZHk6IERpY3Rbc3RyLCBBbnldID0geyJwYWdlX3NpemUiOiAxMDB9CiAgICAgICAgICAgIGlmIGN1cnNvcjoKICAgICAgICAgICAgICAgIGJvZHlbInN0YXJ0X2N1cnNvciJdID0gY3Vyc29yCiAgICAgICAgICAgIHJlc3AgPSBhd2FpdCBzZWxmLl9yZXF1ZXN0KCJQT1NUIiwgZiJkYXRhYmFzZXMve2RiX2lkfS9xdWVyeSIsIGJvZHkpCiAgICAgICAgICAgIGlmICJlcnJvciIgaW4gcmVzcDoKICAgICAgICAgICAgICAgIGJyZWFrCiAgICAgICAgICAgIGZvciBwYWdlIGluIHJlc3AuZ2V0KCJyZXN1bHRzIiwgW10pOgogICAgICAgICAgICAgICAgcHJvcHMgPSBwYWdlLmdldCgicHJvcGVydGllcyIsIHt9KQogICAgICAgICAgICAgICAgc3RhdHVzID0gcHJvcHMuZ2V0KCLov5vluqYiLCB7fSkuZ2V0KCJzdGF0dXMiLCB7fSkuZ2V0KCJuYW1lIiwgIuacquW8gOWniyIpCiAgICAgICAgICAgICAgICBpZiBzdGF0dXMgaW4gKCLlt7LlrozmiJAiLCAi5bey5pCB572uIik6CiAgICAgICAgICAgICAgICAgICAgY29udGludWUKICAgICAgICAgICAgICAgICMg5qC55o2u5pWw5o2u5bqT57G75Z6L5Y+W5qCH6aKY5a2X5q61CiAgICAgICAgICAgICAgICBpZiBkYl9uYW1lID09ICLpmIXor7siOgogICAgICAgICAgICAgICAgICAgIHRpdGxlX2ZpZWxkID0gcHJvcHMuZ2V0KCLkuabnm64iLCB7fSkuZ2V0KCJ0aXRsZSIsIFtdKQogICAgICAgICAgICAgICAgZWxzZToKICAgICAgICAgICAgICAgICAgICB0aXRsZV9maWVsZCA9IHByb3BzLmdldCgi5YaF5a65Iiwge30pLmdldCgidGl0bGUiLCBbXSkKICAgICAgICAgICAgICAgIHRpdGxlID0gIiIuam9pbih0LmdldCgicGxhaW5fdGV4dCIsICIiKSBmb3IgdCBpbiB0aXRsZV9maWVsZCkgb3IgIijml6DmoIfpopgpIgogICAgICAgICAgICAgICAgZGRsID0gTm9uZQogICAgICAgICAgICAgICAgaWYgZGJfbmFtZSA9PSAi5LqL5YqhIjoKICAgICAgICAgICAgICAgICAgICBkZGwgPSBwcm9wcy5nZXQoIuaIquatouaXpSIsIHt9KS5nZXQoImRhdGUiLCB7fSkuZ2V0KCJzdGFydCIpCiAgICAgICAgICAgICAgICAgICAgaWYgbm90IHNlbGYuX3JlbGV2YW50KGRkbCk6CiAgICAgICAgICAgICAgICAgICAgICAgIGNvbnRpbnVlCiAgICAgICAgICAgICAgICByZXN1bHRzLmFwcGVuZCh7InBhZ2VfaWQiOiBwYWdlWyJpZCJdLCAiZGJfbmFtZSI6IGRiX25hbWUsICJ0aXRsZSI6IHRpdGxlLCAic3RhdHVzIjogc3RhdHVzLCAiZGRsIjogZGRsfSkKICAgICAgICAgICAgaWYgbm90IHJlc3AuZ2V0KCJoYXNfbW9yZSIpOgogICAgICAgICAgICAgICAgYnJlYWsKICAgICAgICAgICAgY3Vyc29yID0gcmVzcC5nZXQoIm5leHRfY3Vyc29yIikKICAgICAgICByZXR1cm4gcmVzdWx0cwo=
+"""
+Notion Client - 通过 Maton Gateway 异步获取未完成任务
+
+只保留 get_pending_transactions()，其他方法已确认在日程助手中未被使用。
+所有网络请求统一封装，支持重试、状态码检查和会话复用。
+"""
+
+import time
+import asyncio
+import aiohttp
+from datetime import datetime, timedelta
+from typing import Optional, Dict, List, Any
+
+GATEWAY = "https://gateway.maton.ai/notion/v1"
+DEFAULT_TIMEOUT = 30
+MAX_RETRIES = 3
+
+
+class NotionClient:
+    """通过 Maton Gateway 获取未完成任务（纯异步）"""
+
+    def __init__(self, api_key: str = "", transaction_db_id: str = "", reading_db_id: str = ""):
+        self._api_key = api_key
+        self._db_ids: Dict[str, str] = {}
+        if transaction_db_id:
+            self._db_ids["事务"] = transaction_db_id
+        if reading_db_id:
+            self._db_ids["阅读"] = reading_db_id
+
+        # 实例级缓存，TTL 5 分钟
+        self._pending_cache: Dict[str, Any] = {"data": None, "timestamp": 0, "ttl": 300}
+        self._http_session: Optional[aiohttp.ClientSession] = None
+
+    def _headers(self) -> Dict[str, str]:
+        return {
+            "Authorization": f"Bearer {self._api_key}",
+            "Notion-Version": "2022-06-28",
+            "Content-Type": "application/json",
+        }
+
+    async def _get_http_session(self) -> aiohttp.ClientSession:
+        if self._http_session is None or self._http_session.closed:
+            self._http_session = aiohttp.ClientSession()
+        return self._http_session
+
+    async def close(self):
+        if self._http_session and not self._http_session.closed:
+            await self._http_session.close()
+
+    async def _request(
+        self, method: str, endpoint: str, data: Optional[Dict] = None, retries: int = MAX_RETRIES
+    ) -> Dict:
+        url = f"{GATEWAY}/{endpoint}"
+        last_error = None
+        for attempt in range(retries):
+            try:
+                sess = await self._get_http_session()
+                async with sess.request(
+                    method, url, headers=self._headers(), json=data,
+                    timeout=aiohttp.ClientTimeout(total=DEFAULT_TIMEOUT)
+                ) as resp:
+                    if resp.status == 200:
+                        return await resp.json()
+                    elif resp.status == 429:
+                        await asyncio.sleep(int(resp.headers.get("Retry-After", "5")))
+                        continue
+                    else:
+                        text = await resp.text()
+                        return {"error": f"HTTP {resp.status}: {text[:200]}"}
+            except Exception as e:
+                last_error = str(e)
+            if attempt < retries - 1:
+                await asyncio.sleep(0.5 * (attempt + 1))
+        return {"error": f"请求失败（已重试{retries}次）: {last_error}"}
+
+    def _relevant(self, ddl: Optional[str]) -> bool:
+        if not ddl:
+            return True
+        try:
+            due = datetime.fromisoformat(ddl.replace("Z", "+00:00")).astimezone().replace(tzinfo=None)
+            return due <= datetime.now() or due <= datetime.now() + timedelta(days=7)
+        except Exception:
+            return True
+
+    async def get_pending_transactions(self, use_cache: bool = True) -> List[Dict]:
+        """获取所有未完成任务（带 5 分钟缓存）"""
+        if use_cache and self._pending_cache["data"] and \
+           (time.time() - self._pending_cache["timestamp"]) < self._pending_cache["ttl"]:
+            return self._pending_cache["data"]
+
+        results: List[Dict] = []
+        for db_name, db_id in self._db_ids.items():
+            results.extend(await self._query_db(db_id, db_name))
+
+        self._pending_cache = {"data": results, "timestamp": time.time(), "ttl": 300}
+        return results
+
+    async def _query_db(self, db_id: str, db_name: str) -> List[Dict]:
+        results: List[Dict] = []
+        cursor = None
+        while True:
+            body: Dict[str, Any] = {"page_size": 100}
+            if cursor:
+                body["start_cursor"] = cursor
+            resp = await self._request("POST", f"databases/{db_id}/query", body)
+            if "error" in resp:
+                break
+            for page in resp.get("results", []):
+                props = page.get("properties", {})
+                status = props.get("进度", {}).get("status", {}).get("name", "未开始")
+                if status in ("已完成", "已搁置"):
+                    continue
+                # 根据数据库类型取标题字段
+                if db_name == "阅读":
+                    title_field = props.get("书目", {}).get("title", [])
+                else:
+                    title_field = props.get("内容", {}).get("title", [])
+                title = "".join(t.get("plain_text", "") for t in title_field) or "(无标题)"
+                ddl = None
+                if db_name == "事务":
+                    ddl = props.get("截止日", {}).get("date", {}).get("start")
+                    if not self._relevant(ddl):
+                        continue
+                results.append({"page_id": page["id"], "db_name": db_name, "title": title, "status": status, "ddl": ddl})
+            if not resp.get("has_more"):
+                break
+            cursor = resp.get("next_cursor")
+        return results
