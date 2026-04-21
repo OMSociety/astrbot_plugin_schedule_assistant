@@ -43,17 +43,13 @@
 
 ## 安装
 
-### 第一步：安装 AstrBot api-gateway Skill（必须）
+### 第一步：安装 AstrBot api-gateway Skill（如需使用Notion数据库功能）
 
-日程助手通过 Maton Gateway 读写 Notion，需要先配置 api-gateway Skill：
+日程助手通过 Maton Gateway 读写 Notion，需要先配置Maton api-gateway：
 
-1. 进入 AstrBot 管理面板 → **Plugins** → **Skills**
-2. 找到并启用 **api-gateway** Skill（如未安装请先安装）
-3. 在 api-gateway 配置中填入你的 **Maton API Key**
-   - 获取地址：https://maton.ai/settings → API Keys
-   - 在 Maton 后台也需将 Notion 接入 OAuth 连接：https://ctrl.maton.ai → Connect App → Notion
-
-> 💡 如果之前已在 Maton 接入了 Notion（OAuth2 方式），则只需配置 api-gateway Skill 的 Maton API Key，无需在插件中重复配置。
+1. 在[Maton](https://www.maton.ai/)上接入Notion（OAuth2方式），并生成**Maton API Key**
+2. 下载[api-gateway-skill](https://github.com/maton-ai/api-gateway-skill)，在配置中填入你的**Maton API Key**
+3. 进入 AstrBot 管理面板 → **Skills** → 上传api-gateway-skill
 
 ### 第二步：安装日程助手插件
 
