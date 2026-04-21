@@ -105,7 +105,7 @@
   "type": "list",
   "items": {"type": "string"},
   "description": "Notion 数据库 ID 列表",
-  "hint": "在 Notion 页面链接里找，如 notion.so/workspace/xxxxxxxx-xxxxxxxxxx?v=... 中的 ID，多个用换行分隔"
+  "hint": "格式：每行一个数据库 ID，可带类型前缀。如：\n事务:xxxxxxxx-xxxxxxxx\n阅读:yyyyyyyy-yyyyyyyy\n或不带前缀直接填 ID，留空则不使用 Notion 功能"
  },
  "maton_api_key": {
   "type": "string",
