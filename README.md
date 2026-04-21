@@ -3,7 +3,6 @@
 > 🤖 **AI Generated** — 本插件由 AI 编写
 
 > 图标 Pixiv ID: [130776279](https://www.pixiv.net/artworks/130776279)
-
 你的贴心日程管家，支持 Apple 日历双向同步、Notion 待办、日程 LLM 智能提醒
 
 ---
@@ -48,7 +47,7 @@
 - 记录事件 UID，支持后续同步识别
 
 **接入方式：**
-- `username`：Apple ID 邮箱（如 `xxx@qq.com`）
+- `username`：Apple ID 邮箱（如 `xxx@icloud.com`）
 - `app_password`：**App 专用密码**（不是登录密码！在 [appleid.apple.com](https://appleid.apple.com) 生成）
 - `calendar_id`：目标日历 UUID 或名称（如「日程」），留空默认第一个
 
@@ -77,28 +76,36 @@
 
 ## 配置项
 
+### 开关配置
 | 配置项 | 类型 | 默认 | 说明 |
 |--------|------|------|------|
-| `enable_schedule_reminder` | bool | `false` | 开启日程 LLM 智能提醒 |
-| `schedule_reminder_minutes` | int | `10` | 日程提前提醒分钟数 |
-| `enable_apple_calendar_sync` | bool | `false` | 开启 Apple 日历双向同步 |
-| `apple_calendar_sync_interval` | int | `30` | Apple 日历同步间隔（分钟） |
-| `enable_morning_report` | bool | `true` | 开启早安播报 |
+| `enable_morning_report` | bool | `true` | 早安播报开关 |
+| `enable_bath_reminder` | bool | `true` | 洗澡提醒开关 |
+| `enable_sleep_reminder` | bool | `true` | 睡觉提醒开关 |
+| `enable_water_reminder` | bool | `true` | 喝水提醒开关 |
+| `enable_schedule_reminder` | bool | `false` | 日程 LLM 智能提醒开关 |
+| `enable_apple_calendar_sync` | bool | `false` | Apple 日历双向同步开关 |
+
+### 时间配置
+| 配置项 | 类型 | 默认 | 说明 |
+|--------|------|------|------|
 | `morning_report_time` | string | `09:00` | 早报推送时间（HH:MM） |
-| `enable_bath_reminder` | bool | `true` | 开启洗澡提醒 |
 | `bath_time` | string | `22:00` | 洗澡提醒时间 |
-| `enable_sleep_reminder` | bool | `true` | 开启睡觉提醒 |
 | `sleep_time` | string | `23:00` | 睡觉提醒时间 |
-| `enable_water_reminder` | bool | `true` | 开启喝水提醒 |
 | `water_interval` | int | `90` | 喝水间隔（分钟） |
 | `water_start_time` | string | `09:30` | 喝水开始时间 |
 | `water_end_time` | string | `21:30` | 喝水结束时间 |
-| `weather_api_key` | string | — | 心知天气 API Key（[seniverse.com](https://seniverse.com)） |
-| `weather_city` | string | `杭州` | 天气查询城市 |
-| `maton_api_key` | string | — | Maton API Key（Notion 功能必需） |
-| `transaction_db_id` | string | — | Notion 事务库 ID |
-| `reading_db_id` | string | — | Notion 阅读库 ID（可选） |
-| `whitelist_qq_ids` | list | `[]` | 白名单 QQ 号，只有这些账号能收到提醒 |
+| `schedule_reminder_minutes` | int | `10` | 日程提前提醒分钟数 |
+| `apple_calendar_sync_interval` | int | `30` | Apple 日历同步间隔（分钟） |
+
+### 其他配置
+| 配置项 | 类型 | 说明 |
+|--------|------|------|
+| `weather_api_key` | string | 心知天气 API Key（[seniverse.com](https://seniverse.com)） |
+| `weather_city` | string | 天气查询城市（默认：杭州） |
+| `maton_api_key` | string | Maton API Key（Notion 功能必需，从 [www.maton.ai](https://www.maton.ai) 获取） |
+| `notion_db_ids` | list | Notion 数据库 ID 列表，格式：`[{"name": "事务", "id": "xxx..."}]`，在 Notion 页面链接里找（如 `notion.so/workspace/xxxxxxxx-xxxxxxxxxx?v=...` 中的 ID） |
+| `whitelist_qq_ids` | list | 白名单 QQ 号，只有这些账号能收到提醒 |
 
 ### Apple 日历配置（嵌套在 `apple_calendar` 下）
 | 配置项 | 类型 | 说明 |
@@ -113,7 +120,6 @@
 ---
 
 ## 文件结构
-
 ```
 astrbot_plugin_schedule_assistant/
 ├── main.py                    # 主逻辑、定时任务调度、LLM工具
@@ -127,16 +133,16 @@ astrbot_plugin_schedule_assistant/
 ├── README.md                  # 本文档
 ├── CHANGELOG.md               # 更新日志
 ├── services/                  # 数据服务层
-│   ├── weather.py            # 心知天气 API（带30分钟缓存）
-│   ├── notion.py             # Notion 服务（5分钟断路器）
-│   ├── dashboard.py          # Live Dashboard 状态获取（单例）
-│   └── llm.py                # LLM 封装（fallback + 人格注入）
+│   ├── weather.py             # 心知天气 API（带30分钟缓存）
+│   ├── notion.py              # Notion 服务（5分钟断路器）
+│   ├── dashboard.py           # Live Dashboard 状态获取（单例）
+│   └── llm.py                 # LLM 封装（fallback + 人格注入）
 └── reminders/                # 提醒服务层
     ├── bath.py               # 洗澡提醒（含 fallback）
     ├── sleep.py              # 睡觉提醒（含 fallback）
     ├── water.py              # 喝水提醒（含 fallback + 自动续期）
     ├── briefing.py           # 每日早安播报（LLM 生成）
-    └── schedule.py           # 日程 LLM 智能提醒
+    └── schedule.py          # 日程 LLM 智能提醒
 ```
 
 ---
@@ -166,7 +172,7 @@ astrbot_plugin_schedule_assistant/
 **Q: Notion 待办同步不工作？**
 - 确认 api-gateway Skill 已启用且 Maton API Key 配置正确
 - 确认 Maton 后台 Notion OAuth 连接状态为 **ACTIVE**
-- 确认插件中 `transaction_db_id` 填写了正确的数据库 ID
+- 确认 `notion_db_ids` 填写了正确的数据库 ID（格式：`[{"name": "事务", "id": "xxx..."}]`）
 
 **Q: 没收到早报？**
 - 检查 `whitelist_qq_ids` 是否包含你的 QQ 号
