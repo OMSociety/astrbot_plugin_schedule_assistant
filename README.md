@@ -87,6 +87,7 @@
 | `apple_calendar_enabled` | 启用 Apple 日历同步 | `true` / `false` |
 | `apple_id` | Apple ID 邮箱（**配置后优先使用 CalDAV**） | 如 `xxx@qq.com` |
 | `apple_app_password` | Apple 专用密码，**不是登录密码！** 在 [appleid.apple.com](https://appleid.apple.com) 生成后填入 |
+| `apple_calendar_id` | 写入日程时的目标日历（UUID 或日历名称），留空则默认使用第一个日历。支持模糊匹配（如填「日程」匹配「我的日程」） |
 | `webcal_urls` | WebCal 公共日历链接列表（**apple_id 未配置时使用**） | iCloud 日历 → 复制公共链接 |
 | `bath_time` | 洗澡提醒时间，默认 `22:00` | — |
 | `sleep_time` | 睡觉提醒时间，默认 `23:00` | — |
