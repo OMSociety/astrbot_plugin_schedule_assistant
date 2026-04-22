@@ -61,7 +61,7 @@ class CreateScheduleTool(FunctionTool[AstrAgentContext]):
         self.store = store
         self.default_user_id = default_user_id
 
-    async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
+    async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs):
         try:
             title = kwargs.get("title", "").strip()
             datetime_str = kwargs.get("datetime_str", "").strip()
@@ -96,7 +96,7 @@ class CreateScheduleTool(FunctionTool[AstrAgentContext]):
                 dt = date_parser.parse(datetime_str)
 
             event = context.context.event
-            user_id = str(event.get_user_id())
+            user_id = str(event.get_sender_id() or '')
             if not user_id and self.default_user_id:
                 user_id = self.default_user_id
 
@@ -152,7 +152,7 @@ class DeleteScheduleTool(FunctionTool[AstrAgentContext]):
         self.store = store
         self.default_user_id = default_user_id
 
-    async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
+    async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs):
         try:
             schedule_id = kwargs.get("schedule_id", "").strip()
             title_keyword = kwargs.get("title_keyword", "").strip()
@@ -161,7 +161,7 @@ class DeleteScheduleTool(FunctionTool[AstrAgentContext]):
                 return ToolExecResult("请提供日程ID或标题关键词")
 
             event = context.context.event
-            user_id = str(event.get_user_id())
+            user_id = str(event.get_sender_id() or '')
             if not user_id and self.default_user_id:
                 user_id = self.default_user_id
 
@@ -225,14 +225,14 @@ class ListSchedulesTool(FunctionTool[AstrAgentContext]):
         self.store = store
         self.default_user_id = default_user_id
 
-    async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
+    async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs):
         try:
             days = kwargs.get("days", 7)
             if isinstance(days, str):
                 days = int(days)
 
             event = context.context.event
-            user_id = str(event.get_user_id())
+            user_id = str(event.get_sender_id() or '')
             if not user_id and self.default_user_id:
                 user_id = self.default_user_id
 
@@ -328,7 +328,7 @@ class UpdateScheduleTool(FunctionTool[AstrAgentContext]):
         self.store = store
         self.default_user_id = default_user_id
 
-    async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
+    async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs):
         try:
             schedule_id = kwargs.get("schedule_id", "").strip()
             title_keyword = kwargs.get("title_keyword", "").strip()
@@ -343,7 +343,7 @@ class UpdateScheduleTool(FunctionTool[AstrAgentContext]):
                 return ToolExecResult("请提供要修改的内容（新标题/新时间/新备注）")
 
             event = context.context.event
-            user_id = str(event.get_user_id())
+            user_id = str(event.get_sender_id() or '')
             if not user_id and self.default_user_id:
                 user_id = self.default_user_id
 
