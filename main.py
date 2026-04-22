@@ -467,14 +467,17 @@ class ScheduleAssistant(Star):
         try:
             events = await self.apple_calendar.get_all_events(days=1)
             today = datetime.now().date()
+            logger.info(f"{LOG_PREFIX} Apple日历获取到 {len(events)} 个事件，开始筛选今日({today})事件...")
             rows = []
             for e in events:
                 start_str = e.get("start", "")
                 if not start_str:
+                    logger.debug(f"{LOG_PREFIX} 事件无start字段，跳过: {e.get('summary')}")
                     continue
                 try:
                     start_dt = datetime.fromisoformat(start_str)
-                except Exception:
+                except Exception as ex:
+                    logger.debug(f"{LOG_PREFIX} 事件时间解析失败，跳过: {e.get('summary')}, error={ex}")
                     continue
                 if start_dt.date() != today:
                     continue
@@ -484,8 +487,10 @@ class ScheduleAssistant(Star):
                     time_label = start_dt.strftime("%H:%M")
                 rows.append((start_dt, f"⏰ {time_label} │ {e.get('summary', '无标题')}"))
             if not rows:
+                logger.info(f"{LOG_PREFIX} 今日 Apple 日历无日程")
                 return "暂无"
             rows.sort(key=lambda x: x[0])
+            logger.info(f"{LOG_PREFIX} 今日 Apple 日历事件筛选完成，共 {len(rows)} 个")
             return "\n".join([line for _, line in rows[:limit]])
         except Exception as e:
             logger.warning(f"{LOG_PREFIX} Apple 今日日程读取失败: {e}")
