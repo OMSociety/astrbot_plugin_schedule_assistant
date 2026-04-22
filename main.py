@@ -575,22 +575,12 @@ class ScheduleAssistant(Star):
             events = await self.apple_calendar.get_all_events(days=1)
             today = datetime.now().date()
             logger.info(f"{LOG_PREFIX} Apple日历获取到 {len(events)} 个事件，开始筛选今日({today})事件...")
-            
-            # 调试：检查是否有19:00的事件
-            debug_19_events = []
-            
+
             rows = []
             for e in events:
                 start_str = e.get("start", "")
                 summary = e.get("summary", "无标题")
-                
-                # 调试：收集19点附近的事件
-                if start_str and ("19:" in start_str or "19：" in start_str or "19:00" in summary):
-                    debug_19_events.append({
-                        "summary": summary,
-                        "start_raw": start_str,
-                    })
-                
+
                 if not start_str:
                     continue
                 try:
@@ -604,11 +594,7 @@ class ScheduleAssistant(Star):
                 else:
                     time_label = start_dt.strftime("%H:%M")
                 rows.append((start_dt, f"⏰ {time_label} │ {summary}"))
-            
-            # 打印19点相关事件的调试信息
-            if debug_19_events:
-                logger.info(f"{LOG_PREFIX} 调试-19点相关事件: {debug_19_events}")
-            
+
             if not rows:
                 logger.info(f"{LOG_PREFIX} 今日 Apple 日历无日程")
                 return "暂无"
