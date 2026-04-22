@@ -55,7 +55,6 @@ class ScheduleAssistant(Star):
         self.config = config
         self.store = ScheduleStore(context)
         self.scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
-        # 服务初始化（按需，失败不影响其他功能）
         self.weather_service: Optional[WeatherService] = None
         self.notion_service: Optional[NotionService] = None
         self.llm_service: Optional[LLMService] = None
@@ -65,7 +64,6 @@ class ScheduleAssistant(Star):
         self._tasks_registered = False
         self._init_task: Optional[asyncio.Task] = None
 
-        # 常用配置
         self.default_user_id: Optional[str] = None
         whitelist = self.config.get("whitelist_qq_ids", [])
         if whitelist:
@@ -75,11 +73,9 @@ class ScheduleAssistant(Star):
         self._user_platform_bindings = self._parse_user_platform_bindings()
         self._recent_user_platforms: Dict[str, str] = {}
 
-        # 插件加载时自动初始化
         self._init_task = self._schedule_task(self._initialize(), "initialize")
 
     def _schedule_task(self, coro, task_name: str) -> Optional[asyncio.Task]:
-        """创建后台任务，统一处理异常"""
         try:
             task = asyncio.create_task(coro)
             task.add_done_callback(lambda t: self._on_task_done(task_name, t))
@@ -89,7 +85,6 @@ class ScheduleAssistant(Star):
             return None
 
     def _on_task_done(self, task_name: str, task: asyncio.Task):
-        """后台任务完成时的回调"""
         try:
             exc = task.exception()
             if exc:
@@ -98,37 +93,25 @@ class ScheduleAssistant(Star):
             pass
 
     async def _initialize(self):
-        """插件初始化：加载外部服务 + 注册定时任务"""
         logger.info(f"{LOG_PREFIX} 正在初始化...")
-
-        # 1. 初始化外部服务
         await self._ensure_services()
-
-        # 2. 注册定时任务
         await self._register_tasks()
-
         logger.info(f"{LOG_PREFIX} 初始化完成")
 
     async def _ensure_services(self):
-        """初始化外部服务（失败不阻断主流程）"""
         if self._services_ready:
             return
         self._services_ready = True
         conf = self.config
 
-        # Weather
         api_key = self.config.get("weather_api_key")
         city = self.config.get("weather_city", "杭州")
         if api_key:
             self.weather_service = WeatherService({"weather_api_key": api_key, "weather_city": city})
 
-        # LLM
         self.llm_service = LLMService(self.context)
-
-        # Dashboard
         self.dashboard_service = DashboardService()
 
-        # Notion
         notion_db_ids = self.config.get("notion_db_ids", [])
         maton_key = self.config.get("maton_api_key")
         if notion_db_ids and maton_key:
@@ -153,49 +136,33 @@ class ScheduleAssistant(Star):
                                 transaction_db = db_id
                             elif name in ("阅读", "reading"):
                                 reading_db = db_id
-                        # 兼容旧格式：未带前缀时按顺序映射（第1个→事务，第2个→阅读）
                         elif not transaction_db:
                             transaction_db = raw
-                            logger.warning(
-                                f"{LOG_PREFIX} notion_db_ids 使用无前缀字符串，已按顺序第1个映射为「事务库」"
-                            )
+                            logger.warning(f"{LOG_PREFIX} notion_db_ids 使用无前缀字符串，已按顺序第1个映射为「事务库」")
                         elif not reading_db:
                             reading_db = raw
-                            logger.warning(
-                                f"{LOG_PREFIX} notion_db_ids 使用无前缀字符串，已按顺序第2个映射为「阅读库」"
-                            )
+                            logger.warning(f"{LOG_PREFIX} notion_db_ids 使用无前缀字符串，已按顺序第2个映射为「阅读库」")
                         elif raw:
-                            logger.warning(
-                                f"{LOG_PREFIX} notion_db_ids 额外无前缀字符串未使用: {raw[:12]}..."
-                            )
-                self.notion = NotionClient(
-                    maton_key,
-                    transaction_db,
-                    reading_db,
-                )
+                            logger.warning(f"{LOG_PREFIX} notion_db_ids 额外无前缀字符串未使用: {raw[:12]}...")
+                self.notion = NotionClient(maton_key, transaction_db, reading_db)
                 self.notion_service = NotionService(self.notion)
             except Exception as e:
                 logger.warning(f"{LOG_PREFIX} Notion 初始化失败: {e}")
                 self.notion = None
                 self.notion_service = None
 
-        # 提醒服务
         self.briefing_reminder = BriefingReminder(self.config, self.context, self.llm_service)
         self.bath_reminder = BathReminder(self.config, self.default_user_id, self.llm_service, self.store)
         self.sleep_reminder = SleepReminder(self.config, self.default_user_id, self.llm_service, self.store)
         self.water_reminder = WaterReminder(self.config, self.default_user_id, self.llm_service, self.store)
         self.schedule_reminder = ScheduleReminder(self.llm_service, self.dashboard_service)
 
-        # Apple Calendar（按需初始化）
         if conf.get("enable_apple_calendar_sync"):
             apple_conf = conf.get("apple_calendar", {})
             username = apple_conf.get("username") if apple_conf else None
             app_password = apple_conf.get("app_password") if apple_conf else None
             if username and app_password:
-                self.apple_calendar = AppleCalendar(
-                    username=username,
-                    app_password=app_password,
-                )
+                self.apple_calendar = AppleCalendar(username=username, app_password=app_password)
                 logger.info(f"{LOG_PREFIX} Apple Calendar 已配置: {username[:3]}***")
             else:
                 logger.warning(f"{LOG_PREFIX} Apple Calendar 未配置凭据（username 或 app_password 缺失）")
@@ -203,13 +170,11 @@ class ScheduleAssistant(Star):
         logger.info(f"{LOG_PREFIX} 外部服务初始化完成")
 
     async def _register_tasks(self):
-        """注册所有定时任务（仅注册一次）"""
         if self._tasks_registered:
             return
         self._tasks_registered = True
         conf = self.config
 
-        # 早安播报
         if conf.get("enable_morning_report", True):
             morning_time = conf.get("morning_report_time", "09:00")
             morning_hour, morning_minute = map(int, morning_time.split(":"))
@@ -221,7 +186,6 @@ class ScheduleAssistant(Star):
             )
             logger.info(f"{LOG_PREFIX} 早安播报已注册: {morning_time}")
 
-        # 洗澡提醒
         if conf.get("enable_bath_reminder", True):
             bath_time = conf.get("bath_time", DEFAULT_BATH_TIME)
             bath_hour, bath_minute = map(int, bath_time.split(":"))
@@ -233,7 +197,6 @@ class ScheduleAssistant(Star):
             )
             logger.info(f"{LOG_PREFIX} 洗澡提醒已注册: {bath_time}")
 
-        # 睡觉提醒
         if conf.get("enable_sleep_reminder", True):
             sleep_time = conf.get("sleep_time", DEFAULT_SLEEP_TIME)
             sleep_hour, sleep_minute = map(int, sleep_time.split(":"))
@@ -245,7 +208,6 @@ class ScheduleAssistant(Star):
             )
             logger.info(f"{LOG_PREFIX} 睡觉提醒已注册: {sleep_time}")
 
-        # Apple 日历同步
         if conf.get("enable_apple_calendar_sync"):
             sync_interval = conf.get("apple_calendar_sync_interval", 30)
             self.scheduler.add_job(
@@ -258,7 +220,6 @@ class ScheduleAssistant(Star):
             )
             logger.info(f"{LOG_PREFIX} Apple 日历同步任务已注册（每 {sync_interval} 分钟）")
 
-        # 日程 LLM 提醒
         if conf.get("enable_schedule_reminder"):
             self.scheduler.add_job(
                 self._schedule_reminder_scan,
@@ -266,9 +227,8 @@ class ScheduleAssistant(Star):
                 id="schedule_reminder_scan",
                 replace_existing=True,
             )
-            logger.info(f"{LOG_PREFIX} 日程 LLM 提醒已启用")
+            logger.info(f"{LOG_PREFIX} 日程 LLM 提醒已启用（每分钟）")
 
-        # 喝水提醒
         if conf.get("enable_water_reminder", True):
             water_interval = conf.get("water_interval", DEFAULT_WATER_INTERVAL)
             water_start = conf.get("water_start_time", DEFAULT_WATER_START)
@@ -291,15 +251,6 @@ class ScheduleAssistant(Star):
             )
             logger.info(f"{LOG_PREFIX} 喝水提醒首次触发: {next_trigger.strftime('%H:%M')} ({initial_delay/60:.1f}分钟后)")
 
-        # Notion DDL 检查
-        self.scheduler.add_job(
-            self._notion_ddl_check,
-            CronTrigger(minute=0),
-            id="notion_ddl_check",
-            replace_existing=True
-        )
-
-        # 清理过期临时修改
         self.scheduler.add_job(
             self._clear_expired_overrides,
             CronTrigger(hour=0, minute=5),
@@ -307,7 +258,6 @@ class ScheduleAssistant(Star):
             replace_existing=True
         )
 
-        # 用户日程扫描
         self.scheduler.add_job(
             self._schedule_scan,
             CronTrigger(minute=1),
@@ -315,14 +265,12 @@ class ScheduleAssistant(Star):
             replace_existing=True
         )
 
-        # 启动调度器
         if not self.scheduler.running:
             self.scheduler.start()
 
         logger.info(f"{LOG_PREFIX} 所有定时任务已注册，调度器已启动")
 
     def _get_water_next_trigger(self, now: datetime, water_start: str, water_end: str, water_interval: int) -> datetime:
-        """计算喝水提醒下次触发时间"""
         start_h, start_m = map(int, water_start.split(":"))
         end_h, end_m = map(int, water_end.split(":"))
         today_start = now.replace(hour=start_h, minute=start_m, second=0, microsecond=0)
@@ -339,7 +287,6 @@ class ScheduleAssistant(Star):
         return next_time
 
     def _parse_user_platform_bindings(self) -> Dict[str, str]:
-        """解析 user_id -> platform_id 映射配置"""
         bindings: Dict[str, str] = {}
         raw_bindings = self.config.get("user_platform_bindings", []) or []
         for item in raw_bindings:
@@ -357,7 +304,6 @@ class ScheduleAssistant(Star):
         return bindings
 
     def _get_available_platform_ids(self) -> List[str]:
-        """获取当前已注册平台列表"""
         ids: List[str] = []
         try:
             for platform in self.context.platform_manager.platform_insts:
@@ -373,7 +319,6 @@ class ScheduleAssistant(Star):
         return ids
 
     def _extract_platform_id_from_event(self, event: AiocqhttpMessageEvent) -> Optional[str]:
-        """从事件对象中提取平台 ID"""
         for attr in ("platform_id", "platform", "platform_name"):
             value = getattr(event, attr, None)
             if isinstance(value, str) and value.strip():
@@ -387,13 +332,11 @@ class ScheduleAssistant(Star):
         return None
 
     def _remember_user_platform(self, user_id: str, event: AiocqhttpMessageEvent):
-        """记录用户最近活跃平台，用于自动提醒路由"""
         platform_id = self._extract_platform_id_from_event(event)
         if platform_id:
             self._recent_user_platforms[str(user_id)] = platform_id
 
     async def _get_target_user_ids(self, include_known_users: bool = False) -> List[str]:
-        """获取自动提醒目标用户"""
         user_ids = set()
         if self.default_user_id:
             user_ids.add(str(self.default_user_id))
@@ -410,7 +353,6 @@ class ScheduleAssistant(Star):
         return sorted(user_ids)
 
     def _build_platform_candidates(self, user_id: str, preferred_platform: Optional[str] = None) -> List[str]:
-        """构造平台候选列表（显式 > 最近会话 > 用户绑定 > 全局 > 已注册平台）"""
         candidates: List[str] = []
         if preferred_platform:
             candidates.append(str(preferred_platform).strip())
@@ -432,7 +374,6 @@ class ScheduleAssistant(Star):
         return ordered
 
     def _extract_block_lines(self, block: str, remove_pipe: bool = False) -> List[str]:
-        """将文本块规范化为行列表"""
         if not block or block in ("暂无", "获取失败"):
             return []
         rows = []
@@ -446,7 +387,6 @@ class ScheduleAssistant(Star):
         return rows
 
     def _merge_today_schedule_blocks(self, local_text: str, apple_text: str, limit: int = 12) -> str:
-        """合并本地与 Apple 今日日程，去重后输出统一文本块"""
         merged = []
         seen = set()
         for line in self._extract_block_lines(local_text) + self._extract_block_lines(apple_text):
@@ -464,7 +404,6 @@ class ScheduleAssistant(Star):
         return "暂无"
 
     async def _send_to_user(self, user_id: str, message: str, platform_id: Optional[str] = None):
-        """发送消息给用户（私聊，支持多平台路由与降级）"""
         try:
             chain = MessageChain([Plain(message)])
             available = set(self._get_available_platform_ids())
@@ -480,29 +419,26 @@ class ScheduleAssistant(Star):
                 try:
                     await self.context.send_message(session, chain)
                     self._recent_user_platforms[str(user_id)] = platform
-                    logger.info(f"{LOG_PREFIX} 发送成功 user={user_id} platform={platform} session={session}")
+                    logger.info(f"{LOG_PREFIX} 发送成功 user={user_id} platform={platform}")
                     return
                 except Exception as send_err:
                     logger.warning(
-                        f"{LOG_PREFIX} 发送失败 user={user_id} platform={platform} session={session} err={send_err}"
+                        f"{LOG_PREFIX} 发送失败 user={user_id} platform={platform} err={send_err}"
                     )
             logger.error(f"{LOG_PREFIX} 发送消息失败，已尝试所有可用平台: user={user_id} sessions={sessions_tried}")
         except Exception as e:
             logger.error(f"{LOG_PREFIX} 发送消息异常: user={user_id} err={e}")
 
     async def _get_user_schedules(self, user_id: str) -> List[ScheduleItem]:
-        """获取用户日程列表"""
         schedules_dict = await self.store.get_schedules(user_id)
         return schedules_dict.get(SCHEDULES_KEY, [])
 
     async def _get_today_local_schedules_text(self, user_id: str, limit: int = 8) -> str:
-        """获取本地今日日程文本"""
         schedules = await self._get_user_schedules(user_id)
         today = datetime.now().date()
         today_items = []
         for s in schedules:
             if not s.time:
-                # 无时间字段既无法按“今日”过滤，也无法进行时间排序，因此跳过。
                 continue
             try:
                 dt = datetime.fromisoformat(s.time)
@@ -519,7 +455,6 @@ class ScheduleAssistant(Star):
         return "\n".join([f"⏰ {dt.strftime('%H:%M')} │ {title}" for dt, title in today_items[:limit]])
 
     async def _get_today_apple_calendar_text(self, limit: int = 8) -> str:
-        """获取 Apple 今日日程文本"""
         if not self.apple_calendar:
             return "暂无"
         try:
@@ -550,7 +485,6 @@ class ScheduleAssistant(Star):
             return "获取失败"
 
     async def _get_notion_pending_text(self, limit: int = 5) -> str:
-        """获取 Notion 待办文本"""
         if not self.notion_service:
             return "暂无"
         try:
@@ -568,7 +502,6 @@ class ScheduleAssistant(Star):
             return "获取失败"
 
     async def _morning_briefing(self, target_user_id: Optional[str] = None):
-        """早安播报"""
         try:
             await self._ensure_services()
             target_user_ids = [str(target_user_id)] if target_user_id else await self._get_target_user_ids()
@@ -615,7 +548,6 @@ class ScheduleAssistant(Star):
             logger.error(f"{LOG_PREFIX} 早安播报失败: {e}")
 
     async def _bath_reminder(self, target_user_id: Optional[str] = None):
-        """洗澡提醒"""
         try:
             await self._ensure_services()
             target_user_ids = [str(target_user_id)] if target_user_id else await self._get_target_user_ids()
@@ -634,7 +566,6 @@ class ScheduleAssistant(Star):
             logger.error(f"{LOG_PREFIX} 洗澡提醒失败: {e}")
 
     async def _sleep_reminder(self, target_user_id: Optional[str] = None):
-        """睡觉提醒"""
         try:
             await self._ensure_services()
             target_user_ids = [str(target_user_id)] if target_user_id else await self._get_target_user_ids()
@@ -653,7 +584,6 @@ class ScheduleAssistant(Star):
             logger.error(f"{LOG_PREFIX} 睡觉提醒失败: {e}")
 
     async def _water_reminder(self, target_user_id: Optional[str] = None):
-        """喝水提醒"""
         try:
             await self._ensure_services()
             target_user_ids = [str(target_user_id)] if target_user_id else await self._get_target_user_ids()
@@ -664,7 +594,6 @@ class ScheduleAssistant(Star):
             for user_id in target_user_ids:
                 history = await self.store.get_conversation_history(user_id)
                 history_text = self.store.format_history_for_prompt(history[-5:]) if history else ""
-
                 message = await self.water_reminder.generate("用户", dashboard, history_text)
                 if message:
                     await self._send_to_user(user_id, message)
@@ -695,34 +624,9 @@ class ScheduleAssistant(Star):
             logger.error(f"{LOG_PREFIX} 喝水提醒失败: {e}")
 
     async def _schedule_scan(self):
-        """定期扫描用户会话"""
         logger.debug(f"{LOG_PREFIX} 执行日程扫描")
 
-    async def _notion_ddl_check(self):
-        """检查 Notion DDL"""
-        logger.debug(f"{LOG_PREFIX} 执行 Notion DDL 检查")
-        try:
-            await self._ensure_services()
-            user_ids = await self._get_target_user_ids()
-            if not user_ids or not self.notion_service:
-                return
-            pending = await self.notion_service.get_pending_tasks()
-            if not pending:
-                return
-            lines = []
-            for task in pending[:5]:
-                ddl = self.notion_service.format_ddl(task.get("ddl", ""))
-                title = task.get("title", "(无标题)")
-                lines.append(f"• {ddl} | {title}" if ddl else f"• {title}")
-            if lines:
-                message = "📌 Notion 待办提醒\n" + "\n".join(lines)
-                for user_id in user_ids:
-                    await self._send_to_user(user_id, message)
-        except Exception as e:
-            logger.warning(f"{LOG_PREFIX} Notion DDL 检查失败: {e}")
-
     async def _schedule_reminder_scan(self):
-        """日程 LLM 提醒扫描"""
         logger.debug(f"{LOG_PREFIX} 执行日程提醒扫描")
         await self._ensure_services()
         if not hasattr(self, "schedule_reminder"):
@@ -759,18 +663,17 @@ class ScheduleAssistant(Star):
                 logger.warning(f"{LOG_PREFIX} 用户 {user_id} 日程提醒扫描失败: {e}")
 
     async def _apple_calendar_sync(self):
-        """Apple 日历同步"""
         if not hasattr(self, 'apple_calendar') or not self.apple_calendar:
             return
         try:
             events = await self.apple_calendar.get_all_events(days=7)
             user_ids = await self._get_target_user_ids(include_known_users=True)
             if not user_ids:
-                logger.info(f"{LOG_PREFIX} Apple Calendar 已读取 {len(events)} 个事件，但无可同步用户")
+                logger.debug(f"{LOG_PREFIX} Apple Calendar 已读取 {len(events)} 个事件，但无可同步用户")
                 return
             for user_id in user_ids:
                 stats = await self.store.sync_from_apple_calendar(user_id, events)
-                logger.info(
+                logger.debug(
                     f"{LOG_PREFIX} Apple→本地同步 user={user_id} "
                     f"added={stats['added']} updated={stats['updated']} deleted={stats['deleted']}"
                 )
@@ -778,14 +681,12 @@ class ScheduleAssistant(Star):
             logger.error(f"{LOG_PREFIX} Apple Calendar 同步失败: {e}")
 
     async def _clear_expired_overrides(self):
-        """清理过期临时修改"""
         for user_id in await self._get_target_user_ids(include_known_users=True):
             await self.store.clear_expired_overrides(user_id)
         logger.debug(f"{LOG_PREFIX} 已清理过期临时修改")
 
     @filter.event_message_type(filter.EventMessageType.PRIVATE_MESSAGE)
     async def handle_private_message(self, event: AiocqhttpMessageEvent):
-        """处理私聊消息"""
         user_id = str(event.get_sender_id())
         msg_text = event.message_str.strip()
         self._remember_user_platform(user_id, event)
@@ -793,7 +694,6 @@ class ScheduleAssistant(Star):
         if msg_text:
             await self.store.add_conversation_message(user_id, "user", msg_text)
 
-        # 解析命令
         if msg_text.startswith("/"):
             await self._handle_command(event, user_id, msg_text)
         elif msg_text.startswith("添加") or msg_text.startswith("新增"):
@@ -818,7 +718,6 @@ class ScheduleAssistant(Star):
             pass
 
     async def _handle_command(self, event: AiocqhttpMessageEvent, user_id: str, cmd: str):
-        """处理斜杠命令"""
         if cmd.startswith("/日程"):
             sub = cmd[3:].strip()
             if sub in ("", "列表", "查看"):
@@ -849,7 +748,6 @@ class ScheduleAssistant(Star):
             await event.reply("睡觉提醒已触发~")
 
     async def _handle_add(self, event: AiocqhttpMessageEvent, user_id: str, text: str):
-        """处理添加日程"""
         time_match = re.search(r'(\d{1,2})[:：时](\d{0,2})', text)
         if time_match:
             hour = int(time_match.group(1))
@@ -872,7 +770,6 @@ class ScheduleAssistant(Star):
             await event.reply("请告诉我时间哦~ 比如「添加 14:30 开会」")
 
     async def _handle_delete(self, event: AiocqhttpMessageEvent, user_id: str, text: str):
-        """处理删除日程"""
         idx_match = re.search(r'#?(\d+)', text)
         if idx_match:
             idx = int(idx_match.group(1)) - 1
@@ -887,7 +784,6 @@ class ScheduleAssistant(Star):
             await event.reply("请告诉我要删除的编号~ 比如「删除 #1」")
 
     async def _handle_list(self, event: AiocqhttpMessageEvent, user_id: str):
-        """处理查看日程"""
         schedules = await self._get_user_schedules(user_id)
         if not schedules:
             await event.reply("暂无日程安排，输入「添加 14:30 开会」来添加~")
@@ -900,7 +796,6 @@ class ScheduleAssistant(Star):
         await event.reply("\n".join(lines))
 
     async def _handle_skip(self, event: AiocqhttpMessageEvent, user_id: str, text: str):
-        """处理跳过提醒"""
         reminder_type = text.replace("跳过", "").strip()
         if reminder_type in ("喝水", "bath"):
             await event.reply(f"已跳过本次{reminder_type}提醒~")
@@ -910,7 +805,6 @@ class ScheduleAssistant(Star):
             await event.reply("请告诉我跳过什么~ 如「跳过喝水」")
 
     async def _handle_modify_time(self, event: AiocqhttpMessageEvent, user_id: str, text: str):
-        """处理临时修改习惯时间"""
         parts = text.replace("修改时间", "").strip().split(" ")
         if len(parts) >= 2:
             habit_name = parts[0]
@@ -924,7 +818,6 @@ class ScheduleAssistant(Star):
             await event.reply("格式不对哦~ 如「修改时间 喝水 10:30」")
 
     async def _handle_help(self, event: AiocqhttpMessageEvent):
-        """处理帮助"""
         help_text = """📌 日程小贴士使用指南
 
 📝 添加日程：添加 14:30 开会
@@ -942,7 +835,6 @@ class ScheduleAssistant(Star):
 
 
 async def __initialize(context: Context) -> ScheduleAssistant:
-    """插件初始化入口"""
     config = context.get_config().get("schedule_assistant", {})
     assistant = ScheduleAssistant(context, config)
     return assistant
