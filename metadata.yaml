@@ -1,0 +1,6 @@
+name: schedule_assistant
+desc: 你的贴心日程管家！支持早安播报、习惯提醒、LLM 智能日程提醒、Apple 日历双向同步、Notion 待办同步。动动嘴就能管理日程~
+author: Slandre & Flandre
+version: 1.9.0
+repo: https://github.com/OMSociety/astrbot_plugin_schedule_assistant
+display_name: 日程小贴士
