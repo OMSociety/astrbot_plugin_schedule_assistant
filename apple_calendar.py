@@ -350,16 +350,31 @@ class AppleCalendar:
             pass
         return events
 
+    def _cleanup_expired_cache(self):
+        """清理过期的缓存（只保留今天的缓存）"""
+        today = datetime.now().strftime("%Y%m%d")
+        expired_keys = [k for k in self._events_cache if not k.startswith(today)]
+        if expired_keys:
+            for k in expired_keys:
+                del self._events_cache[k]
+            logger.debug(f"[AppleCalendar] 清理了 {len(expired_keys)} 个过期缓存键")
+
     async def get_all_events(self, days: int = 1) -> List[Dict]:
         # 缓存键包含日期，避免跨天返回错误数据
         today = datetime.now().strftime("%Y%m%d")
         cache_key = f"{today}_{int(days or 1)}"
+        
+        # 清理过期缓存
+        self._cleanup_expired_cache()
+        
         now_ts = time.monotonic()
         cached = self._events_cache.get(cache_key)
         if cached and (now_ts - cached.get("ts", 0)) < self._events_cache_ttl_seconds:
             logger.debug(f"[AppleCalendar] 使用缓存 key={cache_key}, 事件数={len(cached.get('events', []))}")
             return list(cached.get("events", []))
         async with self._fetch_lock:
+            # 双重检查：加锁后再清理一次
+            self._cleanup_expired_cache()
             now_ts = time.monotonic()
             cached = self._events_cache.get(cache_key)
             if cached and (now_ts - cached.get("ts", 0)) < self._events_cache_ttl_seconds:
