@@ -32,7 +32,7 @@ class AppleCalendar:
         self._discovered = False
         self._discover_lock = asyncio.Lock()
         self._fetch_lock = asyncio.Lock()
-        self._events_cache: Dict[int, Dict] = {}
+        self._events_cache: Dict[str, Dict] = {}
         self._events_cache_ttl_seconds = 300
         self._calendars_cache: List[Dict] = []
         self._calendars_cache_ttl_seconds = 300
@@ -351,10 +351,13 @@ class AppleCalendar:
         return events
 
     async def get_all_events(self, days: int = 1) -> List[Dict]:
-        cache_key = int(days or 1)
+        # 缓存键包含日期，避免跨天返回错误数据
+        today = datetime.now().strftime("%Y%m%d")
+        cache_key = f"{today}_{int(days or 1)}"
         now_ts = time.monotonic()
         cached = self._events_cache.get(cache_key)
         if cached and (now_ts - cached.get("ts", 0)) < self._events_cache_ttl_seconds:
+            logger.debug(f"[AppleCalendar] 使用缓存 key={cache_key}, 事件数={len(cached.get('events', []))}")
             return list(cached.get("events", []))
         async with self._fetch_lock:
             now_ts = time.monotonic()
@@ -370,6 +373,7 @@ class AppleCalendar:
             for url in self.webcal_urls:
                 all_events.extend(await self.fetch_webcal_async(url, days))
             self._events_cache[cache_key] = {"ts": time.monotonic(), "events": list(all_events)}
+            logger.info(f"[AppleCalendar] get_all_events(days={days}, cache_key={cache_key}) 返回 {len(all_events)} 个事件")
             return all_events
 
     async def create_event(self, summary: str, start: datetime, end: Optional[datetime] = None, calendar_id: Optional[str] = None, description: str = "") -> Optional[str]:
