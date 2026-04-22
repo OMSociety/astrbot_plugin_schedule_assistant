@@ -306,6 +306,17 @@ class ScheduleAssistant(Star):
             return today_start + timedelta(days=1)
         return next_time
 
+    def _get_platform_id(self) -> str:
+        """获取当前平台标识（第一个已注册的平台）"""
+        try:
+            # 优先从 platform_manager 获取第一个平台
+            for platform in self.context.platform_manager.platform_insts:
+                return platform.meta().id
+        except Exception:
+            pass
+        # Fallback
+        return "aiocqhttp"
+
     async def _send_to_user(self, user_id: str, message: str):
         """发送消息给用户（私聊）"""
         try:
@@ -486,13 +497,6 @@ class ScheduleAssistant(Star):
         if self.default_user_id:
             await self.store.clear_expired_overrides(self.default_user_id)
         logger.debug(f"{LOG_PREFIX} 已清理过期临时修改")
-
-    def _get_platform_id(self) -> str:
-        """获取当前平台标识"""
-        try:
-            return self.context.get_platform_name()
-        except Exception:
-            return "aiocqhttp"
 
     @filter.event_message_type(filter.EventMessageType.PRIVATE_MESSAGE)
     async def handle_private_message(self, event: AiocqhttpMessageEvent):
