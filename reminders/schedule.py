@@ -43,13 +43,15 @@ class ScheduleReminder:
             label = "日程"
             time_display = f"时间 {item_time}"
         
-        if dashboard_status.get("has_dashboard"):
+        if isinstance(dashboard_status, dict) and dashboard_status.get("has_dashboard"):
             dash_lines = []
             for section in ["mood", "energy", "health", "weather", "tasks"]:
                 val = dashboard_status.get(section)
                 if val:
                     dash_lines.append(f"  - {section}: {val}")
             dash_block = "近期状态:\n" + "\n".join(dash_lines) if dash_lines else "近期状态:（暂无数据）"
+        elif isinstance(dashboard_status, str) and dashboard_status.strip():
+            dash_block = f"近期状态:\n{dashboard_status.strip()}"
         else:
             dash_block = "近期状态:（未开启 Dashboard）"
         
@@ -89,7 +91,10 @@ class ScheduleReminder:
         """生成提醒文本（带 LLM fallback）"""
         
         try:
-            dashboard_status = {"has_dashboard": False}
+            if self.dashboard and hasattr(self.dashboard, "get_status"):
+                dashboard_status = await self.dashboard.get_status()
+            else:
+                dashboard_status = {"has_dashboard": False}
         except Exception:
             dashboard_status = {"has_dashboard": False}
         

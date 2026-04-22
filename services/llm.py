@@ -13,6 +13,7 @@ class LLMService:
     def __init__(self, context):
         self.context = context
         self._provider_id = None
+        self._fallback_template = ""
 
     def set_fallback_template(self, template: str):
         """设置 LLM 失败时的 fallback 模板文案"""
@@ -40,12 +41,23 @@ class LLMService:
             return ""
 
     async def generate(self, prompt: str, use_persona: bool = True) -> str:
+        return await self.generate_llm_message(
+            prompt=prompt,
+            system_prompt=self._get_persona_prompt() if use_persona else None,
+            temperature=0.7,
+        )
+
+    async def generate_llm_message(
+        self, prompt: str, system_prompt: str | None = None, temperature: float = 0.7
+    ) -> str:
         global _llm_failure_time
+        # 兼容旧接口参数；当前 AstrBot llm_generate 接口未暴露 temperature
+        if not self.context:
+            return self._fallback_template if self._fallback_template else ""
         provider_id = self._get_provider_id()
         if not provider_id:
             logger.error(f"{LOG_PREFIX} 未配置默认LLM Provider")
-            return ""
-        system_prompt = self._get_persona_prompt() if use_persona else ""
+            return self._fallback_template if self._fallback_template else ""
         try:
             resp = await self.context.llm_generate(
                 chat_provider_id=provider_id, prompt=prompt,
@@ -57,7 +69,7 @@ class LLMService:
             logger.error(f"{LOG_PREFIX} LLM 生成失败: {e}")
             _llm_failure_time = time.time()
             # 有 fallback 模板时回退
-            if hasattr(self, "_fallback_template"):
+            if self._fallback_template:
                 logger.warning(f"{LOG_PREFIX} LLM 失败，使用 fallback 模板")
                 return self._fallback_template
             return ""
