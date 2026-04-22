@@ -4,6 +4,30 @@
 
 ---
 
+## v1.9.0
+
+> 🌟 **日程管理自然语言工具** — FunctionTool 方式注册
+
+### 新功能
+- ✅ 注册 4 个 LLM 日程管理工具，支持自然语言操作日程
+  - `create_schedule` — 创建日程
+  - `delete_schedule` — 删除日程
+  - `list_schedules` — 查看日程列表
+  - `update_schedule` — 修改日程
+- ✅ 支持自然语言时间解析：「明天9点」「后天15:30」「今天晚上8点」
+- ✅ 支持按标题关键词模糊匹配日程
+
+### 架构重构
+- ✅ 重构为 `FunctionTool` dataclass 方式，符合 AstrBot 官方规范
+- ✅ 工具来源显示 `plugin` + `schedule_assistant`
+- ✅ 统一消息发送：`MessagingService` 替代散落的 `MessageChain` 构建
+
+### Bug 修复
+- 🐛 修复 Apple 日历 UTC 时间显示错误（`DTSTART:...Z` 未正确转换为本地时区）
+- 🐛 修复 `DTSTART;TZID=Asia/Shanghai:...` 时区解析错误
+
+---
+
 ## v1.8.0
 
 > 🌟 **Apple iCloud 双向同步 + LLM 智能日程提醒**
