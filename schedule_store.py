@@ -1,3 +1,4 @@
+import uuid
 """日程数据存储模块
 
 提供日程和习惯的数据持久化，基于 AstrBot 的 preference 存储系统。
@@ -10,7 +11,7 @@ from typing import Optional, Dict, List, Any, TYPE_CHECKING
 
 from astrbot import logger
 
-from .constants import PREFERENCE_SCOPE, SCHEDULES_KEY, HABITS_KEY, WATER_LAST_KEY, LOG_PREFIX
+from .constants import PREFERENCE_SCOPE, SCHEDULES_KEY, HABITS_KEY, WATER_LAST_KEY, LOG_PREFIX, CONVERSATION_KEY, CONVERSATION_MAX_AGE_HOURS, CONVERSATION_MAX_MESSAGES
 
 if TYPE_CHECKING:
     from astrbot.api.star import Context
@@ -236,3 +237,53 @@ class ScheduleStore:
         data[SCHEDULES_KEY] = schedules
         await self._save_user_data(user_id, data)
         return stats
+
+    async def clear_expired_overrides(self, user_id: str) -> None:
+        """清理过期的临时覆盖"""
+        data = await self._get_user_data(user_id)
+        today = datetime.now().strftime("%Y-%m-%d")
+        changed = False
+        for habit in data.get(HABITS_KEY, []):
+            temp = habit.get("temp_override", "")
+            if temp and not temp.startswith(today):
+                habit.pop("temp_override", None)
+                changed = True
+        if changed:
+            await self._save_user_data(user_id, data)
+
+    async def add_conversation_message(self, user_id: str, role: str, content: str) -> None:
+        """记录用户对话消息"""
+        data = await self._get_user_data(user_id)
+        history = data.get(CONVERSATION_KEY, [])
+        history.append({"role": role, "content": content, "timestamp": datetime.now().isoformat()})
+        cutoff = datetime.now() - timedelta(hours=CONVERSATION_MAX_AGE_HOURS)
+        history = [m for m in history if datetime.fromisoformat(m["timestamp"]) > cutoff]
+        if len(history) > CONVERSATION_MAX_MESSAGES:
+            history = history[-CONVERSATION_MAX_MESSAGES:]
+        data[CONVERSATION_KEY] = history
+        await self._save_user_data(user_id, data)
+
+    async def get_conversation_history(self, user_id: str) -> List[Dict[str, str]]:
+        """获取用户对话历史"""
+        data = await self._get_user_data(user_id)
+        history = data.get(CONVERSATION_KEY, [])
+        cutoff = datetime.now() - timedelta(hours=CONVERSATION_MAX_AGE_HOURS)
+        return [m for m in history if datetime.fromisoformat(m["timestamp"]) > cutoff]
+
+    def format_history_for_prompt(self, history: List[Dict[str, str]], max_tokens: int = 500) -> str:
+        """将对话历史格式化为 prompt 字符串"""
+        if not history:
+            return "（无近期对话历史）"
+        lines = []
+        total_chars = 0
+        for msg in reversed(history):
+            role_label = "用户" if msg["role"] == "user" else "芙兰"
+            ts = datetime.fromisoformat(msg["timestamp"]).strftime("%H:%M")
+            line = f"[{ts}] {role_label}: {msg['content']}"
+            line_tokens_est = int(len(line) * 1.5)
+            if total_chars + line_tokens_est > max_tokens * 1.5:
+                break
+            total_chars += len(line)
+            lines.append(line)
+        lines.reverse()
+        return "\n".join(lines) if lines else "（无近期对话历史）"
