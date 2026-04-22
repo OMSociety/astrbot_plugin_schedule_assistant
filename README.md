@@ -188,6 +188,8 @@ astrbot_plugin_schedule_assistant/
 **Q: Apple 日历同步失败？**
 - 确保 App 专用密码在 [appleid.apple.com](https://appleid.apple.com) 正确生成，且账号已开启两步验证
 - 确认 `enable_apple_calendar_sync` 为 `true`
+- 复制粘贴账号和密码时避免携带多余字符（如空格、`"`、`>` 等）
+- 建议将 `apple_calendar_sync_interval` 设为 `15` 分钟及以上，降低触发平台限流概率
 - 检查日志中 `[AppleCalendar]` 相关错误信息
 
 **Q: 日程 LLM 提醒不生效？**
