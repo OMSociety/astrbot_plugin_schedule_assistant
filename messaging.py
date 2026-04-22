@@ -2,16 +2,10 @@
 统一消息发送模块
 """
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from astrbot.api.star import Context
-    from astrbot.api.event import MessageEvent
-
 from .constants import LOG_PREFIX
 
 
-async def send_to_user(context: "Context", user_id: str, message: str) -> bool:
+async def send_to_user(context, user_id: str, message: str) -> bool:
     """向指定用户发送私聊消息"""
     try:
         platform_mgr = context.get_platform_manager()
@@ -22,12 +16,11 @@ async def send_to_user(context: "Context", user_id: str, message: str) -> bool:
         if not platforms:
             return False
 
-        # 获取第一个可用的平台（通常是 aiocqhttp/onebot）
+        # 获取第一个可用的平台
         platform = next(iter(platforms.values()), None)
         if not platform:
             return False
 
-        # 获取平台 ID
         platform_id = platform.adapter
         if not platform_id:
             return False
@@ -44,7 +37,7 @@ async def send_to_user(context: "Context", user_id: str, message: str) -> bool:
         return False
 
 
-async def reply_event(event: "MessageEvent", message: str) -> bool:
+async def reply_event(event, message: str) -> bool:
     """回复消息事件"""
     try:
         await event.reply(message)
