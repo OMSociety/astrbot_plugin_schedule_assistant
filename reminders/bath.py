@@ -24,6 +24,7 @@ class BathReminder:
 - 设定的洗澡时间: {self.config.get("bath_time", DEFAULT_BATH_TIME)}
 - 用户当前状态: {dashboard}
 
+
 【近期对话】
 {history_text or "（无近期对话）"}
 

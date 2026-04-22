@@ -17,6 +17,7 @@ class SleepReminder:
     def _get_fallback(self) -> str:
         return _SLEEP_FALLBACK_LATE if datetime.now().hour >= 23 else _SLEEP_FALLBACK_NORMAL
 
+
     def _is_late(self, now: datetime) -> bool:
         return now.hour >= 23 or now.hour < 2
 
