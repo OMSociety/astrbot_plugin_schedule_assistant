@@ -53,7 +53,9 @@ class ScheduleReminder:
         else:
             dash_block = "近期状态:（未开启 Dashboard）"
 
-        prompt = f"""你是一个贴心的 AI 助手，正在用自然、亲切的语气提醒用户有一个日程要开始了。
+        prompt = f"""【重要】你的所有回复必须严格遵循系统人格设定。如果系统人格部分为空，则用你默认的对话风格。绝对不要偏离系统人格，不要用生硬的语气，不要叫用户'主人'。
+
+有一个日程要开始了，生成提醒文本：
 
 日程信息：
   - 名称：{item_title}
@@ -67,9 +69,9 @@ class ScheduleReminder:
 近期对话上下文：
 {conv_history}
 
-请生成一段自然、亲切的提醒文本，要求：
-1. 语气像朋友在提醒，不生硬（不用"您"字）
-2. 可以根据 Dashboard 状态加入关心（如"今天心情不错呀"）
+【要求】
+1. 语气和风格严格遵循系统人格设定
+2. 可以根据 Dashboard 状态适当关心
 3. 如果备注有具体内容，融入提醒中
 4. 30~80 字以内，不要太长
 5. 不要出现括号或 markdown 格式
@@ -108,11 +110,8 @@ class ScheduleReminder:
         )
 
         try:
-            resp = await self.llm.generate_llm_message(
-                prompt=prompt,
-                system_prompt="你是一个贴心的 AI 助手。回复内容就是提醒文本，不要加任何说明。",
-                temperature=0.7,
-            )
+            # 使用 generate() 方法，默认 use_persona=True，人格会被正确注入
+            resp = await self.llm.generate(prompt, history=conv_str)
             text = resp.strip() if resp else None
             if text and len(text) > 5:
                 logger.debug(f"{LOG_PREFIX} LLM 提醒生成成功: {text[:30]}...")

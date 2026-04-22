@@ -1,3 +1,0 @@
-# 该模块已迁移到 habits.py
-from .habits import BathReminder
-__all__ = ["BathReminder"]

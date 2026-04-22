@@ -111,23 +111,23 @@ class BathReminder(HabitReminder):
         super().__init__(config, default_user_id, llm_service, store, "bath")
 
     def _build_prompt(self, context: dict) -> str:
-        return f"""你是「{context['username']}」的贴心日程助手，现在需要生成一条洗澡时间提醒~
+        return f"""【重要】你的所有回复必须严格遵循系统人格设定。如果系统人格部分为空，则用你默认的对话风格。绝对不要偏离系统人格，不要用生硬的语气，不要叫用户'主人'。
+
+生成一条洗澡时间提醒：
 
 【用户信息】
-- 用户名: {context['username']}
 - 当前时间: {context['current_time']}
 - 设定的洗澡时间: {context['default_time']}
 - 用户当前状态: {context['dashboard']}
 
-
 【近期对话】
 {context['history']}
 
-【生成要求】
-1. 语气活泼可爱，像朋友催你去洗澡
-2. 如果 dashboard 显示用户刚运动/干活了，可以调侃"该洗掉汗味啦"
+【要求】
+1. 语气和风格严格遵循系统人格设定
+2. 可以根据状态适当调侃
 3. 40字以内，带1-2个emoji
-4. 不要markdown，纯文本输出
+4. 不要 markdown，纯文本输出
 5. 只输出提醒消息本身"""
 
 
@@ -148,21 +148,22 @@ class SleepReminder(HabitReminder):
         self.llm_service.set_fallback_template(
             self.FALLBACKS["sleep_late"] if is_late else self.FALLBACKS["sleep"]
         )
-        return f"""你是「{context['username']}」的贴心日程助手，现在需要生成一条睡觉时间提醒~
+        return f"""【重要】你的所有回复必须严格遵循系统人格设定。如果系统人格部分为空，则用你默认的对话风格。绝对不要偏离系统人格，不要用生硬的语气，不要叫用户'主人'。
+
+生成一条睡觉时间提醒：
 
 【用户信息】
-- 用户名: {context['username']}
 - 当前时间: {context['current_time']}
 - 设定的睡觉时间: {context['default_time']}
 - 是否已超晚(23点后): {context.get('is_late', False)}
 - 用户当前状态: {context['dashboard']}
 
-【生成要求】
-1. 如果已经超晚23点，语气要带点小责备，比如"都几点了还不睡！"
-2. 如果还没很晚，语气温柔催促
-3. 结合 dashboard 状态：如果显示还在熬夜/游戏，要重点催睡
+【要求】
+1. 语气和风格严格遵循系统人格设定
+2. 如果超晚了可以带点小责备，但要符合人格
+3. 结合 Dashboard 状态适当提醒
 4. 40字以内，带1-2个emoji
-5. 不要markdown，纯文本输出
+5. 不要 markdown，纯文本输出
 6. 只输出提醒消息本身"""
 
 
@@ -173,20 +174,20 @@ class WaterReminder(HabitReminder):
         super().__init__(config, default_user_id, llm_service, store, "water")
 
     def _build_prompt(self, context: dict) -> str:
-        return f"""你是「{context['username']}」的贴心日程助手，现在需要生成一条喝水提醒~
+        return f"""【重要】你的所有回复必须严格遵循系统人格设定。如果系统人格部分为空，则用你默认的对话风格。绝对不要偏离系统人格，不要用生硬的语气，不要叫用户'主人'。
+
+生成一条喝水提醒：
 
 【用户信息】
-- 用户名: {context['username']}
 - 当前时间: {context['current_time']}
 - 用户当前状态: {context['dashboard']}
-
 
 【近期对话】
 {context['history']}
 
-【生成要求】
-1. 语气活泼俏皮，像闺蜜催你喝水
-2. 结合当前时间、dashboard状态、近期对话上下文发挥创意，多样化调侃方式
+【要求】
+1. 语气和风格严格遵循系统人格设定
+2. 结合当前时间、状态、对话上下文
 3. 30字以内，带1-2个emoji
-4. 不要markdown，纯文本输出
+4. 不要 markdown，纯文本输出
 5. 只输出提醒消息本身"""

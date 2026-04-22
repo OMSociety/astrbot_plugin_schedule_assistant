@@ -44,9 +44,7 @@ from .services.notion import NotionService
 from .services.dashboard import DashboardService, get_dashboard_status
 from .services.llm import LLMService
 from .reminders.briefing import BriefingReminder
-from .reminders.bath import BathReminder
-from .reminders.sleep import SleepReminder
-from .reminders.water import WaterReminder
+from .reminders.habits import BathReminder, SleepReminder, WaterReminder
 
 
 class ScheduleAssistant(Star):

@@ -175,14 +175,20 @@ class AppleCalendar:
         calendars = []
         for pattern in [r"<D:href[^>]*>([^<]+)</D:href>", r"<href[^>]*>([^<]+)</href>", r"<(?:D:)?href[^>]*>([^<]+)</(?:D:)?href>"]:
             for m in re.findall(pattern, resp):
-                href = m.strip()
+                href = AppleCalendar._clean_href(m.strip())
                 if not href:
                     continue
-                if re.search(r"/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/$", href):
-                    path_parts = [p for p in href.strip("/").split("/") if p]
-                    last = path_parts[-1] if path_parts else ""
-                    if re.match(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", last):
-                        calendars.append({"href": href, "url": f"{self._caldav_base_url}/{last}", "id": last, "name": ""})
+                # 检查是否是 UUID 日历（大小写不敏感）
+                uuid_match = re.search(r"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})", href)
+                if uuid_match:
+                    cal_uuid = uuid_match.group(1)
+                    # 构建日历 URL（优先使用绝对 URL）
+                    if href.startswith("http"):
+                        cal_url = href.rstrip("/")
+                    else:
+                        # 相对路径，使用 base_url 拼接
+                        cal_url = f"{self._caldav_base_url.rstrip('/')}/{cal_uuid}"
+                    calendars.append({"href": href, "url": cal_url, "id": cal_uuid, "name": ""})
         self._calendars = calendars
         self._calendars_cache = list(calendars)
         self._calendars_ts = time.monotonic()
@@ -248,18 +254,24 @@ class AppleCalendar:
                 ds = ds.strip()
                 try:
                     if len(ds) == 8:
+                        # 全天事件
                         return datetime.strptime(ds, "%Y%m%d")
                     elif len(ds) >= 15:
+                        # 尝试解析混合格式
                         naive = datetime.strptime(ds[:15], "%Y%m%dT%H%M%S")
                         is_utc = ds.upper().endswith("Z")
+                        
+                        # 有 TZID 标记 → 直接使用
+                        if has_tz:
+                            return naive
+                        
+                        # 有 Z 后缀 → 明确是 UTC
                         if is_utc:
                             utc = naive.replace(tzinfo=timezone.utc)
                             return utc.astimezone(local_tz).replace(tzinfo=None)
-                        elif has_tz:
-                            return naive
-                        else:
-                            utc = naive.replace(tzinfo=timezone.utc)
-                            return utc.astimezone(local_tz).replace(tzinfo=None)
+                        
+                        # 没有时区信息 → iCloud 使用本地时区，直接返回
+                        return naive
                 except ValueError:
                     try:
                         return datetime.strptime(ds[:8], "%Y%m%d")
