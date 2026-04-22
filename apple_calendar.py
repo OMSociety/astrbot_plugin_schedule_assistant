@@ -20,7 +20,7 @@ __all__ = ["AppleCalendar"]
 
 class AppleCalendar:
     """Apple iCloud / CalDAV 日历客户端"""
-    def __init__(self, username: Optional[str] = None, app_password: Optional[str] = None, webcal_urls: Optional[List[str]] = None):
+    def __init__(self, username: Optional[str] = None, app_password: Optional[str] = None, webcal_urls: Optional[List[str]] = None, calendar_id: Optional[str] = None):
         self.username = username
         self.app_password = app_password
         self.webcal_urls = webcal_urls or []
@@ -37,6 +37,7 @@ class AppleCalendar:
         self._calendars_cache_ttl_seconds = 300
         self._last_ics_discovery_log_ts = 0.0
         self._last_ics_discovery_count: Optional[int] = None
+        self._calendar_id = calendar_id
 
     def _auth_header(self) -> str:
         creds = f"{self.username}:{self.app_password}"
@@ -431,7 +432,19 @@ class AppleCalendar:
         if not calendars:
             logger.warning("[AppleCalendar] 未找到可写日历")
             return None
-        resolved_id = calendar_id or calendars[0]["id"]
+        
+        # 优先级：传入参数 > 配置的 calendar_id > 第一个日历
+        resolved_id = calendar_id or self._calendar_id
+        if not resolved_id:
+            # 尝试按名称匹配日历
+            for c in calendars:
+                if c.get("name") and (self._calendar_id or calendar_id):
+                    if self._calendar_id and self._calendar_id in c.get("name", ""):
+                        resolved_id = c["id"]
+                        break
+            if not resolved_id:
+                resolved_id = calendars[0]["id"]
+                logger.debug(f"[AppleCalendar] 未找到指定日历，使用第一个: {resolved_id[:8]}...")
         cal_url = f"{self._caldav_base_url}/{resolved_id}/"
         uid = str(uuid.uuid4())
         dtstart_fmt = start.strftime("%Y%m%dT%H%M%S")
@@ -452,7 +465,7 @@ class AppleCalendar:
         calendars = await self._list_calendars()
         if not calendars:
             return False
-        resolved_id = calendar_id or calendars[0]["id"]
+        resolved_id = calendar_id or self._calendar_id or calendars[0]["id"]
         cal_url = f"{self._caldav_base_url}/{resolved_id}/"
         event_url = f"{cal_url}{uid}.ics"
         resp = self._request(event_url, method="DELETE", headers={"Authorization": self._auth_header()})
