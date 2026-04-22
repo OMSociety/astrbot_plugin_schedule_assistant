@@ -70,6 +70,10 @@ class ScheduleAssistant(Star):
         whitelist = self.config.get("whitelist_qq_ids", [])
         if whitelist:
             self.default_user_id = str(whitelist[0])
+        self._session_type = str(self.config.get("default_session_type", "FriendMessage") or "FriendMessage")
+        self._global_platform_id = str(self.config.get("send_platform_id", "") or "").strip()
+        self._user_platform_bindings = self._parse_user_platform_bindings()
+        self._recent_user_platforms: Dict[str, str] = {}
 
         # 插件加载时自动初始化
         self._init_task = self._schedule_task(self._initialize(), "initialize")
@@ -334,122 +338,337 @@ class ScheduleAssistant(Star):
             return today_start + timedelta(days=1)
         return next_time
 
-    def _get_platform_id(self) -> str:
-        """获取当前平台标识（第一个已注册的平台）"""
+    def _parse_user_platform_bindings(self) -> Dict[str, str]:
+        """解析 user_id -> platform_id 映射配置"""
+        bindings: Dict[str, str] = {}
+        raw_bindings = self.config.get("user_platform_bindings", []) or []
+        for item in raw_bindings:
+            user_id = ""
+            platform_id = ""
+            if isinstance(item, dict):
+                user_id = str(item.get("user_id", "")).strip()
+                platform_id = str(item.get("platform_id", "")).strip()
+            elif isinstance(item, str) and ":" in item:
+                user_id, platform_id = item.split(":", 1)
+                user_id = user_id.strip()
+                platform_id = platform_id.strip()
+            if user_id and platform_id:
+                bindings[user_id] = platform_id
+        return bindings
+
+    def _get_available_platform_ids(self) -> List[str]:
+        """获取当前已注册平台列表"""
+        ids: List[str] = []
         try:
-            # 优先从 platform_manager 获取第一个平台
             for platform in self.context.platform_manager.platform_insts:
-                return platform.meta().id
+                pid = platform.meta().id
+                if pid:
+                    ids.append(str(pid))
         except Exception:
             pass
-        # Fallback
-        return "aiocqhttp"
+        if not ids:
+            fallback_platform = self._global_platform_id or "aiocqhttp"
+            logger.warning(f"{LOG_PREFIX} 未发现已注册平台，使用回退平台: {fallback_platform}")
+            ids = [fallback_platform]
+        return ids
 
-    async def _send_to_user(self, user_id: str, message: str):
-        """发送消息给用户（私聊）"""
+    def _extract_platform_id_from_event(self, event: AiocqhttpMessageEvent) -> Optional[str]:
+        """从事件对象中提取平台 ID"""
+        for attr in ("platform_id", "platform", "platform_name"):
+            value = getattr(event, attr, None)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        for attr in ("session_id", "session", "unified_msg_origin"):
+            value = getattr(event, attr, None)
+            if isinstance(value, str) and ":" in value:
+                return value.split(":", 1)[0].strip()
+        if isinstance(event, AiocqhttpMessageEvent):
+            return "aiocqhttp"
+        return None
+
+    def _remember_user_platform(self, user_id: str, event: AiocqhttpMessageEvent):
+        """记录用户最近活跃平台，用于自动提醒路由"""
+        platform_id = self._extract_platform_id_from_event(event)
+        if platform_id:
+            self._recent_user_platforms[str(user_id)] = platform_id
+
+    async def _get_target_user_ids(self, include_known_users: bool = False) -> List[str]:
+        """获取自动提醒目标用户"""
+        user_ids = set()
+        if self.default_user_id:
+            user_ids.add(str(self.default_user_id))
+        for uid in self.config.get("whitelist_qq_ids", []) or []:
+            if uid:
+                user_ids.add(str(uid))
+        for uid in self.config.get("target_user_ids", []) or []:
+            if uid:
+                user_ids.add(str(uid))
+        if include_known_users or self.config.get("broadcast_to_all_known_users", False):
+            for uid in await self.store.get_all_users():
+                if uid:
+                    user_ids.add(str(uid))
+        return sorted(user_ids)
+
+    def _build_platform_candidates(self, user_id: str, preferred_platform: Optional[str] = None) -> List[str]:
+        """构造平台候选列表（显式 > 最近会话 > 用户绑定 > 全局 > 已注册平台）"""
+        candidates: List[str] = []
+        if preferred_platform:
+            candidates.append(str(preferred_platform).strip())
+        recent = self._recent_user_platforms.get(str(user_id))
+        if recent:
+            candidates.append(recent)
+        bound = self._user_platform_bindings.get(str(user_id))
+        if bound:
+            candidates.append(bound)
+        if self._global_platform_id:
+            candidates.append(self._global_platform_id)
+        candidates.extend(self._get_available_platform_ids())
+        seen = set()
+        ordered = []
+        for pid in candidates:
+            if pid and pid not in seen:
+                ordered.append(pid)
+                seen.add(pid)
+        return ordered
+
+    def _extract_block_lines(self, block: str, remove_pipe: bool = False) -> List[str]:
+        """将文本块规范化为行列表"""
+        if not block or block in ("暂无", "获取失败"):
+            return []
+        rows = []
+        for line in block.split("\n"):
+            clean = line.strip()
+            if not clean:
+                continue
+            if remove_pipe:
+                clean = clean.replace("|", " ")
+            rows.append(clean)
+        return rows
+
+    def _merge_today_schedule_blocks(self, local_text: str, apple_text: str, limit: int = 12) -> str:
+        """合并本地与 Apple 今日日程，去重后输出统一文本块"""
+        merged = []
+        seen = set()
+        for line in self._extract_block_lines(local_text) + self._extract_block_lines(apple_text):
+            key = " ".join(line.split())
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(key)
+            if len(merged) >= limit:
+                break
+        if merged:
+            return "\n".join(merged)
+        if apple_text == "获取失败" and local_text in ("暂无", "", None):
+            return "获取失败"
+        return "暂无"
+
+    async def _send_to_user(self, user_id: str, message: str, platform_id: Optional[str] = None):
+        """发送消息给用户（私聊，支持多平台路由与降级）"""
         try:
-            platform = self._get_platform_id()
-            session = f"{platform}:FriendMessage:{user_id}"
             chain = MessageChain([Plain(message)])
-            await self.context.send_message(session, chain)
+            available = set(self._get_available_platform_ids())
+            sessions_tried = []
+            for platform in self._build_platform_candidates(user_id, platform_id):
+                if platform not in available:
+                    logger.warning(
+                        f"{LOG_PREFIX} 发送目标平台不可用: platform={platform} user={user_id} available={sorted(available)}"
+                    )
+                    continue
+                session = f"{platform}:{self._session_type}:{user_id}"
+                sessions_tried.append(session)
+                try:
+                    await self.context.send_message(session, chain)
+                    self._recent_user_platforms[str(user_id)] = platform
+                    logger.info(f"{LOG_PREFIX} 发送成功 user={user_id} platform={platform} session={session}")
+                    return
+                except Exception as send_err:
+                    logger.warning(
+                        f"{LOG_PREFIX} 发送失败 user={user_id} platform={platform} session={session} err={send_err}"
+                    )
+            logger.error(f"{LOG_PREFIX} 发送消息失败，已尝试所有可用平台: user={user_id} sessions={sessions_tried}")
         except Exception as e:
-            logger.error(f"{LOG_PREFIX} 发送消息失败: {e}")
+            logger.error(f"{LOG_PREFIX} 发送消息异常: user={user_id} err={e}")
 
     async def _get_user_schedules(self, user_id: str) -> List[ScheduleItem]:
         """获取用户日程列表"""
         schedules_dict = await self.store.get_schedules(user_id)
         return schedules_dict.get(SCHEDULES_KEY, [])
 
-    async def _morning_briefing(self):
+    async def _get_today_local_schedules_text(self, user_id: str, limit: int = 8) -> str:
+        """获取本地今日日程文本"""
+        schedules = await self._get_user_schedules(user_id)
+        today = datetime.now().date()
+        today_items = []
+        for s in schedules:
+            if not s.time:
+                # 无时间字段既无法按“今日”过滤，也无法进行时间排序，因此跳过。
+                continue
+            try:
+                dt = datetime.fromisoformat(s.time)
+            except Exception:
+                try:
+                    dt = datetime.strptime(s.time, "%Y-%m-%d %H:%M")
+                except Exception:
+                    continue
+            if dt.date() == today:
+                today_items.append((dt, s.title))
+        if not today_items:
+            return "暂无"
+        today_items.sort(key=lambda x: x[0])
+        return "\n".join([f"⏰ {dt.strftime('%H:%M')} │ {title}" for dt, title in today_items[:limit]])
+
+    async def _get_today_apple_calendar_text(self, limit: int = 8) -> str:
+        """获取 Apple 今日日程文本"""
+        if not self.apple_calendar:
+            return "暂无"
+        try:
+            events = await self.apple_calendar.get_all_events(days=1)
+            today = datetime.now().date()
+            rows = []
+            for e in events:
+                start_str = e.get("start", "")
+                if not start_str:
+                    continue
+                try:
+                    start_dt = datetime.fromisoformat(start_str)
+                except Exception:
+                    continue
+                if start_dt.date() != today:
+                    continue
+                if e.get("all_day"):
+                    time_label = "全天"
+                else:
+                    time_label = start_dt.strftime("%H:%M")
+                rows.append((start_dt, f"⏰ {time_label} │ {e.get('summary', '无标题')}"))
+            if not rows:
+                return "暂无"
+            rows.sort(key=lambda x: x[0])
+            return "\n".join([line for _, line in rows[:limit]])
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} Apple 今日日程读取失败: {e}")
+            return "获取失败"
+
+    async def _get_notion_pending_text(self, limit: int = 5) -> str:
+        """获取 Notion 待办文本"""
+        if not self.notion_service:
+            return "暂无"
+        try:
+            pending = await self.notion_service.get_pending_tasks()
+            if not pending:
+                return "暂无"
+            lines = []
+            for task in pending[:limit]:
+                ddl = self.notion_service.format_ddl(task.get("ddl", ""))
+                title = task.get("title", "(无标题)")
+                lines.append(f"- {ddl} | {title}" if ddl else f"- {title}")
+            return "\n".join(lines) if lines else "暂无"
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} Notion 待办读取失败: {e}")
+            return "获取失败"
+
+    async def _morning_briefing(self, target_user_id: Optional[str] = None):
         """早安播报"""
         try:
             await self._ensure_services()
-            user_id = self.default_user_id
-            if not user_id:
+            target_user_ids = [str(target_user_id)] if target_user_id else await self._get_target_user_ids()
+            if not target_user_ids:
                 return
 
             weather_current, weather_forecast = "", ""
             if self.weather_service:
                 weather_current, weather_forecast = await self.weather_service.fetch()
 
-            schedules = await self._get_user_schedules(user_id)
-            schedules_text = "\n".join([f"⏰ {s.time[:16]} │ {s.title}" for s in schedules[:5]]) if schedules else "暂无"
-
             now = datetime.now()
             date_str = now.strftime("%Y-%m-%d")
             weekday_str = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][now.weekday()]
 
             dashboard_status = await get_dashboard_status() if hasattr(self, 'dashboard_service') else "暂无"
+            late_night_text = ""
+            if self.apple_calendar:
+                try:
+                    late_night = await self.apple_calendar.get_late_night_events()
+                    late_night_text = "、".join([e.get("summary", "无标题") for e in late_night[:3]])
+                except Exception:
+                    late_night_text = ""
 
-            briefing = await self.briefing_reminder.generate_full_report(
-                username="用户",
-                date=date_str,
-                weekday=weekday_str,
-                weather_current=weather_current,
-                weather_forecast=weather_forecast,
-                calendar="暂无",
-                schedules=schedules_text,
-                notion="暂无",
-                dashboard=dashboard_status,
-                late_night=""
-            )
-            await self._send_to_user(user_id, briefing)
-            logger.info(f"{LOG_PREFIX} 早安播报已发送")
+            for user_id in target_user_ids:
+                local_text = await self._get_today_local_schedules_text(user_id)
+                apple_text = await self._get_today_apple_calendar_text()
+                agenda_text = self._merge_today_schedule_blocks(local_text, apple_text)
+                notion_text = await self._get_notion_pending_text()
+
+                briefing = await self.briefing_reminder.generate_full_report(
+                    username="用户",
+                    date=date_str,
+                    weekday=weekday_str,
+                    weather_current=weather_current,
+                    weather_forecast=weather_forecast,
+                    agenda=agenda_text,
+                    notion_todos=notion_text,
+                    dashboard=dashboard_status,
+                    late_night=late_night_text
+                )
+                await self._send_to_user(user_id, briefing)
+            logger.info(f"{LOG_PREFIX} 早安播报已发送 users={target_user_ids}")
         except Exception as e:
             logger.error(f"{LOG_PREFIX} 早安播报失败: {e}")
 
-    async def _bath_reminder(self):
+    async def _bath_reminder(self, target_user_id: Optional[str] = None):
         """洗澡提醒"""
         try:
             await self._ensure_services()
-            user_id = self.default_user_id
-            if not user_id:
+            target_user_ids = [str(target_user_id)] if target_user_id else await self._get_target_user_ids()
+            if not target_user_ids:
                 return
 
             dashboard = await get_dashboard_status() if hasattr(self, 'dashboard_service') and self.dashboard_service else ""
-            history = await self.store.get_conversation_history(user_id)
-            history_text = self.store.format_history_for_prompt(history[-5:]) if history else ""
-            message = await self.bath_reminder.generate("用户", dashboard, history_text)
-            if message:
-                await self._send_to_user(user_id, message)
-                logger.info(f"{LOG_PREFIX} 洗澡提醒已发送")
+            for user_id in target_user_ids:
+                history = await self.store.get_conversation_history(user_id)
+                history_text = self.store.format_history_for_prompt(history[-5:]) if history else ""
+                message = await self.bath_reminder.generate("用户", dashboard, history_text)
+                if message:
+                    await self._send_to_user(user_id, message)
+            logger.info(f"{LOG_PREFIX} 洗澡提醒已发送 users={target_user_ids}")
         except Exception as e:
             logger.error(f"{LOG_PREFIX} 洗澡提醒失败: {e}")
 
-    async def _sleep_reminder(self):
+    async def _sleep_reminder(self, target_user_id: Optional[str] = None):
         """睡觉提醒"""
         try:
             await self._ensure_services()
-            user_id = self.default_user_id
-            if not user_id:
+            target_user_ids = [str(target_user_id)] if target_user_id else await self._get_target_user_ids()
+            if not target_user_ids:
                 return
 
             dashboard = await get_dashboard_status() if hasattr(self, 'dashboard_service') and self.dashboard_service else ""
-            history = await self.store.get_conversation_history(user_id)
-            history_text = self.store.format_history_for_prompt(history[-5:]) if history else ""
-            message = await self.sleep_reminder.generate("用户", dashboard, history_text)
-            if message:
-                await self._send_to_user(user_id, message)
-                logger.info(f"{LOG_PREFIX} 睡觉提醒已发送")
+            for user_id in target_user_ids:
+                history = await self.store.get_conversation_history(user_id)
+                history_text = self.store.format_history_for_prompt(history[-5:]) if history else ""
+                message = await self.sleep_reminder.generate("用户", dashboard, history_text)
+                if message:
+                    await self._send_to_user(user_id, message)
+            logger.info(f"{LOG_PREFIX} 睡觉提醒已发送 users={target_user_ids}")
         except Exception as e:
             logger.error(f"{LOG_PREFIX} 睡觉提醒失败: {e}")
 
-    async def _water_reminder(self):
+    async def _water_reminder(self, target_user_id: Optional[str] = None):
         """喝水提醒"""
         try:
             await self._ensure_services()
-            user_id = self.default_user_id
-            if not user_id:
+            target_user_ids = [str(target_user_id)] if target_user_id else await self._get_target_user_ids()
+            if not target_user_ids:
                 return
 
             dashboard = await get_dashboard_status() if hasattr(self, 'dashboard_service') and self.dashboard_service else ""
-            history = await self.store.get_conversation_history(user_id)
-            history_text = self.store.format_history_for_prompt(history[-5:]) if history else ""
+            for user_id in target_user_ids:
+                history = await self.store.get_conversation_history(user_id)
+                history_text = self.store.format_history_for_prompt(history[-5:]) if history else ""
 
-            message = await self.water_reminder.generate("用户", dashboard, history_text)
-            if message:
-                await self._send_to_user(user_id, message)
-                logger.info(f"{LOG_PREFIX} 喝水提醒已发送")
+                message = await self.water_reminder.generate("用户", dashboard, history_text)
+                if message:
+                    await self._send_to_user(user_id, message)
+            logger.info(f"{LOG_PREFIX} 喝水提醒已发送 users={target_user_ids}")
 
             water_interval = self.config.get("water_interval", DEFAULT_WATER_INTERVAL)
             water_start = self.config.get("water_start_time", DEFAULT_WATER_START)
@@ -484,8 +703,8 @@ class ScheduleAssistant(Star):
         logger.debug(f"{LOG_PREFIX} 执行 Notion DDL 检查")
         try:
             await self._ensure_services()
-            user_id = self.default_user_id
-            if not user_id or not self.notion_service:
+            user_ids = await self._get_target_user_ids()
+            if not user_ids or not self.notion_service:
                 return
             pending = await self.notion_service.get_pending_tasks()
             if not pending:
@@ -497,7 +716,8 @@ class ScheduleAssistant(Star):
                 lines.append(f"• {ddl} | {title}" if ddl else f"• {title}")
             if lines:
                 message = "📌 Notion 待办提醒\n" + "\n".join(lines)
-                await self._send_to_user(user_id, message)
+                for user_id in user_ids:
+                    await self._send_to_user(user_id, message)
         except Exception as e:
             logger.warning(f"{LOG_PREFIX} Notion DDL 检查失败: {e}")
 
@@ -523,14 +743,7 @@ class ScheduleAssistant(Star):
         if minutes_ahead <= 0:
             minutes_ahead = 10
 
-        user_ids = set(await self.store.get_all_users())
-        if self.default_user_id:
-            user_ids.add(str(self.default_user_id))
-        for uid in self.config.get("whitelist_qq_ids", []) or []:
-            if uid:
-                user_ids.add(str(uid))
-
-        for user_id in sorted(user_ids):
+        for user_id in await self._get_target_user_ids(include_known_users=True):
             try:
                 triggered = await check_and_trigger_schedule_reminder(
                     schedule_store=self.store,
@@ -551,16 +764,11 @@ class ScheduleAssistant(Star):
             return
         try:
             events = await self.apple_calendar.get_all_events(days=7)
-            user_ids = set(await self.store.get_all_users())
-            if self.default_user_id:
-                user_ids.add(str(self.default_user_id))
-            for uid in self.config.get("whitelist_qq_ids", []) or []:
-                if uid:
-                    user_ids.add(str(uid))
+            user_ids = await self._get_target_user_ids(include_known_users=True)
             if not user_ids:
                 logger.info(f"{LOG_PREFIX} Apple Calendar 已读取 {len(events)} 个事件，但无可同步用户")
                 return
-            for user_id in sorted(user_ids):
+            for user_id in user_ids:
                 stats = await self.store.sync_from_apple_calendar(user_id, events)
                 logger.info(
                     f"{LOG_PREFIX} Apple→本地同步 user={user_id} "
@@ -571,8 +779,8 @@ class ScheduleAssistant(Star):
 
     async def _clear_expired_overrides(self):
         """清理过期临时修改"""
-        if self.default_user_id:
-            await self.store.clear_expired_overrides(self.default_user_id)
+        for user_id in await self._get_target_user_ids(include_known_users=True):
+            await self.store.clear_expired_overrides(user_id)
         logger.debug(f"{LOG_PREFIX} 已清理过期临时修改")
 
     @filter.event_message_type(filter.EventMessageType.PRIVATE_MESSAGE)
@@ -580,6 +788,7 @@ class ScheduleAssistant(Star):
         """处理私聊消息"""
         user_id = str(event.get_sender_id())
         msg_text = event.message_str.strip()
+        self._remember_user_platform(user_id, event)
 
         if msg_text:
             await self.store.add_conversation_message(user_id, "user", msg_text)
@@ -600,10 +809,10 @@ class ScheduleAssistant(Star):
         elif msg_text == "帮助" or msg_text == "help":
             await self._handle_help(event)
         elif msg_text == "早安" or msg_text == "天气":
-            await self._morning_briefing()
+            await self._morning_briefing(user_id)
             await event.reply("早安播报已生成~")
         elif msg_text == "喝水":
-            await self._water_reminder()
+            await self._water_reminder(user_id)
             await event.reply("喝水提醒已触发~")
         else:
             pass
@@ -627,16 +836,16 @@ class ScheduleAssistant(Star):
             else:
                 await event.reply("未知命令，输入 /日程帮助 查看可用命令~")
         elif cmd == "/喝水":
-            await self._water_reminder()
+            await self._water_reminder(user_id)
             await event.reply("喝水提醒已触发~")
         elif cmd == "/早安" or cmd == "/天气":
-            await self._morning_briefing()
+            await self._morning_briefing(user_id)
             await event.reply("早安播报已生成~")
         elif cmd == "/洗澡":
-            await self._bath_reminder()
+            await self._bath_reminder(user_id)
             await event.reply("洗澡提醒已触发~")
         elif cmd == "/睡觉":
-            await self._sleep_reminder()
+            await self._sleep_reminder(user_id)
             await event.reply("睡觉提醒已触发~")
 
     async def _handle_add(self, event: AiocqhttpMessageEvent, user_id: str, text: str):

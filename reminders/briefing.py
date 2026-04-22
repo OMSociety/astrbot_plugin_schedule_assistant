@@ -12,11 +12,11 @@ class BriefingReminder:
         self,
         username: str, date: str, weekday: str,
         weather_current: str, weather_forecast: str,
-        calendar: str, schedules: str, notion: str,
+        agenda: str, notion_todos: str,
         dashboard: str = "", late_night: str = ""
     ) -> str:
-        cal_lines = [l.strip().replace("|", " ") for l in calendar.split("\n") if l.strip()] if calendar and calendar not in ("暂无", "获取失败") else []
-        notion_lines = [l.strip() for l in notion.split("\n") if l.strip()] if notion and notion not in ("暂无", "获取失败") else []
+        agenda_lines = [l.strip().replace("|", " ") for l in agenda.split("\n") if l.strip()] if agenda and agenda not in ("暂无", "获取失败") else []
+        notion_lines = [l.strip() for l in notion_todos.split("\n") if l.strip()] if notion_todos and notion_todos not in ("暂无", "获取失败") else []
 
         prompt = f"""你的人格设定（由系统提供）会决定你的说话风格。
 
@@ -30,10 +30,8 @@ class BriefingReminder:
 日期: {date} {weekday}
 天气: {weather_current}（预报: {weather_forecast if weather_forecast else "暂无"}）
 日程:
-{"\n".join(cal_lines) if cal_lines else "暂无"}
-待办:
-{schedules if schedules and schedules != "暂无" else "暂无"}
-Notion待办:
+{"\n".join(agenda_lines) if agenda_lines else "暂无"}
+待办（Notion）:
 {"\n".join(notion_lines) if notion_lines else "暂无"}
 设备状态: {dashboard if dashboard else "暂无"}
 熬夜检测: {"有深夜日程（" + late_night.strip() + "），昨晚辛苦了" if late_night and late_night.strip() else "无深夜日程"}

@@ -12,9 +12,8 @@
 ### ☀️ 每日早报
 每天早上自动推送（可配置时间）：
 - 天气情况（当前天气、预报、温差、降水概率）
-- **今日** Apple 日历事件
-- 本地日程列表
-- Notion 待办事项（**DDL 倒计时**：还剩N天 / 今天截止 / 已逾期）
+- 今日日程（本地日程 + Apple 日历合并去重）
+- Notion 待办事项（唯一待办来源，**DDL 倒计时**：还剩N天 / 今天截止 / 已逾期）
 - 贴心建议（结合熬夜检测和 Live Dashboard 状态智能生成）
 
 ### 🔔 习惯提醒
@@ -30,12 +29,12 @@
 - 结合 Live Dashboard 状态生成个性化提醒文案
 - 防重入机制避免重复提醒
 
-### 📝 日程管理（自然语言）
-- `添加日程：明天上午10点开组会`
-- `删除开组会`
-- `查看我的日程`
-- `推迟组会20分钟`
-- `今天洗澡改到23点`
+### 📝 日程管理（当前实际指令）
+- `添加 14:30 开会`
+- `删除 #1`
+- `查看` / `日程列表`
+- `修改时间 喝水 10:30`
+- `/日程帮助`
 
 ### 🍎 Apple iCloud 日历双向同步
 **读取（Apple → 本地）：**
@@ -106,6 +105,11 @@
 | `maton_api_key` | string | Maton API Key（Notion 功能必需，从 [www.maton.ai](https://www.maton.ai) 获取） |
 | `notion_db_ids` | list | Notion 数据库 ID 列表，兼容两种格式：`["事务:xxx", "阅读:yyy"]` 或 `[{"name":"事务","id":"xxx"}]` |
 | `whitelist_qq_ids` | list | 白名单 QQ 号，只有这些账号能收到提醒 |
+| `target_user_ids` | list | 额外提醒目标用户 ID（可与白名单并用） |
+| `broadcast_to_all_known_users` | bool | 是否把历史活跃用户纳入自动提醒 |
+| `default_session_type` | string | 发送会话类型，默认 `FriendMessage` |
+| `send_platform_id` | string | 默认发送平台 ID，留空则按最近会话/可用平台选择 |
+| `user_platform_bindings` | list | 用户平台绑定，格式：`["123456:aiocqhttp"]` |
 
 ### Apple 日历配置（嵌套在 `apple_calendar` 下）
 | 配置项 | 类型 | 说明 |
@@ -147,23 +151,21 @@ astrbot_plugin_schedule_assistant/
 
 ---
 
-## LLM 工具一览
+## 指令能力一览（与当前实现对齐）
 
-| 工具名 | 说明 |
+| 指令 | 说明 |
 |--------|------|
-| `add_schedule` | 添加日程或习惯；支持 `HH:MM` 或 `YYYY-MM-DD HH:MM` |
-| `remove_schedule` | 删除日程或习惯（模糊匹配，命中首项即删除） |
-| `list_schedules` | 查看当前用户所有日程和习惯 |
-| `snooze_schedule` | 推迟日程或习惯提醒 |
-| `temp_override_habit` | 临时修改习惯提醒时间（仅今天生效） |
-| `get_notion_tasks` | 查看 Notion 未完成待办 |
-| `skip_water` | 跳过本次喝水提醒 |
+| `添加 14:30 开会` | 添加日程（当天时点） |
+| `删除 #1` | 按序号删除日程 |
+| `查看` / `列表` / `/日程` | 查看当前用户日程 |
+| `修改时间 喝水 10:30` | 临时修改习惯提醒时间（仅当天生效） |
+| `/喝水` `/早安` `/洗澡` `/睡觉` | 手动触发对应提醒 |
 
-### 工具边界说明
+### 指令边界说明
 - 单次日程触发后会自动关闭，避免重复提醒
-- `snooze_schedule` 仅改变下次触发时间，不改变原始 `time` 字段
-- 自动提醒仅发送给 `whitelist_qq_ids` 中的账号
+- 自动提醒目标来自 `whitelist_qq_ids`、`target_user_ids` 与可选历史活跃用户集合
 - 日程提醒由 LLM 生成，结合 Dashboard 状态和对话上下文
+- 多平台发送按「最近会话平台 > 用户绑定 > 默认平台 > 可用平台」降级路由
 
 ---
 
@@ -178,6 +180,10 @@ astrbot_plugin_schedule_assistant/
 - 检查 `whitelist_qq_ids` 是否包含你的 QQ 号
 - 确认 Bot 在早报时间在线
 - 确认 `enable_morning_report` 为 `true`
+
+**Q: 为什么早报里只显示 Notion 待办？**
+- 这是设计调整：早报中的“待办”统一指 Notion 待办，避免与“今日日程”重复
+- 本地/Apple 的时间安排已合并展示在“今日日程”中
 
 **Q: Apple 日历同步失败？**
 - 确保 App 专用密码在 [appleid.apple.com](https://appleid.apple.com) 正确生成，且账号已开启两步验证

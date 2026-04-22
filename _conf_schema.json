@@ -12,7 +12,7 @@
  "enable_morning_report": {
   "type": "bool",
   "description": "开启早安播报",
-  "hint": "每天自动推送早安播报，包含天气、日历、待办等"
+  "hint": "每天自动推送早安播报，包含天气、今日日程与 Notion 待办"
  },
  "morning_report_time": {
   "type": "string",
@@ -127,5 +127,32 @@
   "items": {"type": "string"},
   "description": "白名单 QQ 号",
   "hint": "只有这些 QQ 能收到自动提醒，格式：[\"123456789\"]"
+ },
+ "target_user_ids": {
+  "type": "list",
+  "items": {"type": "string"},
+  "description": "额外提醒目标用户",
+  "hint": "补充自动提醒目标用户 ID（可与白名单并用）"
+ },
+ "broadcast_to_all_known_users": {
+  "type": "bool",
+  "description": "自动提醒覆盖历史活跃用户",
+  "hint": "开启后会把存储中出现过的用户也纳入自动提醒"
+ },
+ "default_session_type": {
+  "type": "string",
+  "description": "发送会话类型",
+  "hint": "默认 FriendMessage，可按平台需求调整"
+ },
+ "send_platform_id": {
+  "type": "string",
+  "description": "默认发送平台 ID",
+  "hint": "为空时自动按最近会话/平台可用性选择"
+ },
+ "user_platform_bindings": {
+  "type": "list",
+  "items": {"type": "string"},
+  "description": "用户平台绑定",
+  "hint": "格式：user_id:platform_id，用于多平台路由"
  }
 }
