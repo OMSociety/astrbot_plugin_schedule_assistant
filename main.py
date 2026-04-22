@@ -306,7 +306,7 @@ class ScheduleAssistant(Star):
             platform = self._get_platform_id()
             session = f"{platform}:PrivateMessage:{user_id}"
             chain = MessageChain([Plain(message)])
-            await self.context.context.context.send_message(session, chain)
+            await self.context.send_message(session, chain)
         except Exception as e:
             logger.error(f"{LOG_PREFIX} 发送消息失败: {e}")
 
