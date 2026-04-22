@@ -157,10 +157,16 @@ class ScheduleAssistant(Star):
         # Apple Calendar（按需初始化）
         if conf.get("enable_apple_calendar_sync"):
             apple_conf = conf.get("apple_calendar", {})
-            self.apple_calendar = AppleCalendar(
-                username=apple_conf.get("username"),
-                app_password=apple_conf.get("app_password"),
-            )
+            username = apple_conf.get("username") if apple_conf else None
+            app_password = apple_conf.get("app_password") if apple_conf else None
+            if username and app_password:
+                self.apple_calendar = AppleCalendar(
+                    username=username,
+                    app_password=app_password,
+                )
+                logger.info(f"{LOG_PREFIX} Apple Calendar 已配置: {username[:3]}***")
+            else:
+                logger.warning(f"{LOG_PREFIX} Apple Calendar 未配置凭据（username 或 app_password 缺失）")
 
         logger.info(f"{LOG_PREFIX} 外部服务初始化完成")
 
@@ -304,7 +310,7 @@ class ScheduleAssistant(Star):
         """发送消息给用户（私聊）"""
         try:
             platform = self._get_platform_id()
-            session = f"{platform}:PrivateMessage:{user_id}"
+            session = f"{platform}:FriendMessage:{user_id}"
             chain = MessageChain([Plain(message)])
             await self.context.send_message(session, chain)
         except Exception as e:
