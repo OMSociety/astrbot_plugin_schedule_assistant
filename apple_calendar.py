@@ -232,13 +232,7 @@ class AppleCalendar:
         return await loop.run_in_executor(None, self._caldav_fetch_sync, cal_url)
 
     def _parse_vevents(self, ical_data: str) -> List[Dict]:
-        """解析 VEVENT，正确处理 UTC 和本地时区
-
-        iCloud ICS 格式支持:
-        - DTSTART:20260422T073500Z           (UTC时间，带Z后缀)
-        - DTSTART;TZID=Asia/Shanghai:...     (本地时间，带TZID)
-        - DTSTART;VALUE=DATE:20260202        (全天事件)
-        """
+        """解析 VEVENT，正确处理 UTC 和本地时区"""
         events = []
         local_tz = datetime.now().astimezone().tzinfo
 
@@ -258,23 +252,17 @@ class AppleCalendar:
 
             if dtstart_line:
                 line = dtstart_line.group(0)
-
-                # 全天事件检测
                 if "VALUE=DATE" in line or re.search(r":\d{8}$", line):
                     dtstart_all_day = True
                     date_match = re.search(r":(\d{8})(?:T\d{6})?$", line)
                     if date_match:
                         start_time = datetime.strptime(date_match.group(1), "%Y%m%d")
                 else:
-                    # 提取时区信息
                     tzid_match = re.search(r"TZID=([^:]+)", line)
-                    # 提取时间值
                     value_match = re.search(r":(\d{8}T\d{6})", line)
-
                     if value_match:
                         time_str = value_match.group(1)
                         naive = datetime.strptime(time_str, "%Y%m%dT%H%M%S")
-
                         if tzid_match:
                             try:
                                 from dateutil import tz as dateutil_tz
@@ -293,44 +281,12 @@ class AppleCalendar:
                         else:
                             start_time = naive
 
-            # 解析 DTEND
-            dtend_line = re.search(r"DTEND[^\r\n]*", ev)
-            end_time = None
-
-            if dtend_line and not dtstart_all_day:
-                line = dtend_line.group(0)
-                tzid_match = re.search(r"TZID=([^:]+)", line)
-                value_match = re.search(r":(\d{8}T\d{6})", line)
-
-                if value_match:
-                    time_str = value_match.group(1)
-                    naive = datetime.strptime(time_str, "%Y%m%dT%H%M%S")
-
-                    if tzid_match:
-                        try:
-                            from dateutil import tz as dateutil_tz
-                            tz_name = tzid_match.group(1)
-                            tz_obj = dateutil_tz.gettz(tz_name)
-                            if tz_obj:
-                                aware = naive.replace(tzinfo=tz_obj)
-                                end_time = aware.astimezone(local_tz).replace(tzinfo=None)
-                            else:
-                                end_time = naive
-                        except Exception:
-                            end_time = naive
-                    elif line.rstrip().endswith("Z"):
-                        utc = naive.replace(tzinfo=timezone.utc)
-                        end_time = utc.astimezone(local_tz).replace(tzinfo=None)
-                    else:
-                        end_time = naive
-
             if start_time:
                 events.append({
                     "uid": uid,
                     "summary": summary,
                     "description": description,
                     "start": start_time.isoformat(),
-                    "end": end_time.isoformat() if end_time else None,
                     "all_day": dtstart_all_day
                 })
 
@@ -353,11 +309,12 @@ class AppleCalendar:
     def _cleanup_expired_cache(self):
         """清理过期的缓存（只保留今天的缓存）"""
         today = datetime.now().strftime("%Y%m%d")
-        expired_keys = [k for k in self._events_cache if not k.startswith(today)]
+        # 清理所有不以今天日期开头的缓存键（包括旧格式的整数键）
+        expired_keys = [k for k in list(self._events_cache.keys()) if not str(k).startswith(today)]
         if expired_keys:
             for k in expired_keys:
                 del self._events_cache[k]
-            logger.debug(f"[AppleCalendar] 清理了 {len(expired_keys)} 个过期缓存键")
+            logger.debug(f"[AppleCalendar] 清理了 {len(expired_keys)} 个过期缓存键: {expired_keys}")
 
     async def get_all_events(self, days: int = 1) -> List[Dict]:
         # 缓存键包含日期，避免跨天返回错误数据
