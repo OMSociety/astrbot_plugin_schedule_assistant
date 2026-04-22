@@ -52,12 +52,11 @@ class AppleCalendar:
                 return resp.read().decode("utf-8", errors="replace")
             except urllib.error.HTTPError as e:
                 last_error = e
-                # 503 等服务端错误可重试
                 if e.code >= 500 and attempt < retries - 1:
                     time.sleep(1 * (attempt + 1))
                     continue
                 body = e.read().decode("utf-8", errors="replace") if e.fp else ""
-                logger.debug(f"[AppleCalendar] 请求失败 HTTP {e.code}: {body[:200]}")
+                logger.warning(f"[AppleCalendar] 请求失败 HTTP {e.code}: {body[:200]}")
                 return None
             except Exception as e:
                 last_error = e
@@ -293,7 +292,7 @@ class AppleCalendar:
             events = self._parse_vevents(ical_data)
             logger.info(f"[AppleCalendar] WebCal 读取成功: {len(events)} 个事件")
         except Exception as e:
-            logger.debug(f"[AppleCalendar] WebCal 读取失败: {e}")
+            logger.warning(f"[AppleCalendar] WebCal 读取失败: {e}")
         return events
 
     async def get_all_events(self, days: int = 1) -> List[Dict]:
@@ -324,7 +323,7 @@ class AppleCalendar:
             return None
         calendars = await self._list_calendars()
         if not calendars:
-            logger.error("[AppleCalendar] 未找到可写日历")
+            logger.warning("[AppleCalendar] 未找到可写日历")
             return None
         resolved_id = calendar_id or calendars[0]["id"]
         cal_url = f"{self._caldav_base_url}/{resolved_id}/"
@@ -338,6 +337,7 @@ class AppleCalendar:
         if resp is not None:
             logger.info(f"[AppleCalendar] 创建事件成功: {summary} (UID={uid})")
             return uid
+        logger.error(f"[AppleCalendar] 创建事件失败（请检查网络）")
         return None
 
     async def delete_event(self, uid: str, calendar_id: Optional[str] = None) -> bool:
