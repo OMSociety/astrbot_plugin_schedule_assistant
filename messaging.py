@@ -16,7 +16,6 @@ async def send_to_user(context, user_id: str, message: str) -> bool:
         if not platforms:
             return False
 
-        # 获取第一个可用的平台
         platform = next(iter(platforms.values()), None)
         if not platform:
             return False
