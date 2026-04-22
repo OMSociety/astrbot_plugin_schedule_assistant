@@ -1,6 +1,4 @@
-"""
-日程提醒模块 - 由 LLM 生成自然语言提醒文本
-"""
+"""日程提醒模块 - 由 LLM 生成自然语言提醒文本"""
 import re
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
@@ -12,7 +10,7 @@ from ..constants import LOG_PREFIX
 class ScheduleReminder:
     """
     日程 LLM 提醒生成器
-    
+
     注入信息：
     - 日程名称、时间、备注/描述
     - Dashboard 状态
@@ -35,14 +33,13 @@ class ScheduleReminder:
         conv_history: str,
     ) -> str:
         """构建 LLM 提醒 prompt"""
-        
         if item_type == "habit":
             label = "习惯"
             time_display = f"设定时间 {item_time}"
         else:
             label = "日程"
             time_display = f"时间 {item_time}"
-        
+
         if not isinstance(dashboard_status, dict):
             dashboard_status = {}
 
@@ -57,7 +54,7 @@ class ScheduleReminder:
             dash_block = f"近期状态:\n{dashboard_status.get('raw_text').strip()}"
         else:
             dash_block = "近期状态:（未开启 Dashboard）"
-        
+
         prompt = f"""你是一个贴心的 AI 助手，正在用自然、亲切的语气提醒用户有一个{label}要开始了。
 
 {label}信息：
@@ -91,8 +88,20 @@ class ScheduleReminder:
         minutes_ahead: int = 10,
         conv_history: Optional[str] = None,
     ) -> str:
-        """生成提醒文本（带 LLM fallback）"""
-        
+        """生成提醒文本（带 LLM fallback）
+
+        Args:
+            item_title: 日程/习惯名称
+            item_time: 设定时间
+            item_context: 备注/描述
+            item_type: 类型 "habit" 或 "schedule"
+            minutes_ahead: 提前多少分钟提醒
+            conv_history: 对话历史
+
+        Returns:
+            生成的提醒文本
+        """
+
         try:
             if self.dashboard and hasattr(self.dashboard, "get_status"):
                 dashboard_text = await self.dashboard.get_status()
@@ -101,9 +110,9 @@ class ScheduleReminder:
                 dashboard_status = {"has_dashboard": False}
         except Exception:
             dashboard_status = {"has_dashboard": False}
-        
+
         conv_str = conv_history or "（无近期对话历史）"
-        
+
         prompt = self._build_prompt(
             item_title=item_title,
             item_time=item_time,
@@ -113,12 +122,11 @@ class ScheduleReminder:
             dashboard_status=dashboard_status,
             conv_history=conv_str,
         )
-        
+
         try:
             resp = await self.llm.generate_llm_message(
                 prompt=prompt,
                 system_prompt="你是一个贴心的 AI 助手。回复内容就是提醒文本，不要加任何说明。",
-                temperature=0.7,
             )
             text = resp.strip() if resp else None
             if text and len(text) > 5:
@@ -126,7 +134,7 @@ class ScheduleReminder:
                 return text
         except Exception as e:
             logger.warning(f"{LOG_PREFIX} LLM 提醒生成失败: {e}")
-        
+
         if item_type == "habit":
             return f"🔔 提醒：该{item_title}的时间到啦~"
         else:
@@ -134,7 +142,14 @@ class ScheduleReminder:
 
 
 def _parse_time(time_str: str) -> Optional[datetime]:
-    """解析时间字符串为 datetime"""
+    """解析时间字符串为 datetime
+
+    Args:
+        time_str: 时间字符串，格式可能是 "YYYY-MM-DD HH:MM" 或 "HH:MM"
+
+    Returns:
+        解析后的 datetime，或 None
+    """
     if not time_str:
         return None
     for fmt in ["%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S", "%H:%M"]:
@@ -150,68 +165,87 @@ async def check_and_trigger_schedule_reminder(
     llm_service,
     dashboard_service,
     user_id: str,
-    minutes_window: int = 80,
+    minutes_window: int = 30,
 ) -> List[Dict[str, Any]]:
-    """
-    扫描即将到来的日程并生成提醒
+    """扫描即将到来的日程并生成提醒
+
+    Args:
+        schedule_store: 数据存储
+        llm_service: LLM 服务
+        dashboard_service: Dashboard 服务
+        user_id: 用户 ID
+        minutes_window: 提前多少分钟内触发提醒
+
+    Returns:
+        触发的提醒列表，每项包含 item_id, title, reminder_text 等
     """
     reminder = ScheduleReminder(llm_service, dashboard_service)
     triggered = []
     now = datetime.now()
-    
+
     all_items = await schedule_store.list_all_items(user_id)
-    
+
     for item in all_items:
         if not item.enabled:
             continue
-        
+
+        # 解析时间
         if item.type == "habit":
             effective_time = await schedule_store.get_effective_time(user_id, item.title, item.time)
             item_dt = _parse_time(effective_time)
             if item_dt:
+                # 习惯只保留时:分，替换到今天
                 item_dt = now.replace(hour=item_dt.hour, minute=item_dt.minute, second=0, microsecond=0)
         else:
             item_dt = _parse_time(item.time)
-        
+
         if not item_dt:
             continue
-        
+
+        # 计算距离触发时间还有多少分钟
         minutes_until = (item_dt - now).total_seconds() / 60
-        
+
+        # 如果已超过 1 小时，清除触发记录（允许重新触发）
         if item.last_triggered:
             try:
                 last_dt = datetime.fromisoformat(item.last_triggered)
                 if (now - last_dt).total_seconds() > 3600:
                     item.last_triggered = None
             except (ValueError, TypeError):
-                pass
-        
-        if 0 <= minutes_until <= minutes_window:
-            if item.last_triggered:
-                continue
-            
-            conv_history = schedule_store.format_history_for_prompt(
-                await schedule_store.get_conversation_history(user_id)
-            )
-            
-            reminder_text = await reminder.generate_reminder_text(
-                item_title=item.title,
-                item_time=item.time,
-                item_context=item.context,
-                item_type=item.type,
-                minutes_ahead=int(minutes_until),
-                conv_history=conv_history,
-            )
-            
-            triggered.append({
-                "item_id": item.id,
-                "title": item.title,
-                "reminder_text": reminder_text,
-                "minutes_until": int(minutes_until),
-                "type": item.type,
-            })
-            
-            item.last_triggered = now.isoformat()
-            await schedule_store.update_item(user_id, item)
-    
+                item.last_triggered = None
+
+        # 只在指定窗口内触发（默认 30 分钟）
+        if not (0 <= minutes_until <= minutes_window):
+            continue
+
+        # 如果已经触发过，跳过
+        if item.last_triggered:
+            continue
+
+        # 生成提醒
+        conv_history = schedule_store.format_history_for_prompt(
+            await schedule_store.get_conversation_history(user_id)
+        )
+
+        reminder_text = await reminder.generate_reminder_text(
+            item_title=item.title,
+            item_time=item.time,
+            item_context=item.context,
+            item_type=item.type,
+            minutes_ahead=int(minutes_until),
+            conv_history=conv_history,
+        )
+
+        triggered.append({
+            "item_id": item.id,
+            "title": item.title,
+            "reminder_text": reminder_text,
+            "minutes_until": int(minutes_until),
+            "type": item.type,
+        })
+
+        # 标记已触发
+        item.last_triggered = now.isoformat()
+        await schedule_store.update_item(user_id, item)
+
     return triggered
