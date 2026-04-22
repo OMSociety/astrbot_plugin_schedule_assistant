@@ -483,7 +483,10 @@ class ScheduleAssistant(Star):
 
     def _get_platform_id(self) -> str:
         """获取当前平台标识"""
-        return self.context.get_platform_name()
+        try:
+            return self.context.get_platform_name()
+        except Exception:
+            return "aiocqhttp"
 
     @filter.event_message_type(filter.EventMessageType.PRIVATE_MESSAGE)
     async def handle_private_message(self, event: AiocqhttpMessageEvent):
