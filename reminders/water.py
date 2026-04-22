@@ -1,37 +1,5 @@
-"""喝水提醒服务"""
-from datetime import datetime
+"""喝水提醒服务（已迁移到 habits.py）"""
+from .habits import WaterReminder
 
-
-_WATER_FALLBACK = "💧 该喝水啦~ 站起来活动活动，倒杯水润润嗓吧！"
-
-
-
-class WaterReminder:
-    def __init__(self, config: dict, default_user_id: str, llm_service, store):
-        self.config = config
-        self.default_user_id = default_user_id
-        self.llm_service = llm_service
-        self.store = store
-        self.llm_service.set_fallback_template(_WATER_FALLBACK)
-
-
-    async def generate(self, username: str, dashboard: str, history_text: str) -> str | None:
-        now = datetime.now()
-        prompt = f"""你是「{username}」的贴心日程助手，现在需要生成一条喝水提醒~
-
-【用户信息】
-- 用户名: {username}
-- 当前时间: {now.strftime("%H:%M")}
-- 用户当前状态: {dashboard}
-
-
-【近期对话】
-{history_text or "（无近期对话）"}
-
-【生成要求】
-1. 语气活泼俏皮，像闺蜜催你喝水
-2. 结合当前时间、dashboard状态、近期对话上下文发挥创意，多样化调侃方式
-3. 30字以内，带1-2个emoji
-4. 不要markdown，纯文本输出
-5. 只输出提醒消息本身"""
-        return await self.llm_service.generate(prompt)
+# 向后兼容
+__all__ = ["WaterReminder"]
