@@ -21,7 +21,7 @@ from astrbot.core.provider.entities import ProviderType
 from .schedule_store import ScheduleStore, ScheduleItem
 from .notion_client import NotionClient
 from .apple_calendar import AppleCalendar
-from .reminders.schedule import ScheduleReminder
+from .reminders.schedule import ScheduleReminder, check_and_trigger_schedule_reminder
 
 from .constants import (
     PREFERENCE_SCOPE,
@@ -58,6 +58,9 @@ class ScheduleAssistant(Star):
         # 服务初始化（按需，失败不影响其他功能）
         self.weather_service: Optional[WeatherService] = None
         self.notion_service: Optional[NotionService] = None
+        self.llm_service: Optional[LLMService] = None
+        self.apple_calendar: Optional[AppleCalendar] = None
+        self.notion: Optional[NotionClient] = None
         self._services_ready = False
         self._tasks_registered = False
         self._init_task: Optional[asyncio.Task] = None
@@ -116,10 +119,7 @@ class ScheduleAssistant(Star):
             self.weather_service = WeatherService({"weather_api_key": api_key, "weather_city": city})
 
         # LLM
-        try:
-            self.llm_service = LLMService(self.context)
-        except Exception as e:
-            logger.warning(f"{LOG_PREFIX} LLM 服务初始化失败: {e}")
+        self.llm_service = LLMService(self.context)
 
         # Dashboard
         self.dashboard_service = DashboardService()
@@ -139,13 +139,41 @@ class ScheduleAssistant(Star):
                             transaction_db = db_id
                         elif name == "阅读" or name == "reading":
                             reading_db = db_id
+                    elif isinstance(item, str):
+                        raw = item.strip()
+                        if ":" in raw:
+                            name, db_id = raw.split(":", 1)
+                            name = name.strip().lower()
+                            db_id = db_id.strip()
+                            if name in ("事务", "transaction"):
+                                transaction_db = db_id
+                            elif name in ("阅读", "reading"):
+                                reading_db = db_id
+                        # 兼容旧格式：未带前缀时按顺序映射（第1个→事务，第2个→阅读）
+                        elif not transaction_db:
+                            transaction_db = raw
+                            logger.warning(
+                                f"{LOG_PREFIX} notion_db_ids 使用无前缀字符串，已按顺序第1个映射为「事务库」"
+                            )
+                        elif not reading_db:
+                            reading_db = raw
+                            logger.warning(
+                                f"{LOG_PREFIX} notion_db_ids 使用无前缀字符串，已按顺序第2个映射为「阅读库」"
+                            )
+                        elif raw:
+                            logger.warning(
+                                f"{LOG_PREFIX} notion_db_ids 额外无前缀字符串未使用: {raw[:12]}..."
+                            )
                 self.notion = NotionClient(
                     maton_key,
                     transaction_db,
                     reading_db,
                 )
+                self.notion_service = NotionService(self.notion)
             except Exception as e:
                 logger.warning(f"{LOG_PREFIX} Notion 初始化失败: {e}")
+                self.notion = None
+                self.notion_service = None
 
         # 提醒服务
         self.briefing_reminder = BriefingReminder(self.config, self.context, self.llm_service)
@@ -454,32 +482,68 @@ class ScheduleAssistant(Star):
     async def _notion_ddl_check(self):
         """检查 Notion DDL"""
         logger.debug(f"{LOG_PREFIX} 执行 Notion DDL 检查")
+        try:
+            await self._ensure_services()
+            user_id = self.default_user_id
+            if not user_id or not self.notion_service:
+                return
+            pending = await self.notion_service.get_pending_tasks()
+            if not pending:
+                return
+            lines = []
+            for task in pending[:5]:
+                ddl = self.notion_service.format_ddl(task.get("ddl", ""))
+                title = task.get("title", "(无标题)")
+                lines.append(f"• {ddl} | {title}" if ddl else f"• {title}")
+            if lines:
+                message = "📌 Notion 待办提醒\n" + "\n".join(lines)
+                await self._send_to_user(user_id, message)
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} Notion DDL 检查失败: {e}")
 
     async def _schedule_reminder_scan(self):
         """日程 LLM 提醒扫描"""
         logger.debug(f"{LOG_PREFIX} 执行日程提醒扫描")
-        if not hasattr(self, "llm_service") or not self.llm_service:
+        await self._ensure_services()
+        if not hasattr(self, "schedule_reminder"):
             return
 
-        now = datetime.now()
-        window_end = now + timedelta(minutes=80)
+        try:
+            raw_minutes = self.config.get("schedule_reminder_minutes", 10)
+            if raw_minutes in (None, ""):
+                raw_minutes = 10
+            if isinstance(raw_minutes, str):
+                raw_minutes = raw_minutes.strip()
+                if not raw_minutes.isdigit():
+                    logger.warning(f"{LOG_PREFIX} schedule_reminder_minutes 非数字，使用默认值 10")
+                    raw_minutes = 10
+            minutes_ahead = int(raw_minutes)
+        except Exception:
+            minutes_ahead = 10
+        if minutes_ahead <= 0:
+            minutes_ahead = 10
 
-        for user_id in self.store.get_all_users():
-            items = await self.store.list_all_items(user_id)
-            for item in items:
-                if item.time and now <= datetime.fromisoformat(item.time.replace(" ", "T")) <= window_end:
-                    try:
-                        message = await self.schedule_reminder.generate_reminder_text(
-                            item_title=item.title,
-                            item_time=item.time,
-                            item_context=item.context,
-                            item_type=item.type,
-                            minutes_ahead=10,
-                        )
-                        if message:
-                            await self._send_to_user(user_id, message)
-                    except Exception as e:
-                        logger.warning(f"{LOG_PREFIX} LLM 提醒生成失败: {e}")
+        user_ids = set(await self.store.get_all_users())
+        if self.default_user_id:
+            user_ids.add(str(self.default_user_id))
+        for uid in self.config.get("whitelist_qq_ids", []) or []:
+            if uid:
+                user_ids.add(str(uid))
+
+        for user_id in sorted(user_ids):
+            try:
+                triggered = await check_and_trigger_schedule_reminder(
+                    schedule_store=self.store,
+                    llm_service=self.llm_service,
+                    dashboard_service=self.dashboard_service,
+                    user_id=user_id,
+                    minutes_window=minutes_ahead,
+                )
+                for item in triggered:
+                    if item.get("reminder_text"):
+                        await self._send_to_user(user_id, item["reminder_text"])
+            except Exception as e:
+                logger.warning(f"{LOG_PREFIX} 用户 {user_id} 日程提醒扫描失败: {e}")
 
     async def _apple_calendar_sync(self):
         """Apple 日历同步"""
@@ -487,8 +551,21 @@ class ScheduleAssistant(Star):
             return
         try:
             events = await self.apple_calendar.get_all_events(days=7)
-            logger.info(f"{LOG_PREFIX} Apple Calendar 同步到 {len(events)} 个事件")
-            # TODO: 写入本地日程
+            user_ids = set(await self.store.get_all_users())
+            if self.default_user_id:
+                user_ids.add(str(self.default_user_id))
+            for uid in self.config.get("whitelist_qq_ids", []) or []:
+                if uid:
+                    user_ids.add(str(uid))
+            if not user_ids:
+                logger.info(f"{LOG_PREFIX} Apple Calendar 已读取 {len(events)} 个事件，但无可同步用户")
+                return
+            for user_id in sorted(user_ids):
+                stats = await self.store.sync_from_apple_calendar(user_id, events)
+                logger.info(
+                    f"{LOG_PREFIX} Apple→本地同步 user={user_id} "
+                    f"added={stats['added']} updated={stats['updated']} deleted={stats['deleted']}"
+                )
         except Exception as e:
             logger.error(f"{LOG_PREFIX} Apple Calendar 同步失败: {e}")
 

@@ -104,7 +104,7 @@
 | `weather_api_key` | string | 心知天气 API Key（[seniverse.com](https://seniverse.com)） |
 | `weather_city` | string | 天气查询城市（默认：杭州） |
 | `maton_api_key` | string | Maton API Key（Notion 功能必需，从 [www.maton.ai](https://www.maton.ai) 获取） |
-| `notion_db_ids` | list | Notion 数据库 ID 列表，格式：`[{"name": "事务", "id": "xxx..."}]`，在 Notion 页面链接里找（如 `notion.so/workspace/xxxxxxxx-xxxxxxxxxx?v=...` 中的 ID） |
+| `notion_db_ids` | list | Notion 数据库 ID 列表，兼容两种格式：`["事务:xxx", "阅读:yyy"]` 或 `[{"name":"事务","id":"xxx"}]` |
 | `whitelist_qq_ids` | list | 白名单 QQ 号，只有这些账号能收到提醒 |
 
 ### Apple 日历配置（嵌套在 `apple_calendar` 下）
@@ -172,7 +172,7 @@ astrbot_plugin_schedule_assistant/
 **Q: Notion 待办同步不工作？**
 - 确认 api-gateway Skill 已启用且 Maton API Key 配置正确
 - 确认 Maton 后台 Notion OAuth 连接状态为 **ACTIVE**
-- 确认 `notion_db_ids` 填写了正确的数据库 ID（格式：`[{"name": "事务", "id": "xxx..."}]`）
+- 确认 `notion_db_ids` 填写了正确的数据库 ID（支持 `["事务:xxx"]` 或 `[{"name":"事务","id":"xxx"}]`）
 
 **Q: 没收到早报？**
 - 检查 `whitelist_qq_ids` 是否包含你的 QQ 号
@@ -186,6 +186,7 @@ astrbot_plugin_schedule_assistant/
 
 **Q: 日程 LLM 提醒不生效？**
 - 确认 `enable_schedule_reminder` 为 `true`
+- 确认 `schedule_reminder_minutes` 为正整数（默认 `10`）
 - 确认 Maton API Key 已配置（LLM 调用需要）
 
 **Q: 想改喝水提醒间隔？**

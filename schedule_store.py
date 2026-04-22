@@ -49,6 +49,34 @@ class ScheduleStore:
     def _get_db(self):
         return self.context.get_db()
 
+    async def _get_user_index(self) -> List[str]:
+        try:
+            pref = await self._get_db().get_preference(PREFERENCE_SCOPE, "_meta_", "users")
+            users = pref.value if pref and pref.value else []
+            return [str(u) for u in users if u]
+        except Exception:
+            return []
+
+    async def _save_user_index(self, users: List[str]) -> None:
+        try:
+            uniq = sorted({str(u) for u in users if u})
+            await self._get_db().insert_preference_or_update(
+                scope=PREFERENCE_SCOPE,
+                scope_id="_meta_",
+                key="users",
+                value=uniq,
+            )
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} 保存用户索引失败: {e}")
+
+    async def _touch_user(self, user_id: str) -> None:
+        if not user_id:
+            return
+        users = await self._get_user_index()
+        if user_id not in users:
+            users.append(user_id)
+            await self._save_user_index(users)
+
     async def _get_user_data(self, user_id: str) -> Dict[str, Any]:
         try:
             pref = await self._get_db().get_preference(PREFERENCE_SCOPE, user_id, "data")
@@ -66,6 +94,7 @@ class ScheduleStore:
                 key="data",
                 value=data
             )
+            await self._touch_user(user_id)
         except Exception as e:
             logger.error(f"{LOG_PREFIX} 保存用户 {user_id} 数据失败: {e}")
 
@@ -99,7 +128,8 @@ class ScheduleStore:
         }
 
     async def get_all_users(self) -> List[str]:
-        return []
+        users = await self._get_user_index()
+        return sorted(set(users))
 
     async def remove_item(self, user_id: str, item_id: str) -> bool:
         data = await self._get_user_data(user_id)
