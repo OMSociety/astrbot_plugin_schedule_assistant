@@ -146,12 +146,12 @@ class AppleCalendar:
                 principal_href = self._clean_href(m.group(1)) if m else None
 
             if not principal_href:
-                logger.error("[AppleCalendar] 无法解析 principal URL")
+                logger.debug("[AppleCalendar] 无法解析 principal URL")
                 return False
 
             self._principal_url = self._to_absolute_url("https://caldav.icloud.com", principal_href)
             if not self._principal_url:
-                logger.error("[AppleCalendar] principal URL 组装失败")
+                logger.debug("[AppleCalendar] principal URL 组装失败")
                 return False
             logger.info(f"[AppleCalendar] principal URL: {self._principal_url}")
 
@@ -164,7 +164,7 @@ class AppleCalendar:
                 headers={"Authorization": self._auth_header(), "Content-Type": "text/xml"},
             )
             if not resp2:
-                logger.error("[AppleCalendar] principal URL 无响应，跳过日历发现（请检查网络或凭据）")
+                logger.debug("[AppleCalendar] principal URL 无响应，跳过日历发现")
                 return False
 
             cal_home_href = self._extract_href(resp2, "calendar-home-set")
@@ -180,12 +180,12 @@ class AppleCalendar:
                         cal_home_href = "/" + m.group(1).rstrip("/")
 
             if not cal_home_href:
-                logger.error(f"[AppleCalendar] 无法解析 calendar home set URL，响应: {resp2[:500]}")
+                logger.debug(f"[AppleCalendar] 无法解析 calendar home set URL，响应: {resp2[:500]}")
                 return False
 
             self._caldav_base_url = self._to_absolute_url(self._principal_url, cal_home_href)
             if not self._caldav_base_url:
-                logger.error("[AppleCalendar] calendar home set URL 组装失败")
+                logger.debug("[AppleCalendar] calendar home set URL 组装失败")
                 return False
             self._caldav_base_domain = urlparse(self._caldav_base_url).netloc
 
