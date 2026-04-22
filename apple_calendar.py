@@ -337,7 +337,7 @@ class AppleCalendar:
         if resp is not None:
             logger.info(f"[AppleCalendar] 创建事件成功: {summary} (UID={uid})")
             return uid
-        logger.error(f"[AppleCalendar] 创建事件失败（请检查网络）")
+        logger.error("[AppleCalendar] 创建事件失败（请检查网络）")
         return None
 
     async def delete_event(self, uid: str, calendar_id: Optional[str] = None) -> bool:
