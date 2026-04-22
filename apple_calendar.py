@@ -20,7 +20,7 @@ __all__ = ["AppleCalendar"]
 
 
 class AppleCalendar:
-    """"Apple iCloud / CalDAV 日历客户端"""
+    """Apple iCloud / CalDAV 日历客户端"""
     def __init__(self, username: Optional[str] = None, app_password: Optional[str] = None, webcal_urls: Optional[List[str]] = None):
         self.username = username
         self.app_password = app_password
@@ -51,8 +51,13 @@ class AppleCalendar:
                 resp = urllib.request.urlopen(req, timeout=timeout)
                 return resp.read().decode("utf-8", errors="replace")
             except urllib.error.HTTPError as e:
+                last_error = e
+                # 503 等服务端错误可重试
+                if e.code >= 500 and attempt < retries - 1:
+                    time.sleep(1 * (attempt + 1))
+                    continue
                 body = e.read().decode("utf-8", errors="replace") if e.fp else ""
-                logger.warning(f"[AppleCalendar] HTTP {e.code}: {body[:300]}")
+                logger.warning(f"[AppleCalendar] 请求失败 HTTP {e.code}: {body[:200]}")
                 return None
             except Exception as e:
                 last_error = e
@@ -66,11 +71,11 @@ class AppleCalendar:
         href = html.unescape((raw or "").strip())
         href = href.replace("\u200b", "")
         href = re.sub(r"[\r\n\t]", "", href)
-        href = href.strip("'\"" + "<>\\")
+        href = href.strip("'" + "<>\\")
         for splitter in ('">', "'>", "<", ">"):
             if splitter in href:
                 href = href.split(splitter, 1)[0]
-        m = re.search(r"(https?://[^\s<>\'\"]+|/[^\s<>\'\"]+)", href)
+        m = re.search(r"(https?://[^\s<>'\"]+|/[^\s<>'\"]+)", href)
         href = m.group(1) if m else href
         href = re.sub(r"\s+", "", href)
         return href
@@ -120,7 +125,7 @@ class AppleCalendar:
                 return False
             principal_href = self._extract_href(resp1, "current-user-principal")
             if not principal_href:
-                m = re.search(r"(/\d+/\w+)/?$", resp1)
+                m = re.search(r"(/\\d+/\\w+)/?$", resp1)
                 principal_href = "/" + m.group(1) if m else None
             if not principal_href:
                 logger.debug("[AppleCalendar] 无法解析 principal URL")
@@ -137,7 +142,7 @@ class AppleCalendar:
                 return False
             cal_home_href = self._extract_href(resp2, "calendar-home-set")
             if not cal_home_href:
-                m = re.search(r"https?://[^\s<>\"']+/calendars/", resp2)
+                m = re.search(r"https?://[^\\s<>\"']+/calendars/", resp2)
                 if m:
                     cal_home_href = m.group(0).rstrip("/")
                 else:
