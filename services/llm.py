@@ -70,7 +70,6 @@ class LLMService:
     ) -> str:
         """直接调用 LLM 接口
 
-
         Args:
             prompt: 用户输入
             system_prompt: 系统提示词
@@ -85,7 +84,7 @@ class LLMService:
         provider_id = self._get_provider_id()
         if not provider_id:
             logger.error(f"{LOG_PREFIX} 未配置默认LLM Provider")
-            return self._fallbar_template if self._fallback_template else ""
+            return self._fallback_template if self._fallback_template else ""
         try:
             resp = await self.context.llm_generate(
                 chat_provider_id=provider_id, prompt=prompt,

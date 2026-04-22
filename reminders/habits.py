@@ -104,7 +104,6 @@ class HabitReminder:
         return await self.llm_service.generate(prompt, history=history_text)
 
 
-
 class BathReminder(HabitReminder):
     """洗澡提醒"""
 
