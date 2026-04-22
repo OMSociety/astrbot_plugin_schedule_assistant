@@ -5,11 +5,10 @@
 import re
 from datetime import datetime
 from typing import Optional
-
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
-
 from .schedule_store import ScheduleItem
 from .constants import LOG_PREFIX
+
 
 
 class CommandHandler:
@@ -188,6 +187,7 @@ class CommandHandler:
         func = self.reminder_funcs.get("briefing")
         if func:
             await func(user_id)
+
 
     async def _water_reminder(self, user_id: str):
         func = self.reminder_funcs.get("water")

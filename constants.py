@@ -1,5 +1,4 @@
-"""
-Schedule Assistant 插件常量定义
+"""Schedule Assistant 插件常量定义
 
 定义插件范围内使用的常量，包括存储键名和默认配置值。
 """

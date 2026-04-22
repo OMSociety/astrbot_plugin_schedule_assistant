@@ -73,6 +73,7 @@ class NotionClient:
                 await asyncio.sleep(0.5 * (attempt + 1))
         return {"error": f"请求失败（已重试{retries}次）: {last_error}"}
 
+
     def _relevant(self, ddl: Optional[str]) -> bool:
         if not ddl:
             return True
@@ -101,6 +102,7 @@ class NotionClient:
         results: List[Dict] = []
         for db_name, db_id in self._db_ids.items():
             results.extend(await self._query_db(db_id, db_name))
+
 
         results.sort(
             key=lambda x: (

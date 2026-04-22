@@ -8,14 +8,10 @@ import uuid
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timedelta
 from typing import Optional, Dict, List, Any, TYPE_CHECKING
-
 from astrbot import logger
-
 from .constants import PREFERENCE_SCOPE, SCHEDULES_KEY, HABITS_KEY, WATER_LAST_KEY, LOG_PREFIX, CONVERSATION_KEY, CONVERSATION_MAX_AGE_HOURS, CONVERSATION_MAX_MESSAGES
-
 if TYPE_CHECKING:
     from astrbot.api.star import Context
-
 __all__ = ['ScheduleItem', 'ScheduleStore']
 
 
@@ -89,6 +85,7 @@ class ScheduleStore:
             logger.warning(f"{LOG_PREFIX} 读取用户 {user_id} 数据失败: {e}")
         return {SCHEDULES_KEY: [], HABITS_KEY: [], WATER_LAST_KEY: ""}
 
+
     async def _save_user_data(self, user_id: str, data: Dict[str, Any]) -> None:
         try:
             await self._get_db().insert_preference_or_update(scope=PREFERENCE_SCOPE, scope_id=user_id, key="data", value=data)
@@ -105,6 +102,7 @@ class ScheduleStore:
         else:
             data[SCHEDULES_KEY].append(item_dict)
         await self._save_user_data(user_id, data)
+
 
     async def list_all_items(self, user_id: str) -> List[ScheduleItem]:
         data = await self._get_user_data(user_id)
@@ -262,6 +260,7 @@ class ScheduleStore:
             history = history[-CONVERSATION_MAX_MESSAGES:]
         data[CONVERSATION_KEY] = history
         await self._save_user_data(user_id, data)
+
 
     async def get_conversation_history(self, user_id: str) -> List[Dict[str, str]]:
         """获取用户对话历史"""

@@ -5,12 +5,11 @@
 支持多平台候选、会话记忆、优雅降级。
 """
 from typing import Optional, List
-
 from astrbot.core.message.message_event_result import MessageChain
 from astrbot.core.message.components import Plain
 from astrbot import logger
-
 from .constants import LOG_PREFIX
+
 
 
 class MessagingService:
