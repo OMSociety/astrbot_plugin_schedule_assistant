@@ -138,12 +138,12 @@ astrbot_plugin_schedule_assistant/
 │   ├── notion.py              # Notion 服务（5分钟断路器）
 │   ├── dashboard.py           # Live Dashboard 状态获取（单例）
 │   └── llm.py                 # LLM 封装（fallback + 人格注入）
-└── reminders/                # 提醒服务层
-    ├── bath.py               # 洗澡提醒（含 fallback）
-    ├── sleep.py              # 睡觉提醒（含 fallback）
-    ├── water.py              # 喝水提醒（含 fallback + 自动续期）
-    ├── briefing.py           # 每日早安播报（LLM 生成）
-    └── schedule.py          # 日程 LLM 智能提醒
+├── commands.py                # 历史命令模块（当前主流程未接入，计划后续清理）
+├── messaging.py               # 历史消息模块（当前主流程未接入，计划后续清理）
+└── reminders/                 # 提醒服务层
+    ├── habits.py              # 洗澡/睡觉/喝水提醒（含 fallback + 自动续期）
+    ├── briefing.py            # 每日早安播报（LLM 生成）
+    └── schedule.py            # 日程 LLM 智能提醒
 ```
 
 ---
@@ -163,6 +163,8 @@ astrbot_plugin_schedule_assistant/
 - 单次日程触发后会自动关闭，避免重复提醒
 - 日程提醒由 LLM 生成，结合 Dashboard 状态和对话上下文
 - 多平台发送按「最近会话平台 > 用户绑定 > 默认平台 > 可用平台」降级路由
+- 日程提醒扫描每分钟执行一次（秒位 30），并通过 `last_triggered` 做窗口去重
+- 插件重启/热重载时会主动清理旧实例定时任务与会话，避免重复调度
 
 ---
 

@@ -35,6 +35,8 @@ class AppleCalendar:
         self._events_cache_ttl_seconds = 300
         self._calendars_cache: List[Dict] = []
         self._calendars_cache_ttl_seconds = 300
+        self._last_ics_discovery_log_ts = 0.0
+        self._last_ics_discovery_count: Optional[int] = None
 
     def _auth_header(self) -> str:
         creds = f"{self.username}:{self.app_password}"
@@ -72,7 +74,7 @@ class AppleCalendar:
         for splitter in ('">', "'>", "<", ">"):
             if splitter in href:
                 href = href.split(splitter, 1)[0]
-        m = re.search(r"(https?://[^\s<>'"]+|/[^\s<>'"]+)", href)
+        m = re.search(r"(https?://[^\s<>'\"]+|/[^\s<>'\"]+)", href)
         href = m.group(1) if m else href
         href = re.sub(r"\s+", "", href)
         return href
@@ -216,7 +218,15 @@ class AppleCalendar:
                     ics_urls.append(ics_url)
         if not ics_urls:
             return []
-        logger.debug(f"[AppleCalendar] 发现 {len(ics_urls)} 个事件文件")
+        now_ts = time.monotonic()
+        current_count = len(ics_urls)
+        if (
+            self._last_ics_discovery_count != current_count
+            or (now_ts - self._last_ics_discovery_log_ts) >= 300
+        ):
+            logger.debug(f"[AppleCalendar] 发现 {current_count} 个事件文件")
+            self._last_ics_discovery_count = current_count
+            self._last_ics_discovery_log_ts = now_ts
         events = []
         with ThreadPoolExecutor(max_workers=10) as pool:
             futures = {pool.submit(self._fetch_ics_sync, url): url for url in ics_urls}

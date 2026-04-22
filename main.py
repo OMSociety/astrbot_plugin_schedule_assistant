@@ -49,8 +49,16 @@ from .tools.schedule_tools import register_schedule_tools
 
 
 class ScheduleAssistant(Star):
+    _instance_seq: int = 0
+    _active_generation: int = 0
+    _active_instance: Optional["ScheduleAssistant"] = None
+
     def __init__(self, context: Context, config: Dict[str, Any]):
         super().__init__(context)
+        cls = type(self)
+        cls._instance_seq += 1
+        self._instance_generation = cls._instance_seq
+
         self.config = config
         self.store = ScheduleStore(context)
         self.scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
@@ -64,6 +72,11 @@ class ScheduleAssistant(Star):
         self._tasks_registered = False
         self._init_task: Optional[asyncio.Task] = None
         self._tools_registered = False
+        self._runtime_cleaned = False
+        self._cleanup_lock = asyncio.Lock()
+        self._schedule_reminder_scan_lock = asyncio.Lock()
+        self._apple_calendar_sync_lock = asyncio.Lock()
+        self._schedule_scan_last_log_ts = 0.0
 
         self.default_user_id: Optional[str] = None
         whitelist = self.config.get("whitelist_qq_ids", [])
@@ -94,10 +107,107 @@ class ScheduleAssistant(Star):
             pass
 
     async def _initialize(self):
+        await self._claim_active_instance()
+        if not self._is_active_instance():
+            return
         logger.info(f"{LOG_PREFIX} 正在初始化...")
         await self._ensure_services()
         await self._register_tasks()
         logger.info(f"{LOG_PREFIX} 初始化完成")
+
+    def _is_active_instance(self) -> bool:
+        cls = type(self)
+        return (
+            not self._runtime_cleaned
+            and cls._active_instance is self
+            and cls._active_generation == self._instance_generation
+        )
+
+    async def _claim_active_instance(self):
+        cls = type(self)
+        old_instance = cls._active_instance
+        if old_instance and old_instance is not self:
+            logger.warning(
+                f"{LOG_PREFIX} 检测到旧实例仍在运行，准备清理旧实例 generation={getattr(old_instance, '_instance_generation', '?')}"
+            )
+            await old_instance._cleanup_runtime(reason="replaced_by_new_instance")
+        cls._active_instance = self
+        cls._active_generation = self._instance_generation
+
+    def _add_or_replace_job(self, func, trigger, job_id: str, **kwargs):
+        options = {
+            "id": job_id,
+            "replace_existing": True,
+        }
+        options.update(kwargs)
+        self.scheduler.add_job(func, trigger, **options)
+
+    def _schedule_next_water_reminder(self, run_date: datetime):
+        try:
+            self.scheduler.remove_job("water_reminder")
+        except Exception:
+            pass
+        self._add_or_replace_job(
+            self._water_reminder,
+            "date",
+            "water_reminder",
+            run_date=run_date,
+            max_instances=1,
+            coalesce=True,
+            misfire_grace_time=60,
+        )
+
+    async def _close_external_clients(self):
+        if self.notion:
+            try:
+                await self.notion.close()
+            except Exception as e:
+                logger.warning(f"{LOG_PREFIX} 关闭 NotionClient 失败: {e}")
+        if self.apple_calendar:
+            try:
+                await self.apple_calendar.close()
+            except Exception as e:
+                logger.warning(f"{LOG_PREFIX} 关闭 AppleCalendar 失败: {e}")
+
+    async def _cleanup_runtime(self, reason: str = "terminate"):
+        if self._runtime_cleaned:
+            return
+        async with self._cleanup_lock:
+            if self._runtime_cleaned:
+                return
+            self._runtime_cleaned = True
+
+            init_task = self._init_task
+            current_task = asyncio.current_task()
+            if init_task and init_task is not current_task and not init_task.done():
+                init_task.cancel()
+                try:
+                    await init_task
+                except asyncio.CancelledError:
+                    pass
+                except Exception as e:
+                    logger.warning(f"{LOG_PREFIX} 等待初始化任务结束时出错: {e}")
+
+            try:
+                if hasattr(self.scheduler, "get_jobs"):
+                    for job in list(self.scheduler.get_jobs()):
+                        try:
+                            self.scheduler.remove_job(job.id)
+                            logger.debug(f"{LOG_PREFIX} 已移除任务: {job.id}")
+                        except Exception:
+                            pass
+                if self.scheduler.running:
+                    self.scheduler.shutdown(wait=False)
+            except Exception as e:
+                logger.warning(f"{LOG_PREFIX} 关闭调度器时出错: {e}")
+
+            await self._close_external_clients()
+
+            cls = type(self)
+            if cls._active_instance is self:
+                cls._active_instance = None
+                cls._active_generation = 0
+            logger.info(f"{LOG_PREFIX} 插件运行时资源已清理 reason={reason}")
 
     async def _ensure_services(self):
         if self._services_ready:
@@ -185,54 +295,54 @@ class ScheduleAssistant(Star):
         if conf.get("enable_morning_report", True):
             morning_time = conf.get("morning_report_time", "09:00")
             morning_hour, morning_minute = map(int, morning_time.split(":"))
-            self.scheduler.add_job(
+            self._add_or_replace_job(
                 self._morning_briefing,
                 CronTrigger(hour=morning_hour, minute=morning_minute),
-                id="morning_briefing",
-                replace_existing=True,
+                "morning_briefing",
             )
             logger.info(f"{LOG_PREFIX} 早安播报已注册: {morning_time}")
 
         if conf.get("enable_bath_reminder", True):
             bath_time = conf.get("bath_time", DEFAULT_BATH_TIME)
             bath_hour, bath_minute = map(int, bath_time.split(":"))
-            self.scheduler.add_job(
+            self._add_or_replace_job(
                 self._bath_reminder,
                 CronTrigger(hour=bath_hour, minute=bath_minute),
-                id="bath_reminder",
-                replace_existing=True,
+                "bath_reminder",
             )
             logger.info(f"{LOG_PREFIX} 洗澡提醒已注册: {bath_time}")
 
         if conf.get("enable_sleep_reminder", True):
             sleep_time = conf.get("sleep_time", DEFAULT_SLEEP_TIME)
             sleep_hour, sleep_minute = map(int, sleep_time.split(":"))
-            self.scheduler.add_job(
+            self._add_or_replace_job(
                 self._sleep_reminder,
                 CronTrigger(hour=sleep_hour, minute=sleep_minute),
-                id="sleep_reminder",
-                replace_existing=True,
+                "sleep_reminder",
             )
             logger.info(f"{LOG_PREFIX} 睡觉提醒已注册: {sleep_time}")
 
         if conf.get("enable_apple_calendar_sync"):
             sync_interval = conf.get("apple_calendar_sync_interval", 30)
-            self.scheduler.add_job(
+            self._add_or_replace_job(
                 self._apple_calendar_sync,
                 "interval",
+                "apple_calendar_sync",
                 minutes=sync_interval,
-                id="apple_calendar_sync",
-                replace_existing=True,
                 max_instances=1,
+                coalesce=True,
+                misfire_grace_time=120,
             )
             logger.info(f"{LOG_PREFIX} Apple 日历同步任务已注册（每 {sync_interval} 分钟）")
 
         if conf.get("enable_schedule_reminder"):
-            self.scheduler.add_job(
+            self._add_or_replace_job(
                 self._schedule_reminder_scan,
                 CronTrigger(second=30),
-                id="schedule_reminder_scan",
-                replace_existing=True,
+                "schedule_reminder_scan",
+                max_instances=1,
+                coalesce=True,
+                misfire_grace_time=30,
             )
             logger.info(f"{LOG_PREFIX} 日程 LLM 提醒已启用（每分钟）")
 
@@ -245,32 +355,15 @@ class ScheduleAssistant(Star):
             next_trigger = self._get_water_next_trigger(now, water_start, water_end, water_interval)
             initial_delay = max((next_trigger - now).total_seconds(), 30.0)
 
-            try:
-                self.scheduler.remove_job("water_reminder")
-            except Exception:
-                pass
-            self.scheduler.add_job(
-                self._water_reminder,
-                "date",
-                run_date=datetime.now() + timedelta(seconds=initial_delay),
-                id="water_reminder",
-                replace_existing=True
-            )
+            self._schedule_next_water_reminder(datetime.now() + timedelta(seconds=initial_delay))
             logger.info(f"{LOG_PREFIX} 喝水提醒首次触发: {next_trigger.strftime('%H:%M')} ({initial_delay/60:.1f}分钟后)")
 
-        self.scheduler.add_job(
+        self._add_or_replace_job(
             self._clear_expired_overrides,
             CronTrigger(hour=0, minute=5),
-            id="clear_expired_overrides",
-            replace_existing=True
+            "clear_expired_overrides",
         )
-
-        self.scheduler.add_job(
-            self._schedule_scan,
-            CronTrigger(minute=1),
-            id="schedule_scan",
-            replace_existing=True
-        )
+        logger.debug(f"{LOG_PREFIX} 已跳过注册冗余任务 schedule_scan")
 
         if not self.scheduler.running:
             self.scheduler.start()
@@ -530,6 +623,8 @@ class ScheduleAssistant(Star):
             return "获取失败"
 
     async def _morning_briefing(self, target_user_id: Optional[str] = None):
+        if not self._is_active_instance():
+            return
         try:
             await self._ensure_services()
             target_user_ids = [str(target_user_id)] if target_user_id else await self._get_target_user_ids()
@@ -576,6 +671,8 @@ class ScheduleAssistant(Star):
             logger.error(f"{LOG_PREFIX} 早安播报失败: {e}")
 
     async def _bath_reminder(self, target_user_id: Optional[str] = None):
+        if not self._is_active_instance():
+            return
         try:
             await self._ensure_services()
             target_user_ids = [str(target_user_id)] if target_user_id else await self._get_target_user_ids()
@@ -594,6 +691,8 @@ class ScheduleAssistant(Star):
             logger.error(f"{LOG_PREFIX} 洗澡提醒失败: {e}")
 
     async def _sleep_reminder(self, target_user_id: Optional[str] = None):
+        if not self._is_active_instance():
+            return
         try:
             await self._ensure_services()
             target_user_ids = [str(target_user_id)] if target_user_id else await self._get_target_user_ids()
@@ -612,6 +711,8 @@ class ScheduleAssistant(Star):
             logger.error(f"{LOG_PREFIX} 睡觉提醒失败: {e}")
 
     async def _water_reminder(self, target_user_id: Optional[str] = None):
+        if not self._is_active_instance():
+            return
         try:
             await self._ensure_services()
             target_user_ids = [str(target_user_id)] if target_user_id else await self._get_target_user_ids()
@@ -637,78 +738,88 @@ class ScheduleAssistant(Star):
             )
             delay = max((next_trigger - datetime.now()).total_seconds(), 30.0)
 
-            try:
-                self.scheduler.remove_job("water_reminder")
-            except Exception:
-                pass
-            self.scheduler.add_job(
-                self._water_reminder,
-                "date",
-                run_date=datetime.now() + timedelta(seconds=delay),
-                id="water_reminder",
-                replace_existing=True
-            )
+            self._schedule_next_water_reminder(datetime.now() + timedelta(seconds=delay))
         except Exception as e:
             logger.error(f"{LOG_PREFIX} 喝水提醒失败: {e}")
 
     async def _schedule_scan(self):
+        if not self._is_active_instance():
+            return
         logger.debug(f"{LOG_PREFIX} 执行日程扫描")
 
     async def _schedule_reminder_scan(self):
-        logger.debug(f"{LOG_PREFIX} 执行日程提醒扫描")
-        await self._ensure_services()
-        if not hasattr(self, "schedule_reminder"):
+        if not self._is_active_instance():
             return
+        if self._schedule_reminder_scan_lock.locked():
+            logger.debug(f"{LOG_PREFIX} 日程提醒扫描仍在运行，跳过本轮")
+            return
+        async with self._schedule_reminder_scan_lock:
+            now_ts = datetime.now().timestamp()
+            if now_ts - self._schedule_scan_last_log_ts >= 300:
+                logger.debug(f"{LOG_PREFIX} 执行日程提醒扫描")
+                self._schedule_scan_last_log_ts = now_ts
 
-        try:
-            raw_minutes = self.config.get("schedule_reminder_minutes", 10)
-            if raw_minutes in (None, ""):
-                raw_minutes = 10
-            if isinstance(raw_minutes, str):
-                raw_minutes = raw_minutes.strip()
-                if not raw_minutes.isdigit():
-                    logger.warning(f"{LOG_PREFIX} schedule_reminder_minutes 非数字，使用默认值 10")
-                    raw_minutes = 10
-            minutes_ahead = int(raw_minutes)
-        except Exception:
-            minutes_ahead = 10
-        if minutes_ahead <= 0:
-            minutes_ahead = 10
+            await self._ensure_services()
+            if not hasattr(self, "schedule_reminder"):
+                return
 
-        for user_id in await self._get_target_user_ids(include_known_users=True):
             try:
-                triggered = await check_and_trigger_schedule_reminder(
-                    schedule_store=self.store,
-                    llm_service=self.llm_service,
-                    dashboard_service=self.dashboard_service,
-                    user_id=user_id,
-                    minutes_window=minutes_ahead,
-                )
-                for item in triggered:
-                    if item.get("reminder_text"):
-                        await self._send_to_user(user_id, item["reminder_text"])
-            except Exception as e:
-                logger.warning(f"{LOG_PREFIX} 用户 {user_id} 日程提醒扫描失败: {e}")
+                raw_minutes = self.config.get("schedule_reminder_minutes", 10)
+                if raw_minutes in (None, ""):
+                    raw_minutes = 10
+                if isinstance(raw_minutes, str):
+                    raw_minutes = raw_minutes.strip()
+                    if not raw_minutes.isdigit():
+                        logger.warning(f"{LOG_PREFIX} schedule_reminder_minutes 非数字，使用默认值 10")
+                        raw_minutes = 10
+                minutes_ahead = int(raw_minutes)
+            except Exception:
+                minutes_ahead = 10
+            if minutes_ahead <= 0:
+                minutes_ahead = 10
+
+            for user_id in await self._get_target_user_ids(include_known_users=True):
+                try:
+                    triggered = await check_and_trigger_schedule_reminder(
+                        schedule_store=self.store,
+                        llm_service=self.llm_service,
+                        dashboard_service=self.dashboard_service,
+                        user_id=user_id,
+                        minutes_window=minutes_ahead,
+                    )
+                    for item in triggered:
+                        if item.get("reminder_text"):
+                            await self._send_to_user(user_id, item["reminder_text"])
+                except Exception as e:
+                    logger.warning(f"{LOG_PREFIX} 用户 {user_id} 日程提醒扫描失败: {e}")
 
     async def _apple_calendar_sync(self):
-        if not hasattr(self, 'apple_calendar') or not self.apple_calendar:
+        if not self._is_active_instance():
             return
-        try:
-            events = await self.apple_calendar.get_all_events(days=7)
-            user_ids = await self._get_target_user_ids(include_known_users=True)
-            if not user_ids:
-                logger.debug(f"{LOG_PREFIX} Apple Calendar 已读取 {len(events)} 个事件，但无可同步用户")
+        if self._apple_calendar_sync_lock.locked():
+            logger.debug(f"{LOG_PREFIX} Apple 同步仍在运行，跳过本轮")
+            return
+        async with self._apple_calendar_sync_lock:
+            if not hasattr(self, 'apple_calendar') or not self.apple_calendar:
                 return
-            for user_id in user_ids:
-                stats = await self.store.sync_from_apple_calendar(user_id, events)
-                logger.debug(
-                    f"{LOG_PREFIX} Apple→本地同步 user={user_id} "
-                    f"added={stats['added']} updated={stats['updated']} deleted={stats['deleted']}"
-                )
-        except Exception as e:
-            logger.error(f"{LOG_PREFIX} Apple Calendar 同步失败: {e}")
+            try:
+                events = await self.apple_calendar.get_all_events(days=7)
+                user_ids = await self._get_target_user_ids(include_known_users=True)
+                if not user_ids:
+                    logger.debug(f"{LOG_PREFIX} Apple Calendar 已读取 {len(events)} 个事件，但无可同步用户")
+                    return
+                for user_id in user_ids:
+                    stats = await self.store.sync_from_apple_calendar(user_id, events)
+                    logger.debug(
+                        f"{LOG_PREFIX} Apple→本地同步 user={user_id} "
+                        f"added={stats['added']} updated={stats['updated']} deleted={stats['deleted']}"
+                    )
+            except Exception as e:
+                logger.error(f"{LOG_PREFIX} Apple Calendar 同步失败: {e}")
 
     async def _clear_expired_overrides(self):
+        if not self._is_active_instance():
+            return
         for user_id in await self._get_target_user_ids(include_known_users=True):
             await self.store.clear_expired_overrides(user_id)
         logger.debug(f"{LOG_PREFIX} 已清理过期临时修改")
@@ -869,21 +980,10 @@ class ScheduleAssistant(Star):
 
     async def terminate(self):
         """插件卸载时清理定时任务"""
-        try:
-            # 先移除所有已注册的任务
-            if hasattr(self.scheduler, 'get_jobs'):
-                for job in list(self.scheduler.get_jobs()):
-                    try:
-                        self.scheduler.remove_job(job.id)
-                        logger.debug(f"{LOG_PREFIX} 已移除任务: {job.id}")
-                    except Exception:
-                        pass
-            # 然后关闭调度器
-            if self.scheduler.running:
-                self.scheduler.shutdown(wait=False)
-            logger.info(f"{LOG_PREFIX} 定时调度器已关闭")
-        except Exception as e:
-            logger.warning(f"{LOG_PREFIX} 关闭调度器时出错: {e}")
+        await self._cleanup_runtime(reason="terminate")
+
+    async def on_unload(self):
+        await self._cleanup_runtime(reason="on_unload")
 
 
 async def __initialize(context: Context) -> ScheduleAssistant:
