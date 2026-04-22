@@ -19,6 +19,7 @@ from astrbot import logger
 __all__ = ["AppleCalendar"]
 
 
+
 class AppleCalendar:
     """Apple iCloud / CalDAV 日历客户端"""
     def __init__(self, username: Optional[str] = None, app_password: Optional[str] = None, webcal_urls: Optional[List[str]] = None):
@@ -32,7 +33,7 @@ class AppleCalendar:
         self._discovered = False
         self._discover_lock = asyncio.Lock()
         self._fetch_lock = asyncio.Lock()
-        self._events_cache: Dict[str, Dict] = {}
+        self._events_cache: Dict[int, Dict] = {}
         self._events_cache_ttl_seconds = 300
         self._calendars_cache: List[Dict] = []
         self._calendars_cache_ttl_seconds = 300
@@ -40,6 +41,7 @@ class AppleCalendar:
     def _auth_header(self) -> str:
         creds = f"{self.username}:{self.app_password}"
         return "Basic " + base64.b64encode(creds.encode()).decode()
+
 
     def _request(self, url: str, method: str = "GET", data: Optional[bytes] = None, headers: Optional[Dict] = None, timeout: int = 30, retries: int = 3) -> Optional[str]:
         headers = dict(headers or {})
@@ -72,7 +74,7 @@ class AppleCalendar:
         for splitter in ('">', "'>", "<", ">"):
             if splitter in href:
                 href = href.split(splitter, 1)[0]
-        m = re.search(r"(https?://[^\s<>'\"]+|/[^\s<>'\"]+)", href)
+        m = re.search(r"(https?://[^\s<>'"]+|/[^\s<>'"]+)", href)
         href = m.group(1) if m else href
         href = re.sub(r"\s+", "", href)
         return href
@@ -232,7 +234,13 @@ class AppleCalendar:
         return await loop.run_in_executor(None, self._caldav_fetch_sync, cal_url)
 
     def _parse_vevents(self, ical_data: str) -> List[Dict]:
-        """解析 VEVENT，正确处理 UTC 和本地时区"""
+        """解析 VEVENT，正确处理 UTC 和本地时区
+
+        iCloud ICS 格式支持:
+        - DTSTART:20260422T073500Z           (UTC时间，带Z后缀)
+        - DTSTART;TZID=Asia/Shanghai:...     (本地时间，带TZID)
+        - DTSTART;VALUE=DATE:20260202        (全天事件)
+        """
         events = []
         local_tz = datetime.now().astimezone().tzinfo
 
@@ -245,6 +253,7 @@ class AppleCalendar:
             uid = uid_m.group(1).strip() if uid_m else str(uuid.uuid4())
             description = desc_m.group(1).replace("\\n", "\n").strip() if desc_m else ""
 
+
             # 解析 DTSTART
             dtstart_line = re.search(r"DTSTART[^\r\n]*", ev)
             dtstart_all_day = False
@@ -252,17 +261,24 @@ class AppleCalendar:
 
             if dtstart_line:
                 line = dtstart_line.group(0)
+
+                # 全天事件检测
                 if "VALUE=DATE" in line or re.search(r":\d{8}$", line):
                     dtstart_all_day = True
                     date_match = re.search(r":(\d{8})(?:T\d{6})?$", line)
                     if date_match:
                         start_time = datetime.strptime(date_match.group(1), "%Y%m%d")
                 else:
+                    # 提取时区信息
                     tzid_match = re.search(r"TZID=([^:]+)", line)
+                    # 提取时间值
                     value_match = re.search(r":(\d{8}T\d{6})", line)
+
+
                     if value_match:
                         time_str = value_match.group(1)
                         naive = datetime.strptime(time_str, "%Y%m%dT%H%M%S")
+
                         if tzid_match:
                             try:
                                 from dateutil import tz as dateutil_tz
@@ -281,12 +297,44 @@ class AppleCalendar:
                         else:
                             start_time = naive
 
+            # 解析 DTEND
+            dtend_line = re.search(r"DTEND[^\r\n]*", ev)
+            end_time = None
+
+            if dtend_line and not dtstart_all_day:
+                line = dtend_line.group(0)
+                tzid_match = re.search(r"TZID=([^:]+)", line)
+                value_match = re.search(r":(\d{8}T\d{6})", line)
+
+                if value_match:
+                    time_str = value_match.group(1)
+                    naive = datetime.strptime(time_str, "%Y%m%dT%H%M%S")
+
+                    if tzid_match:
+                        try:
+                            from dateutil import tz as dateutil_tz
+                            tz_name = tzid_match.group(1)
+                            tz_obj = dateutil_tz.gettz(tz_name)
+                            if tz_obj:
+                                aware = naive.replace(tzinfo=tz_obj)
+                                end_time = aware.astimezone(local_tz).replace(tzinfo=None)
+                            else:
+                                end_time = naive
+                        except Exception:
+                            end_time = naive
+                    elif line.rstrip().endswith("Z"):
+                        utc = naive.replace(tzinfo=timezone.utc)
+                        end_time = utc.astimezone(local_tz).replace(tzinfo=None)
+                    else:
+                        end_time = naive
+
             if start_time:
                 events.append({
                     "uid": uid,
                     "summary": summary,
                     "description": description,
                     "start": start_time.isoformat(),
+                    "end": end_time.isoformat() if end_time else None,
                     "all_day": dtstart_all_day
                 })
 
@@ -332,6 +380,18 @@ class AppleCalendar:
         async with self._fetch_lock:
             # 双重检查：加锁后再清理一次
             self._cleanup_expired_cache()
+            now_ts = time.monotonic()
+            cached = self._events_cache.get(cache_key)
+            if cached and (now_ts - cached.get("ts", 0)) < self._events_cache_ttl_seconds:
+                return list(cached.get("events", []))
+        # 缓存键包含日期，避免跨天返回错误数据
+        today = datetime.now().strftime("%Y%m%d")
+        cache_key = f"{today}_{int(days or 1)}"
+        now_ts = time.monotonic()
+        cached = self._events_cache.get(cache_key)
+        if cached and (now_ts - cached.get("ts", 0)) < self._events_cache_ttl_seconds:
+            return list(cached.get("events", []))
+        async with self._fetch_lock:
             now_ts = time.monotonic()
             cached = self._events_cache.get(cache_key)
             if cached and (now_ts - cached.get("ts", 0)) < self._events_cache_ttl_seconds:

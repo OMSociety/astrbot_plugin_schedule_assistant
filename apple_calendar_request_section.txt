@@ -1,31 +1,29 @@
-        url: str,
-        method: str = "GET",
-        data: Optional[bytes] = None,
-        headers: Optional[Dict] = None,
-        timeout: int = 30,
-        retries: int = 3,
-    ) -> Optional[str]:
-        headers = dict(headers or {})
-        headers.setdefault("User-Agent", "curl/7.88.1")
-        last_error = None
-        for attempt in range(retries):
-            try:
-                req = urllib.request.Request(url, headers=headers, data=data, method=method)
-                resp = urllib.request.urlopen(req, timeout=timeout)
-                return resp.read().decode("utf-8", errors="replace")
-            except urllib.error.HTTPError as e:
-                last_error = e
-                # 503 等服务端错误可重试
-                if e.code >= 500 and attempt < retries - 1:
-                    import time
-                    time.sleep(1 * (attempt + 1))
-                    continue
-                body = e.read().decode("utf-8", errors="replace") if e.fp else ""
-                logger.warning(f"[AppleCalendar] 请求失败 HTTP {e.code}: {body[:200]}")
-                return None
-            except Exception as e:
-                last_error = e
-                if attempt < retries - 1:
-                    import time
-                    time.sleep(1 * (attempt + 1))  # 递增等待
-        logger.debug(f"[AppleCalendar] 请求异常 {url}: {type(last_error).__name__}: {last_error}")
+/*
+ * 日历请求片段 - 用于调试 CalDAV 请求
+ * 包含 PROPFIND 请求 XML 和响应解析示例
+ */
+
+# Principal URL 发现
+<?xml version="1.0" encoding="UTF-8"?>
+<D:propfind xmlns:D="DAV:">
+  <D:prop>
+    <D:current-user-principal/>
+  </D:prop>
+</D:propfind>
+
+# Calendar Home Set 发现
+<?xml version="1.0" encoding="UTF-8"?>
+<D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+  <D:prop>
+    <C:calendar-home-set/>
+  </D:prop>
+</D:propfind>
+
+
+# 列出日历下的资源
+<?xml version="1.0" encoding="UTF-8"?>
+<D:propfind xmlns:D="DAV:">
+  <D:prop>
+    <D:href/>
+  </D:prop>
+</D:propfind>
