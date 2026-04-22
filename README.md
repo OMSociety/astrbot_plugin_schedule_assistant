@@ -29,12 +29,17 @@
 - 结合 Live Dashboard 状态生成个性化提醒文案
 - 防重入机制避免重复提醒
 
-### 📝 日程管理（当前实际指令）
-- `添加 14:30 开会`
-- `删除 #1`
-- `查看` / `日程列表`
-- `修改时间 喝水 10:30`
-- `/日程帮助`
+### 📝 日程管理（自然语言操作）
+插件已注册 LLM 工具，可以直接用自然语言管理日程：
+
+```
+用户: 帮我加个明天早上9点开组会的日程
+用户: 把下午3点的那个会议改到4点
+用户: 删除明天的读书会
+用户: 查看接下来一周的日程
+```
+
+LLM 理解意图后自动调用工具操作日历，无需记忆固定指令。
 
 ### 🍎 Apple iCloud 日历双向同步
 **读取（Apple → 本地）：**
@@ -126,7 +131,7 @@
 ## 文件结构
 ```
 astrbot_plugin_schedule_assistant/
-├── main.py                    # 主逻辑、定时任务调度、LLM工具
+├── main.py                    # 主逻辑、定时任务调度
 ├── schedule_store.py          # 数据持久化（AstrBot Preference API）
 ├── notion_client.py           # Notion API 调用（通过 Maton Gateway）
 ├── apple_calendar.py          # Apple iCloud CalDAV 同步（读写）
@@ -136,36 +141,44 @@ astrbot_plugin_schedule_assistant/
 ├── logo.png                   # 插件图标
 ├── README.md                  # 本文档
 ├── CHANGELOG.md               # 更新日志
-├── services/                  # 数据服务层
-│   ├── weather.py             # 心知天气 API（带30分钟缓存）
-│   ├── notion.py              # Notion 服务（5分钟断路器）
-│   ├── dashboard.py           # Live Dashboard 状态获取（单例）
-│   └── llm.py                 # LLM 封装（fallback + 人格注入）
-└── reminders/                # 提醒服务层
-    ├── bath.py               # 洗澡提醒（含 fallback）
-    ├── sleep.py              # 睡觉提醒（含 fallback）
-    ├── water.py              # 喝水提醒（含 fallback + 自动续期）
-    ├── briefing.py           # 每日早安播报（LLM 生成）
-    └── schedule.py          # 日程 LLM 智能提醒
+├── tools/                     # LLM 工具层
+│   ├── __init__.py
+│   └── schedule_tools.py      # 日程管理工具（自然语言支持）
+└── reminders/                 # 提醒服务层
+    ├── briefing.py            # 每日早安播报（LLM 生成）
+    ├── schedule.py            # 日程 LLM 智能提醒
+    └── habits.py             # 习惯提醒（洗澡/睡觉/喝水）
 ```
 
 ---
 
-## 指令能力一览（与当前实现对齐）
+## LLM 日程管理工具
 
+插件注册了以下工具，LLM 可直接调用：
+
+| 工具名 | 功能 | 示例 |
+|--------|------|------|
+| `create_schedule` | 创建日程 | "帮我加个明天9点开组会" |
+| `delete_schedule` | 删除日程 | "删除明天的读书会" |
+| `list_schedules` | 查看日程 | "看看这周有什么安排" |
+| `update_schedule` | 修改日程 | "把下午3点的会改到4点" |
+
+**使用示例：**
+```
+用户: 明天早上9点有个组会，帮我记一下
+用户: 帮我看看下周的日程
+用户: 把明天的那个会议取消掉
+用户: 明天开会的时间改成10点可以吗
+```
+
+### 传统指令（仍可用）
 | 指令 | 说明 |
-|--------|------|
+|------|------|
 | `添加 14:30 开会` | 添加日程（当天时点） |
 | `删除 #1` | 按序号删除日程 |
-| `查看` / `列表` / `/日程` | 查看当前用户日程 |
+| `查看` / `日程列表` | 查看当前用户日程 |
 | `修改时间 喝水 10:30` | 临时修改习惯提醒时间（仅当天生效） |
 | `/喝水` `/早安` `/洗澡` `/睡觉` | 手动触发对应提醒 |
-
-### 指令边界说明
-- 单次日程触发后会自动关闭，避免重复提醒
-- 自动提醒目标来自 `whitelist_qq_ids`、`target_user_ids` 与可选历史活跃用户集合
-- 日程提醒由 LLM 生成，结合 Dashboard 状态和对话上下文
-- 多平台发送按「最近会话平台 > 用户绑定 > 默认平台 > 可用平台」降级路由
 
 ---
 
@@ -182,8 +195,8 @@ astrbot_plugin_schedule_assistant/
 - 确认 `enable_morning_report` 为 `true`
 
 **Q: 为什么早报里只显示 Notion 待办？**
-- 这是设计调整：早报中的“待办”统一指 Notion 待办，避免与“今日日程”重复
-- 本地/Apple 的时间安排已合并展示在“今日日程”中
+- 这是设计调整：早报中的"待办"统一指 Notion 待办，避免与"今日日程"重复
+- 本地/Apple 的时间安排已合并展示在"今日日程"中
 
 **Q: Apple 日历同步失败？**
 - 确保 App 专用密码在 [appleid.apple.com](https://appleid.apple.com) 正确生成，且账号已开启两步验证
