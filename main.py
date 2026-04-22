@@ -121,7 +121,6 @@ class ScheduleAssistant(Star):
         except Exception as e:
             logger.warning(f"{LOG_PREFIX} LLM 服务初始化失败: {e}")
 
-
         # Dashboard
         self.dashboard_service = DashboardService()
 
@@ -231,13 +230,11 @@ class ScheduleAssistant(Star):
             )
             logger.info(f"{LOG_PREFIX} 日程 LLM 提醒已启用")
 
-
         # 喝水提醒
         if conf.get("enable_water_reminder", True):
             water_interval = conf.get("water_interval", DEFAULT_WATER_INTERVAL)
             water_start = conf.get("water_start_time", DEFAULT_WATER_START)
             water_end = conf.get("water_end_time", DEFAULT_WATER_END)
-
 
             now = datetime.now()
             next_trigger = self._get_water_next_trigger(now, water_start, water_end, water_interval)
@@ -255,7 +252,6 @@ class ScheduleAssistant(Star):
                 replace_existing=True
             )
             logger.info(f"{LOG_PREFIX} 喝水提醒首次触发: {next_trigger.strftime('%H:%M')} ({initial_delay/60:.1f}分钟后)")
-
 
         # Notion DDL 检查
         self.scheduler.add_job(
@@ -284,7 +280,6 @@ class ScheduleAssistant(Star):
         # 启动调度器
         if not self.scheduler.running:
             self.scheduler.start()
-
 
         logger.info(f"{LOG_PREFIX} 所有定时任务已注册，调度器已启动")
 
@@ -332,7 +327,6 @@ class ScheduleAssistant(Star):
             if self.weather_service:
                 weather_current, weather_forecast = await self.weather_service.fetch()
 
-
             schedules = await self._get_user_schedules(user_id)
             schedules_text = "\n".join([f"⏰ {s.time[:16]} │ {s.title}" for s in schedules[:5]]) if schedules else "暂无"
 
@@ -341,7 +335,6 @@ class ScheduleAssistant(Star):
             weekday_str = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][now.weekday()]
 
             dashboard_status = await get_dashboard_status() if hasattr(self, 'dashboard_service') else "暂无"
-
 
             briefing = await self.briefing_reminder.generate_full_report(
                 username="用户",
@@ -377,7 +370,6 @@ class ScheduleAssistant(Star):
                 logger.info(f"{LOG_PREFIX} 洗澡提醒已发送")
         except Exception as e:
             logger.error(f"{LOG_PREFIX} 洗澡提醒失败: {e}")
-
 
     async def _sleep_reminder(self):
         """睡觉提醒"""
@@ -424,7 +416,6 @@ class ScheduleAssistant(Star):
             )
             delay = max((next_trigger - datetime.now()).total_seconds(), 30.0)
 
-
             try:
                 self.scheduler.remove_job("water_reminder")
             except Exception:
@@ -442,7 +433,6 @@ class ScheduleAssistant(Star):
     async def _schedule_scan(self):
         """定期扫描用户会话"""
         logger.debug(f"{LOG_PREFIX} 执行日程扫描")
-
 
     async def _notion_ddl_check(self):
         """检查 Notion DDL"""
@@ -485,7 +475,6 @@ class ScheduleAssistant(Star):
         except Exception as e:
             logger.error(f"{LOG_PREFIX} Apple Calendar 同步失败: {e}")
 
-
     async def _clear_expired_overrides(self):
         """清理过期临时修改"""
         if self.default_user_id:
@@ -495,7 +484,6 @@ class ScheduleAssistant(Star):
     def _get_platform_id(self) -> str:
         """获取当前平台标识"""
         return self.context.get_platform_name()
-
 
     @filter.event_message_type(filter.EventMessageType.PRIVATE_MESSAGE)
     async def handle_private_message(self, event: AiocqhttpMessageEvent):
@@ -570,7 +558,6 @@ class ScheduleAssistant(Star):
             content = re.sub(r'(\d{1,2})[:：时](\d{0,2})', '', text).strip()
             content = content.replace("添加", "").replace("新增", "").strip()
 
-
             if hour < 0 or hour > 23 or minute < 0 or minute > 59:
                 await event.reply("时间格式有误，请检查~ (小时 0-23，分钟 0-59)")
                 return
@@ -599,7 +586,6 @@ class ScheduleAssistant(Star):
                 await event.reply("编号超出范围~")
         else:
             await event.reply("请告诉我要删除的编号~ 比如「删除 #1」")
-
 
     async def _handle_list(self, event: AiocqhttpMessageEvent, user_id: str):
         """处理查看日程"""
