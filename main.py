@@ -48,11 +48,11 @@ from .reminders.briefing import BriefingReminder
 from .reminders.habits import BathReminder, SleepReminder, WaterReminder
 from .tools.schedule_tools import register_schedule_tools
 
-SCHEDULE_REMINDER_LOG_THROTTLE_SECONDS = 300
+SCHEDULE_REMINDER_LOG_THROTTLE_SECONDS = 300  # seconds (5 minutes)
 
 
 class ScheduleAssistant(Star):
-    # 单进程单活动实例护栏：防止热重载后旧实例任务继续执行。
+    # Single-process active-instance guard to prevent duplicate jobs after hot reload.
     _instance_seq: int = 0
     _active_generation: int = 0
     _active_instance: Optional["ScheduleAssistant"] = None
@@ -133,7 +133,7 @@ class ScheduleAssistant(Star):
         old_instance = cls._active_instance
         if old_instance and old_instance is not self:
             logger.warning(
-                f"{LOG_PREFIX} 检测到旧实例仍在运行，准备清理旧实例 generation={getattr(old_instance, '_instance_generation', '?')}"
+                f"{LOG_PREFIX} 检测到旧实例仍在运行，准备清理旧实例 generation={old_instance._instance_generation}"
             )
             await old_instance._cleanup_runtime(reason="replaced_by_new_instance")
         cls._active_instance = self
@@ -765,10 +765,13 @@ class ScheduleAssistant(Star):
         self._ensure_runtime_locks()
         if not self._is_active_instance():
             return
-        if self._schedule_reminder_scan_lock.locked():
+        lock = self._schedule_reminder_scan_lock
+        try:
+            await asyncio.wait_for(lock.acquire(), timeout=0)
+        except asyncio.TimeoutError:
             logger.debug(f"{LOG_PREFIX} 日程提醒扫描仍在运行，跳过本轮")
             return
-        async with self._schedule_reminder_scan_lock:
+        try:
             now_ts = time.monotonic()
             if now_ts - self._schedule_reminder_last_log_ts >= SCHEDULE_REMINDER_LOG_THROTTLE_SECONDS:
                 logger.debug(f"{LOG_PREFIX} 执行日程提醒扫描")
@@ -807,15 +810,20 @@ class ScheduleAssistant(Star):
                             await self._send_to_user(user_id, item["reminder_text"])
                 except Exception as e:
                     logger.warning(f"{LOG_PREFIX} 用户 {user_id} 日程提醒扫描失败: {e}")
+        finally:
+            lock.release()
 
     async def _apple_calendar_sync(self):
         self._ensure_runtime_locks()
         if not self._is_active_instance():
             return
-        if self._apple_calendar_sync_lock.locked():
+        lock = self._apple_calendar_sync_lock
+        try:
+            await asyncio.wait_for(lock.acquire(), timeout=0)
+        except asyncio.TimeoutError:
             logger.debug(f"{LOG_PREFIX} Apple 同步仍在运行，跳过本轮")
             return
-        async with self._apple_calendar_sync_lock:
+        try:
             if not hasattr(self, "apple_calendar") or not self.apple_calendar:
                 return
             try:
@@ -832,6 +840,8 @@ class ScheduleAssistant(Star):
                     )
             except Exception as e:
                 logger.error(f"{LOG_PREFIX} Apple Calendar 同步失败: {e}")
+        finally:
+            lock.release()
 
     async def _clear_expired_overrides(self):
         if not self._is_active_instance():
