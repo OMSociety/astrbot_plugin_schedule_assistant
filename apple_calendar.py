@@ -8,9 +8,12 @@ import base64
 import re
 import uuid
 import asyncio
+import html
+import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional
+from urllib.parse import urljoin, urlparse
 
 from astrbot import logger
 
@@ -63,6 +66,39 @@ class AppleCalendar:
             logger.warning(f"[AppleCalendar] 请求异常 {url}: {type(e).__name__}: {e}")
             return None
 
+    @staticmethod
+    def _clean_href(raw: str) -> str:
+        href = html.unescape((raw or "").strip()).strip("\"'<>")
+        # iCloud PROPFIND 响应偶发在 href 中夹带换行/缩进空白，需清理后再拼接 URL。
+        href = re.sub(r"\s+", "", href)
+        return href
+
+    @staticmethod
+    def _extract_href(xml_text: str, parent_tag_suffix: str) -> Optional[str]:
+        if not xml_text:
+            return None
+        try:
+            root = ET.fromstring(xml_text)
+            for elem in root.iter():
+                if elem.tag.endswith(parent_tag_suffix):
+                    for child in elem.iter():
+                        if child.tag.endswith("href") and child.text:
+                            href = AppleCalendar._clean_href(child.text)
+                            if href:
+                                return href
+        except ET.ParseError:
+            return None
+        return None
+
+    @staticmethod
+    def _to_absolute_url(base: str, href: str) -> Optional[str]:
+        href = AppleCalendar._clean_href(href)
+        if not href:
+            return None
+        if href.startswith(("http://", "https://")):
+            return href.rstrip("/")
+        return urljoin(base.rstrip("/") + "/", href).rstrip("/")
+
     # ── CalDAV 发现 ───────────────────────────────────────────────────────
 
     async def _discover(self) -> bool:
@@ -82,24 +118,19 @@ class AppleCalendar:
             logger.debug("[AppleCalendar] CalDAV 发现失败，未配置 Apple 日历")
             return False
 
-        # 兼容有无命名空间前缀，principal href 格式是 /数字/principal/
-        # 注意：Python 正则的 [^>]+ 不是非贪婪匹配跨行内容，需要用 [\s\S]+?
-        m = re.search(r"<current-user-principal[^>]*>([\s\S]+?)</[^>]+>", resp1)
-        if m:
-            inner = m.group(1)
-            m2 = re.search(r"/(\d+/\w+)/?$", inner)
-            principal_href = "/" + m2.group(1) if m2 else None
-        else:
-            principal_href = None
+        principal_href = self._extract_href(resp1, "current-user-principal")
+        if not principal_href:
+            m = re.search(r"(/+\d+/principal/?)(?=[<\s\"']|$)", resp1)
+            principal_href = self._clean_href(m.group(1)) if m else None
 
         if not principal_href:
             logger.error("[AppleCalendar] 无法解析 principal URL")
             return False
 
-        if principal_href.startswith("https://"):
-            self._principal_url = principal_href.rstrip("/")
-        else:
-            self._principal_url = f"https://caldav.icloud.com{principal_href}".rstrip("/")
+        self._principal_url = self._to_absolute_url("https://caldav.icloud.com", principal_href)
+        if not self._principal_url:
+            logger.error("[AppleCalendar] principal URL 组装失败")
+            return False
         logger.info(f"[AppleCalendar] principal URL: {self._principal_url}")
 
         # Step 2: 获取 calendar home set
@@ -114,26 +145,24 @@ class AppleCalendar:
             logger.error("[AppleCalendar] principal URL 无响应，跳过日历发现（请检查网络或凭据）")
             return False
 
-        # 直接找所有 href，取包含数字的那个（calendar home 路径）
-        # 注意：Python 正则 [^<]+ 不匹配换行符，需要匹配所有字符
-        hrefs = re.findall(r"<[^>]*:?href[^>]*>([\s\S]*?)</[^>]*:href>", resp2)
-        cal_home_href = None
-        for href in hrefs:
-            href = href.strip()
-            if re.match(r"/\d+/", href):
-                cal_home_href = href
-                break
+        cal_home_href = self._extract_href(resp2, "calendar-home-set")
+        if not cal_home_href:
+            hrefs = re.findall(r"<[^>]*:?href[^>]*>([\s\S]*?)</[^>]*:href>", resp2)
+            for href in hrefs:
+                href = self._clean_href(href)
+                if re.match(r"/\d+/", href):
+                    cal_home_href = href
+                    break
 
         if not cal_home_href:
             logger.error("[AppleCalendar] 无法解析 calendar home set URL")
             return False
 
-        if cal_home_href.startswith("https://"):
-            self._caldav_base_url = cal_home_href.rstrip("/")
-            self._caldav_base_domain = cal_home_href.split("/")[2]
-        else:
-            self._caldav_base_domain = "p218-caldav.icloud.com.cn:443"
-            self._caldav_base_url = f"https://{self._caldav_base_domain}{cal_home_href}".rstrip("/")
+        self._caldav_base_url = self._to_absolute_url(self._principal_url, cal_home_href)
+        if not self._caldav_base_url:
+            logger.error("[AppleCalendar] calendar home set URL 组装失败")
+            return False
+        self._caldav_base_domain = urlparse(self._caldav_base_url).netloc
 
         self._discovered = True
         logger.info(f"[AppleCalendar] CalDAV 发现成功: base={self._caldav_base_url}")

@@ -360,6 +360,78 @@ class ScheduleAssistant(Star):
         schedules_dict = await self.store.get_schedules(user_id)
         return schedules_dict.get(SCHEDULES_KEY, [])
 
+    async def _get_today_local_schedules_text(self, user_id: str, limit: int = 8) -> str:
+        """获取本地今日日程文本"""
+        schedules = await self._get_user_schedules(user_id)
+        today = datetime.now().date()
+        today_items = []
+        for s in schedules:
+            if not s.time:
+                # 无时间字段的条目无法参与“今日日程”时点展示，跳过。
+                continue
+            try:
+                dt = datetime.fromisoformat(s.time)
+            except Exception:
+                try:
+                    dt = datetime.strptime(s.time, "%Y-%m-%d %H:%M")
+                except Exception:
+                    continue
+            if dt.date() == today:
+                today_items.append((dt, s.title))
+        if not today_items:
+            return "暂无"
+        today_items.sort(key=lambda x: x[0])
+        return "\n".join([f"⏰ {dt.strftime('%H:%M')} │ {title}" for dt, title in today_items[:limit]])
+
+    async def _get_today_apple_calendar_text(self, limit: int = 8) -> str:
+        """获取 Apple 今日日程文本"""
+        if not self.apple_calendar:
+            return "暂无"
+        try:
+            events = await self.apple_calendar.get_all_events(days=1)
+            today = datetime.now().date()
+            rows = []
+            for e in events:
+                start_str = e.get("start", "")
+                if not start_str:
+                    continue
+                try:
+                    start_dt = datetime.fromisoformat(start_str)
+                except Exception:
+                    continue
+                if start_dt.date() != today:
+                    continue
+                if e.get("all_day"):
+                    time_label = "全天"
+                else:
+                    time_label = start_dt.strftime("%H:%M")
+                rows.append((start_dt, f"⏰ {time_label} │ {e.get('summary', '无标题')}"))
+            if not rows:
+                return "暂无"
+            rows.sort(key=lambda x: x[0])
+            return "\n".join([line for _, line in rows[:limit]])
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} Apple 今日日程读取失败: {e}")
+            return "获取失败"
+
+    async def _get_notion_pending_text(self, limit: int = 5) -> str:
+        """获取 Notion 待办文本"""
+        if not self.notion_service:
+            return "暂无"
+        try:
+            pending = await self.notion_service.get_pending_tasks()
+            if not pending:
+                return "暂无"
+            lines = []
+            for task in pending[:limit]:
+                ddl = self.notion_service.format_ddl(task.get("ddl", ""))
+                title = task.get("title", "(无标题)")
+                lines.append(f"- {ddl} | {title}" if ddl else f"- {title}")
+            return "\n".join(lines) if lines else "暂无"
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} Notion 待办读取失败: {e}")
+            return "获取失败"
+
     async def _morning_briefing(self):
         """早安播报"""
         try:
@@ -372,14 +444,22 @@ class ScheduleAssistant(Star):
             if self.weather_service:
                 weather_current, weather_forecast = await self.weather_service.fetch()
 
-            schedules = await self._get_user_schedules(user_id)
-            schedules_text = "\n".join([f"⏰ {s.time[:16]} │ {s.title}" for s in schedules[:5]]) if schedules else "暂无"
+            schedules_text = await self._get_today_local_schedules_text(user_id)
+            calendar_text = await self._get_today_apple_calendar_text()
+            notion_text = await self._get_notion_pending_text()
 
             now = datetime.now()
             date_str = now.strftime("%Y-%m-%d")
             weekday_str = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][now.weekday()]
 
             dashboard_status = await get_dashboard_status() if hasattr(self, 'dashboard_service') else "暂无"
+            late_night_text = ""
+            if self.apple_calendar:
+                try:
+                    late_night = await self.apple_calendar.get_late_night_events()
+                    late_night_text = "、".join([e.get("summary", "无标题") for e in late_night[:3]])
+                except Exception:
+                    late_night_text = ""
 
             briefing = await self.briefing_reminder.generate_full_report(
                 username="用户",
@@ -387,11 +467,11 @@ class ScheduleAssistant(Star):
                 weekday=weekday_str,
                 weather_current=weather_current,
                 weather_forecast=weather_forecast,
-                calendar="暂无",
+                calendar=calendar_text,
                 schedules=schedules_text,
-                notion="暂无",
+                notion=notion_text,
                 dashboard=dashboard_status,
-                late_night=""
+                late_night=late_night_text
             )
             await self._send_to_user(user_id, briefing)
             logger.info(f"{LOG_PREFIX} 早安播报已发送")

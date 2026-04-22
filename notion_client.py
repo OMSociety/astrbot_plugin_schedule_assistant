@@ -82,6 +82,16 @@ class NotionClient:
         except Exception:
             return True
 
+    @staticmethod
+    def _parse_ddl_for_sort(ddl: Optional[str]) -> datetime:
+        if not ddl:
+            return datetime.max
+        try:
+            # 统一转本地时区后排序，随后去掉 tzinfo，避免混用 aware/naive datetime 触发比较异常。
+            return datetime.fromisoformat(ddl.replace("Z", "+00:00")).astimezone().replace(tzinfo=None)
+        except Exception:
+            return datetime.max
+
     async def get_pending_transactions(self, use_cache: bool = True) -> List[Dict]:
         """获取所有未完成任务（带 5 分钟缓存）"""
         if use_cache and self._pending_cache["data"] and \
@@ -91,6 +101,14 @@ class NotionClient:
         results: List[Dict] = []
         for db_name, db_id in self._db_ids.items():
             results.extend(await self._query_db(db_id, db_name))
+
+        results.sort(
+            key=lambda x: (
+                self._parse_ddl_for_sort(x.get("ddl")),
+                x.get("db_name", ""),
+                x.get("title", ""),
+            )
+        )
 
         self._pending_cache = {"data": results, "timestamp": time.time(), "ttl": 300}
         return results
