@@ -76,14 +76,12 @@ class AppleCalendar:
         href = html.unescape((raw or "").strip())
         href = href.replace("\u200b", "")
         href = re.sub(r"[\r\n\t]", "", href)
-        href = href.strip("\"'<>")
+        href = href.strip("'<>\")
         for splitter in ('">', "'>", "<", ">"):
             if splitter in href:
                 href = href.split(splitter, 1)[0]
-        # 某些异常响应可能把 XML 片段混入 href，兜底抽取首个 URL/path 片段。
-        m = re.search(r"(https?://[^\s<>'\"]+|/[^\s<>'\"]+)", href)
+        m = re.search(r"(https?://[^\s<>\'\"]+|/[^\s<>\'\"]+)", href)
         href = m.group(1) if m else href
-        # iCloud PROPFIND 响应偶发在 href 中夹带换行/缩进空白，需清理后再拼接 URL。
         href = re.sub(r"\s+", "", href)
         return href
 
@@ -169,17 +167,13 @@ class AppleCalendar:
 
             cal_home_href = self._extract_href(resp2, "calendar-home-set")
             if not cal_home_href:
-                hrefs = re.findall(r"<[^>]*:?href[^>]*>([\s\S]*?)</[^>]*:href>", resp2)
-                cleaned_hrefs = [self._clean_href(href) for href in hrefs]
+                # 正确的正则：匹配 href 标签中的 URL（支持有无命名空间前缀）
+                hrefs = re.findall(r"<(?:[^<>]*:)?href[^>]*>([^<]+)</(?:[^<>]*:)?href>", resp2)
+                cleaned_hrefs = [AppleCalendar._clean_href(href) for href in hrefs]
                 for href in cleaned_hrefs:
-                    if "/calendars" in href:
+                    if href and (href.startswith("/") or href.startswith("http")):
                         cal_home_href = href
                         break
-                if not cal_home_href:
-                    for href in cleaned_hrefs:
-                        if re.match(r"/\d+/", href):
-                            cal_home_href = href
-                            break
 
             if not cal_home_href:
                 logger.error("[AppleCalendar] 无法解析 calendar home set URL")
