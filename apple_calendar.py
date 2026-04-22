@@ -9,6 +9,7 @@ import re
 import uuid
 import asyncio
 import html
+import time
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
@@ -37,6 +38,10 @@ class AppleCalendar:
         self._caldav_base_domain: Optional[str] = None
         self._calendars: Optional[List[Dict]] = None
         self._discovered = False
+        self._discover_lock = asyncio.Lock()
+        self._fetch_lock = asyncio.Lock()
+        self._events_cache: Dict[int, Dict] = {}
+        self._events_cache_ttl_seconds = 20
 
     # ── 认证 ───────────────────────────────────────────────────────────────
 
@@ -68,7 +73,16 @@ class AppleCalendar:
 
     @staticmethod
     def _clean_href(raw: str) -> str:
-        href = html.unescape((raw or "").strip()).strip("\"'<>")
+        href = html.unescape((raw or "").strip())
+        href = href.replace("\u200b", "")
+        href = re.sub(r"[\r\n\t]", "", href)
+        href = href.strip("\"'<>")
+        for splitter in ('">', "'>", "<", ">"):
+            if splitter in href:
+                href = href.split(splitter, 1)[0]
+        # 某些异常响应可能把 XML 片段混入 href，兜底抽取首个 URL/path 片段。
+        m = re.search(r"(https?://[^\s<>'\"]+|/[^\s<>'\"]+)", href)
+        href = m.group(1) if m else href
         # iCloud PROPFIND 响应偶发在 href 中夹带换行/缩进空白，需清理后再拼接 URL。
         href = re.sub(r"\s+", "", href)
         return href
@@ -96,8 +110,13 @@ class AppleCalendar:
         if not href:
             return None
         if href.startswith(("http://", "https://")):
-            return href.rstrip("/")
-        return urljoin(base.rstrip("/") + "/", href).rstrip("/")
+            candidate = href.rstrip("/")
+        else:
+            candidate = urljoin(base.rstrip("/") + "/", href).rstrip("/")
+        parsed = urlparse(candidate)
+        if parsed.scheme not in ("http", "https") or not parsed.netloc:
+            return None
+        return candidate
 
     # ── CalDAV 发现 ───────────────────────────────────────────────────────
 
@@ -105,68 +124,76 @@ class AppleCalendar:
         """发现 principal URL 和 calendar home set URL"""
         if self._discovered or not self.username or not self.app_password:
             return bool(self._discovered)
+        async with self._discover_lock:
+            if self._discovered:
+                return True
 
-        # Step 1: 获取 principal URL
-        body1 = b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:"><D:prop><D:current-user-principal/></D:prop></D:propfind>'
-        resp1 = self._request(
-            "https://caldav.icloud.com/",
-            method="PROPFIND",
-            data=body1,
-            headers={"Authorization": self._auth_header(), "Content-Type": "text/xml"},
-        )
-        if not resp1:
-            logger.debug("[AppleCalendar] CalDAV 发现失败，未配置 Apple 日历")
-            return False
+            # Step 1: 获取 principal URL
+            body1 = b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:"><D:prop><D:current-user-principal/></D:prop></D:propfind>'
+            resp1 = self._request(
+                "https://caldav.icloud.com/",
+                method="PROPFIND",
+                data=body1,
+                headers={"Authorization": self._auth_header(), "Content-Type": "text/xml"},
+            )
+            if not resp1:
+                logger.debug("[AppleCalendar] CalDAV 发现失败，未配置 Apple 日历")
+                return False
 
-        principal_href = self._extract_href(resp1, "current-user-principal")
-        if not principal_href:
-            m = re.search(r"(/+\d+/principal/?)(?=[<\s\"']|$)", resp1)
-            principal_href = self._clean_href(m.group(1)) if m else None
+            principal_href = self._extract_href(resp1, "current-user-principal")
+            if not principal_href:
+                m = re.search(r"(/+\d+/principal/?)(?=[<\s\"']|$)", resp1)
+                principal_href = self._clean_href(m.group(1)) if m else None
 
-        if not principal_href:
-            logger.error("[AppleCalendar] 无法解析 principal URL")
-            return False
+            if not principal_href:
+                logger.error("[AppleCalendar] 无法解析 principal URL")
+                return False
 
-        self._principal_url = self._to_absolute_url("https://caldav.icloud.com", principal_href)
-        if not self._principal_url:
-            logger.error("[AppleCalendar] principal URL 组装失败")
-            return False
-        logger.info(f"[AppleCalendar] principal URL: {self._principal_url}")
+            self._principal_url = self._to_absolute_url("https://caldav.icloud.com", principal_href)
+            if not self._principal_url:
+                logger.error("[AppleCalendar] principal URL 组装失败")
+                return False
+            logger.info(f"[AppleCalendar] principal URL: {self._principal_url}")
 
-        # Step 2: 获取 calendar home set
-        body2 = b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><C:calendar-home-set/></D:prop></D:propfind>'
-        resp2 = self._request(
-            self._principal_url,
-            method="PROPFIND",
-            data=body2,
-            headers={"Authorization": self._auth_header(), "Content-Type": "text/xml"},
-        )
-        if not resp2:
-            logger.error("[AppleCalendar] principal URL 无响应，跳过日历发现（请检查网络或凭据）")
-            return False
+            # Step 2: 获取 calendar home set
+            body2 = b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><C:calendar-home-set/></D:prop></D:propfind>'
+            resp2 = self._request(
+                self._principal_url,
+                method="PROPFIND",
+                data=body2,
+                headers={"Authorization": self._auth_header(), "Content-Type": "text/xml"},
+            )
+            if not resp2:
+                logger.error("[AppleCalendar] principal URL 无响应，跳过日历发现（请检查网络或凭据）")
+                return False
 
-        cal_home_href = self._extract_href(resp2, "calendar-home-set")
-        if not cal_home_href:
-            hrefs = re.findall(r"<[^>]*:?href[^>]*>([\s\S]*?)</[^>]*:href>", resp2)
-            for href in hrefs:
-                href = self._clean_href(href)
-                if re.match(r"/\d+/", href):
-                    cal_home_href = href
-                    break
+            cal_home_href = self._extract_href(resp2, "calendar-home-set")
+            if not cal_home_href:
+                hrefs = re.findall(r"<[^>]*:?href[^>]*>([\s\S]*?)</[^>]*:href>", resp2)
+                cleaned_hrefs = [self._clean_href(href) for href in hrefs]
+                for href in cleaned_hrefs:
+                    if "/calendars" in href:
+                        cal_home_href = href
+                        break
+                if not cal_home_href:
+                    for href in cleaned_hrefs:
+                        if re.match(r"/\d+/", href):
+                            cal_home_href = href
+                            break
 
-        if not cal_home_href:
-            logger.error("[AppleCalendar] 无法解析 calendar home set URL")
-            return False
+            if not cal_home_href:
+                logger.error("[AppleCalendar] 无法解析 calendar home set URL")
+                return False
 
-        self._caldav_base_url = self._to_absolute_url(self._principal_url, cal_home_href)
-        if not self._caldav_base_url:
-            logger.error("[AppleCalendar] calendar home set URL 组装失败")
-            return False
-        self._caldav_base_domain = urlparse(self._caldav_base_url).netloc
+            self._caldav_base_url = self._to_absolute_url(self._principal_url, cal_home_href)
+            if not self._caldav_base_url:
+                logger.error("[AppleCalendar] calendar home set URL 组装失败")
+                return False
+            self._caldav_base_domain = urlparse(self._caldav_base_url).netloc
 
-        self._discovered = True
-        logger.info(f"[AppleCalendar] CalDAV 发现成功: base={self._caldav_base_url}")
-        return True
+            self._discovered = True
+            logger.info(f"[AppleCalendar] CalDAV 发现成功: base={self._caldav_base_url}")
+            return True
 
     # ── 日历列表 ─────────────────────────────────────────────────────────
 
@@ -355,15 +382,28 @@ class AppleCalendar:
     # ── 统一获取 ─────────────────────────────────────────────────────────
 
     async def get_all_events(self, days: int = 1) -> List[Dict]:
-        all_events = []
-        if self.username and self.app_password:
-            calendars = await self._list_calendars()
-            for cal in calendars:
-                cal_events = await self._caldav_fetch(cal["url"], days)
-                all_events.extend(cal_events)
-        for url in self.webcal_urls:
-            all_events.extend(await self.fetch_webcal_async(url, days))
-        return all_events
+        cache_key = int(days or 1)
+        now_ts = time.monotonic()
+        cached = self._events_cache.get(cache_key)
+        if cached and (now_ts - cached.get("ts", 0)) < self._events_cache_ttl_seconds:
+            return list(cached.get("events", []))
+
+        async with self._fetch_lock:
+            now_ts = time.monotonic()
+            cached = self._events_cache.get(cache_key)
+            if cached and (now_ts - cached.get("ts", 0)) < self._events_cache_ttl_seconds:
+                return list(cached.get("events", []))
+
+            all_events = []
+            if self.username and self.app_password:
+                calendars = await self._list_calendars()
+                for cal in calendars:
+                    cal_events = await self._caldav_fetch(cal["url"], days)
+                    all_events.extend(cal_events)
+            for url in self.webcal_urls:
+                all_events.extend(await self.fetch_webcal_async(url, days))
+            self._events_cache[cache_key] = {"ts": time.monotonic(), "events": list(all_events)}
+            return all_events
 
     # ── 可写操作 ─────────────────────────────────────────────────────────
 
