@@ -80,7 +80,7 @@ class AppleCalendar:
         for splitter in ('">', "'>", "<", ">"):
             if splitter in href:
                 href = href.split(splitter, 1)[0]
-        m = re.search(r"(https?://[^\s<>\'\"]+|/[^\s<>\'\"]+)", href)
+        m = re.search(r"(https?://[^\s<>'\"]+|/[^\s<>'\"]+)", href)
         href = m.group(1) if m else href
         href = re.sub(r"\s+", "", href)
         return href
@@ -137,8 +137,8 @@ class AppleCalendar:
 
             principal_href = self._extract_href(resp1, "current-user-principal")
             if not principal_href:
-                m = re.search(r"(/+\d+/principal/?)(?=[<\s\"']|$)", resp1)
-                principal_href = self._clean_href(m.group(1)) if m else None
+                m = re.search(r"(/\d+/\w+)/?$", resp1)
+                principal_href = "/" + m.group(1) if m else None
 
             if not principal_href:
                 logger.debug("[AppleCalendar] 无法解析 principal URL")
@@ -172,7 +172,7 @@ class AppleCalendar:
                         cal_home_href = "/" + m.group(1).rstrip("/")
 
             if not cal_home_href:
-                logger.debug(f"[AppleCalendar] 无法解析 calendar home set URL，响应: {resp2[:500]}")
+                logger.debug(f"[AppleCalendar] 无法解析 calendar home set URL")
                 return False
 
             self._caldav_base_url = self._to_absolute_url(self._principal_url, cal_home_href)
@@ -269,7 +269,7 @@ class AppleCalendar:
         if not ics_urls:
             return []
 
-        logger.info(f"[AppleCalendar] 发现 {len(ics_urls)} 个事件文件")
+        logger.debug(f"[AppleCalendar] 发现 {len(ics_urls)} 个事件文件")
         events = []
         with ThreadPoolExecutor(max_workers=10) as pool:
             futures = {pool.submit(self._fetch_ics_sync, url): url for url in ics_urls}
@@ -287,14 +287,14 @@ class AppleCalendar:
         return await loop.run_in_executor(None, self._caldav_fetch_sync, cal_url)
 
     def _parse_vevents(self, ical_data: str) -> List[Dict]:
-        """解析 VEVENT，有 TZID 标记的 DTSTART 不做 UTC 转换"""
+        """解析 VEVENT，正确处理 UTC 和本地时区"""
         events = []
         local_tz = datetime.now().astimezone().tzinfo
 
         for ev in re.findall(r"BEGIN:VEVENT(.*?)END:VEVENT", ical_data, re.DOTALL):
             summary_m = re.search(r"SUMMARY:([^\r\n]+)", ev)
-            dtstart_m = re.search(r"DTSTART(?:;[^:]*)?:([\dT]+)", ev)
-            dtend_m = re.search(r"DTEND(?:;[^:]*)?:([\dT]+)", ev)
+            dtstart_m = re.search(r"DTSTART(?:;[^:]*)?:([\dTZ]+)", ev)
+            dtend_m = re.search(r"DTEND(?:;[^:]*)?:([\dTZ]+)", ev)
             uid_m = re.search(r"UID:([^\r\n]+)", ev)
             desc_m = re.search(r"DESCRIPTION:([^\r\n]*)", ev)
 
@@ -318,10 +318,18 @@ class AppleCalendar:
                         return datetime.strptime(ds, "%Y%m%d")
                     elif len(ds) >= 15:
                         naive = datetime.strptime(ds[:15], "%Y%m%dT%H%M%S")
-                        if has_tz:
+                        # 检查是否是 UTC 时间（Z后缀）
+                        is_utc = ds.upper().endswith("Z")
+                        if is_utc:
+                            utc = naive.replace(tzinfo=timezone.utc)
+                            return utc.astimezone(local_tz).replace(tzinfo=None)
+                        elif has_tz:
+                            # 有 TZID 标记但不等于 UTC，直接返回本地时间
                             return naive
-                        utc = naive.replace(tzinfo=timezone.utc)
-                        return utc.astimezone(local_tz).replace(tzinfo=None)
+                        else:
+                            # 无时区信息，当作 UTC 处理
+                            utc = naive.replace(tzinfo=timezone.utc)
+                            return utc.astimezone(local_tz).replace(tzinfo=None)
                 except ValueError:
                     try:
                         return datetime.strptime(ds[:8], "%Y%m%d")
@@ -333,8 +341,10 @@ class AppleCalendar:
             end_time = None
             if dtend_m:
                 dtend_str = dtend_m.group(1)
-                has_tzid_end = bool(re.search(r"TZID=", dtend_m.group(0)))
-                end_time = parse_dt(dtend_str, False, has_tzid_end)
+                dtend_raw = dtend_m.group(0)
+                has_tzid_end = bool(re.search(r"TZID=", dtend_raw))
+                is_utc_end = dtend_str.upper().endswith("Z")
+                end_time = parse_dt(dtend_str, False, has_tzid_end or is_utc_end)
 
             if start_time:
                 events.append({
