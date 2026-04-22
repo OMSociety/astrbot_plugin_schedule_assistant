@@ -265,6 +265,13 @@ class ScheduleAssistant(Star):
             replace_existing=True
         )
 
+        self.scheduler.add_job(
+            self._schedule_scan,
+            CronTrigger(minute=1),
+            id="schedule_scan",
+            replace_existing=True
+        )
+
         if not self.scheduler.running:
             self.scheduler.start()
 
@@ -644,6 +651,9 @@ class ScheduleAssistant(Star):
         except Exception as e:
             logger.error(f"{LOG_PREFIX} 喝水提醒失败: {e}")
 
+    async def _schedule_scan(self):
+        logger.debug(f"{LOG_PREFIX} 执行日程扫描")
+
     async def _schedule_reminder_scan(self):
         logger.debug(f"{LOG_PREFIX} 执行日程提醒扫描")
         await self._ensure_services()
@@ -829,7 +839,7 @@ class ScheduleAssistant(Star):
             new_time = parts[1]
             success = await self.store.set_temp_override(user_id, habit_name, new_time)
             if success:
-                await event.reply(f"已临时修改{habit_name}时间为 {new_time}~（仅当天生效）")
+                await event.reply(f"已临时修改{habit_name}时间为 {new_time}~（仅今天生效）")
             else:
                 await event.reply("不支持的 habit 类型，支持：喝水/洗澡/睡觉")
         else:
@@ -856,6 +866,24 @@ class ScheduleAssistant(Star):
 "删除明天的读书会"
 """
         await event.reply(help_text)
+
+    async def terminate(self):
+        """插件卸载时清理定时任务"""
+        try:
+            # 先移除所有已注册的任务
+            if hasattr(self.scheduler, 'get_jobs'):
+                for job in list(self.scheduler.get_jobs()):
+                    try:
+                        self.scheduler.remove_job(job.id)
+                        logger.debug(f"{LOG_PREFIX} 已移除任务: {job.id}")
+                    except Exception:
+                        pass
+            # 然后关闭调度器
+            if self.scheduler.running:
+                self.scheduler.shutdown(wait=False)
+            logger.info(f"{LOG_PREFIX} 定时调度器已关闭")
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} 关闭调度器时出错: {e}")
 
 
 async def __initialize(context: Context) -> ScheduleAssistant:
