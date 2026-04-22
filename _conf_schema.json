@@ -72,7 +72,7 @@
   "apple_calendar": {
     "type": "object",
     "description": "Apple 日历认证与同步配置",
-    "properties": {
+    "items": {
       "enable_sync": {
         "type": "bool",
         "description": "启用写入功能",
