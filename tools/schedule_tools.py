@@ -7,67 +7,70 @@
 - 修改日程时间/标题
 """
 
-from typing import Generator, Any, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
+from typing import Optional
+
+from pydantic import Field
+from pydantic.dataclasses import dataclass
 
 from astrbot import logger
-from astrbot.api.event import filter
-from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
+from astrbot.core.agent.tool import FunctionTool, ToolExecResult
+from astrbot.core.astr_agent_context import AstrAgentContext
+from astrbot.core.agent.run_context import ContextWrapper
 
 from ..schedule_store import ScheduleItem
 
 
-def register_schedule_tools(plugin_instance) -> None:
-    """注册日程管理工具到插件实例"""
-    setattr(plugin_instance, 'create_schedule', LLMCreateSchedule.llm_create_schedule)
-    setattr(plugin_instance, 'delete_schedule', LLMDeleteSchedule.llm_delete_schedule)
-    setattr(plugin_instance, 'list_schedules', LLMListSchedules.llm_list_schedules)
-    setattr(plugin_instance, 'update_schedule', LLMUpdateSchedule.llm_update_schedule)
+# ============ Tool 定义 ============
 
-
-class LLMScheduleToolBase:
-    """日程工具基类"""
-
-    def _get_user_id(self, event: AiocqhttpMessageEvent) -> Optional[str]:
-        """获取用户ID"""
-        return str(event.get_user_id())
-
-    def _get_default_user_id(self) -> Optional[str]:
-        """获取默认用户ID"""
-        return getattr(self, 'default_user_id', None)
-
-    def _resolve_user_id(self, event: AiocqhttpMessageEvent) -> Optional[str]:
-        """解析用户ID"""
-        return self._get_user_id(event) or self._get_default_user_id()
-
-
-class LLMCreateSchedule(LLMScheduleToolBase):
-    """创建日程工具"""
-
-    @filter.llm_tool(
-        description="创建新日程。参数：title-日程标题/内容，datetime_str-日期时间（格式如 \"2024-01-15 14:30\" 或 \"明天 9:00\"），description-可选备注"
+@dataclass(config=dict(arbitrary_types_allowed=True))
+class CreateScheduleTool(FunctionTool[AstrAgentContext]):
+    """创建新日程工具"""
+    
+    name: str = "create_schedule"
+    description: str = "创建新日程。用于当用户想要添加一个日程安排时调用。"
+    parameters: dict = Field(
+        default_factory=lambda: {
+            "type": "object",
+            "properties": {
+                "title": {
+                    "type": "string",
+                    "description": "日程标题/内容，如「开会」「组会」「读书会」等",
+                },
+                "datetime_str": {
+                    "type": "string",
+                    "description": "日期时间，格式如「2024-01-15 14:30」「明天9点」「后天下午3点」「今天晚上8点」",
+                },
+                "description": {
+                    "type": "string",
+                    "description": "可选的备注描述",
+                },
+            },
+            "required": ["title", "datetime_str"],
+        }
     )
-    async def llm_create_schedule(
-        self,
-        event: AiocqhttpMessageEvent,
-        title: str,
-        datetime_str: str,
-        description: str = ""
-    ) -> str:
-        """创建新日程
 
-        Args:
-            title: 日程标题/内容
-            datetime_str: 日期时间，格式如 "2024-01-15 14:30" 或 "明天 9:00"
-            description: 可选，备注描述
+    def __init__(self, **data):
+        super().__init__(**data)
+        self.store = None
+        self.default_user_id = None
 
-        Returns:
-            str: 创建结果
-        """
+    def inject_store(self, store, default_user_id):
+        """注入 store 和 default_user_id"""
+        self.store = store
+        self.default_user_id = default_user_id
+
+    async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
         try:
-            from dateutil import parser as date_parser
             from dateutil.relativedelta import relativedelta
             
+            title = kwargs.get("title", "").strip()
+            datetime_str = kwargs.get("datetime_str", "").strip()
+            description = kwargs.get("description", "").strip()
+
+            if not title or not datetime_str:
+                return ToolExecResult(f"请提供日程标题和时间")
+
             now = datetime.now()
             dt = None
             
@@ -90,15 +93,19 @@ class LLMCreateSchedule(LLMScheduleToolBase):
                     t = datetime.strptime(time_part.replace("点", ":00").replace("：", ":"), "%H:%M")
                     dt = dt.replace(hour=t.hour, minute=t.minute, second=0, microsecond=0)
             else:
+                from dateutil import parser as date_parser
                 dt = date_parser.parse(datetime_str)
 
-            user_id = self._resolve_user_id(event)
-            if not user_id:
-                return "无法确定用户身份"
+            event = context.context.event
+            user_id = str(event.get_user_id())
+            if not user_id and self.default_user_id:
+                user_id = self.default_user_id
 
-            store = getattr(self, 'store', None)
-            if not store:
-                return "日程存储服务未初始化"
+            if not user_id:
+                return ToolExecResult("无法确定用户身份")
+
+            if not self.store:
+                return ToolExecResult("日程存储服务未初始化")
 
             item = ScheduleItem(
                 type="schedule",
@@ -107,108 +114,141 @@ class LLMCreateSchedule(LLMScheduleToolBase):
                 context=description
             )
 
-            await store.add_item(user_id, item)
-            return f"已创建日程「{title}」，时间：{dt.strftime('%m-%d %H:%M')} ✅"
+            await self.store.add_item(user_id, item)
+            return ToolExecResult(f"已创建日程「{title}」，时间：{dt.strftime('%m-%d %H:%M')} ✅")
             
         except Exception as e:
             logger.error(f"创建日程失败: {e}")
-            return f"创建日程失败: {e}"
+            return ToolExecResult(f"创建日程失败: {e}")
 
 
-class LLMDeleteSchedule(LLMScheduleToolBase):
+@dataclass(config=dict(arbitrary_types_allowed=True))
+class DeleteScheduleTool(FunctionTool[AstrAgentContext]):
     """删除日程工具"""
-
-    @filter.llm_tool(
-        description="删除日程。参数：schedule_id-日程ID（精确匹配）或 title_keyword-日程标题关键词（模糊匹配）"
+    
+    name: str = "delete_schedule"
+    description: str = "删除日程。用于当用户想要取消或删除一个日程时调用。"
+    parameters: dict = Field(
+        default_factory=lambda: {
+            "type": "object",
+            "properties": {
+                "schedule_id": {
+                    "type": "string",
+                    "description": "日程ID（精确匹配），如 abc123",
+                },
+                "title_keyword": {
+                    "type": "string",
+                    "description": "日程标题关键词（模糊匹配），如「开会」「组会」",
+                },
+            },
+        }
     )
-    async def llm_delete_schedule(
-        self,
-        event: AiocqhttpMessageEvent,
-        schedule_id: str = "",
-        title_keyword: str = ""
-    ) -> str:
-        """删除日程
 
-        Args:
-            schedule_id: 日程ID（精确匹配）
-            title_keyword: 日程标题关键词（模糊匹配）
+    def __init__(self, **data):
+        super().__init__(**data)
+        self.store = None
+        self.default_user_id = None
 
-        Returns:
-            str: 删除结果
-        """
+    def inject_store(self, store, default_user_id):
+        self.store = store
+        self.default_user_id = default_user_id
+
+    async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
         try:
-            user_id = self._resolve_user_id(event)
-            if not user_id:
-                return "无法确定用户身份"
+            schedule_id = kwargs.get("schedule_id", "").strip()
+            title_keyword = kwargs.get("title_keyword", "").strip()
 
-            store = getattr(self, 'store', None)
-            if not store:
-                return "日程存储服务未初始化"
+            if not schedule_id and not title_keyword:
+                return ToolExecResult("请提供日程ID或标题关键词")
+
+            event = context.context.event
+            user_id = str(event.get_user_id())
+            if not user_id and self.default_user_id:
+                user_id = self.default_user_id
+
+            if not user_id:
+                return ToolExecResult("无法确定用户身份")
+
+            if not self.store:
+                return ToolExecResult("日程存储服务未初始化")
 
             if schedule_id:
-                success = await store.remove_item(user_id, schedule_id)
-                if success:
-                    return f"已删除日程 ✅"
-                return "未找到指定日程"
+                success = await self.store.remove_item(user_id, schedule_id)
+                return ToolExecResult(f"已删除日程 ✅" if success else "未找到指定日程")
 
             if title_keyword:
-                schedules_dict = await store.get_schedules(user_id)
+                schedules_dict = await self.store.get_schedules(user_id)
                 all_items = schedules_dict.get("schedules", []) + schedules_dict.get("habits", [])
                 matches = [s for s in all_items if title_keyword in s.title]
 
                 if not matches:
-                    return f"没有找到包含「{title_keyword}」的日程"
+                    return ToolExecResult(f"没有找到包含「{title_keyword}」的日程")
                 elif len(matches) == 1:
-                    await store.remove_item(user_id, matches[0].id)
-                    return f"已删除日程「{matches[0].title}」✅"
+                    await self.store.remove_item(user_id, matches[0].id)
+                    return ToolExecResult(f"已删除日程「{matches[0].title}」✅")
                 else:
                     lines = ["找到多个匹配日程，请提供更具体的信息："]
                     for s in matches:
                         lines.append(f"  [{s.id}] {s.title} @ {s.time}")
-                    return "\n".join(lines)
+                    return ToolExecResult("\n".join(lines))
 
-            return "请提供日程ID或标题关键词"
+            return ToolExecResult("请提供日程ID或标题关键词")
 
         except Exception as e:
             logger.error(f"删除日程失败: {e}")
-            return f"删除日程失败: {e}"
+            return ToolExecResult(f"删除日程失败: {e}")
 
 
-class LLMListSchedules(LLMScheduleToolBase):
+@dataclass(config=dict(arbitrary_types_allowed=True))
+class ListSchedulesTool(FunctionTool[AstrAgentContext]):
     """查看日程列表工具"""
-
-    @filter.llm_tool(
-        description="查看日程列表。参数：days-查看最近几天的日程，默认7天"
+    
+    name: str = "list_schedules"
+    description: str = "查看日程列表。用于当用户想要查看自己有哪些日程安排时调用。"
+    parameters: dict = Field(
+        default_factory=lambda: {
+            "type": "object",
+            "properties": {
+                "days": {
+                    "type": "number",
+                    "description": "查看最近几天的日程，默认7天",
+                },
+            },
+        }
     )
-    async def llm_list_schedules(
-        self,
-        event: AiocqhttpMessageEvent,
-        days: int = 7
-    ) -> str:
-        """查看日程列表
 
-        Args:
-            days: 查看最近几天的日程，默认7天
+    def __init__(self, **data):
+        super().__init__(**data)
+        self.store = None
+        self.default_user_id = None
 
-        Returns:
-            str: 日程列表
-        """
+    def inject_store(self, store, default_user_id):
+        self.store = store
+        self.default_user_id = default_user_id
+
+    async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
         try:
-            user_id = self._resolve_user_id(event)
+            days = kwargs.get("days", 7)
+            if isinstance(days, str):
+                days = int(days)
+
+            event = context.context.event
+            user_id = str(event.get_user_id())
+            if not user_id and self.default_user_id:
+                user_id = self.default_user_id
+
             if not user_id:
-                return "无法确定用户身份"
+                return ToolExecResult("无法确定用户身份")
 
-            store = getattr(self, 'store', None)
-            if not store:
-                return "日程存储服务未初始化"
+            if not self.store:
+                return ToolExecResult("日程存储服务未初始化")
 
-            schedules_dict = await store.get_schedules(user_id)
+            schedules_dict = await self.store.get_schedules(user_id)
             all_items = schedules_dict.get("schedules", []) + schedules_dict.get("habits", [])
             
             now = datetime.now()
-            future = now + __import__('datetime').timedelta(days=days)
+            future = now + timedelta(days=days)
             
-            # 过滤属于该用户的日程
             user_schedules = []
             for s in all_items:
                 if not s.time:
@@ -221,9 +261,8 @@ class LLMListSchedules(LLMScheduleToolBase):
                     continue
             
             if not user_schedules:
-                return f"最近{days}天没有日程安排~"
+                return ToolExecResult(f"最近{days}天没有日程安排~")
 
-            # 按时间排序
             user_schedules.sort(key=lambda x: x[0])
 
             lines = [f"📋 接下来{days}天日程（共{len(user_schedules)}个）：", ""]
@@ -231,7 +270,6 @@ class LLMListSchedules(LLMScheduleToolBase):
             
             for dt, s in user_schedules:
                 date_str = dt.strftime("%m-%d")
-                
                 if date_str != current_date:
                     current_date = date_str
                     weekday = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][dt.weekday()]
@@ -241,56 +279,82 @@ class LLMListSchedules(LLMScheduleToolBase):
                 if s.context:
                     lines.append(f"      📝 {s.context}")
 
-            return "\n".join(lines)
+            return ToolExecResult("\n".join(lines))
             
         except Exception as e:
             logger.error(f"查看日程失败: {e}")
-            return f"查看日程失败: {e}"
+            return ToolExecResult(f"查看日程失败: {e}")
 
 
-class LLMUpdateSchedule(LLMScheduleToolBase):
+@dataclass(config=dict(arbitrary_types_allowed=True))
+class UpdateScheduleTool(FunctionTool[AstrAgentContext]):
     """修改日程工具"""
-
-    @filter.llm_tool(
-        description="修改日程。参数：schedule_id-日程ID，title_keyword-标题关键词（用于匹配），new_title-新标题，new_datetime-新时间，new_description-新备注"
+    
+    name: str = "update_schedule"
+    description: str = "修改日程。用于当用户想要修改某个日程的时间、标题或备注时调用。"
+    parameters: dict = Field(
+        default_factory=lambda: {
+            "type": "object",
+            "properties": {
+                "schedule_id": {
+                    "type": "string",
+                    "description": "日程ID（精确匹配）",
+                },
+                "title_keyword": {
+                    "type": "string",
+                    "description": "日程标题关键词（模糊匹配），用于定位日程",
+                },
+                "new_title": {
+                    "type": "string",
+                    "description": "新标题",
+                },
+                "new_datetime": {
+                    "type": "string",
+                    "description": "新时间，格式如「2024-01-15 14:30」「明天9点」",
+                },
+                "new_description": {
+                    "type": "string",
+                    "description": "新备注",
+                },
+            },
+        }
     )
-    async def llm_update_schedule(
-        self,
-        event: AiocqhttpMessageEvent,
-        schedule_id: str = "",
-        title_keyword: str = "",
-        new_title: str = "",
-        new_datetime: str = "",
-        new_description: str = ""
-    ) -> str:
-        """修改日程
 
-        Args:
-            schedule_id: 日程ID（精确匹配）
-            title_keyword: 日程标题关键词（模糊匹配）
-            new_title: 新标题
-            new_datetime: 新时间，格式如 "2024-01-15 14:30"
-            new_description: 新备注
+    def __init__(self, **data):
+        super().__init__(**data)
+        self.store = None
+        self.default_user_id = None
 
-        Returns:
-            str: 修改结果
-        """
+    def inject_store(self, store, default_user_id):
+        self.store = store
+        self.default_user_id = default_user_id
+
+    async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs) -> ToolExecResult:
         try:
-            user_id = self._resolve_user_id(event)
-            if not user_id:
-                return "无法确定用户身份"
+            schedule_id = kwargs.get("schedule_id", "").strip()
+            title_keyword = kwargs.get("title_keyword", "").strip()
+            new_title = kwargs.get("new_title", "").strip()
+            new_datetime = kwargs.get("new_datetime", "").strip()
+            new_description = kwargs.get("new_description", "").strip()
 
             if not schedule_id and not title_keyword:
-                return "请提供要修改的日程ID或标题关键词"
+                return ToolExecResult("请提供要修改的日程ID或标题关键词")
 
             if not new_title and not new_datetime and not new_description:
-                return "请提供要修改的内容（新标题/新时间/新备注）"
+                return ToolExecResult("请提供要修改的内容（新标题/新时间/新备注）")
 
-            store = getattr(self, 'store', None)
-            if not store:
-                return "日程存储服务未初始化"
+            event = context.context.event
+            user_id = str(event.get_user_id())
+            if not user_id and self.default_user_id:
+                user_id = self.default_user_id
 
-            schedules_dict = await store.get_schedules(user_id)
+            if not user_id:
+                return ToolExecResult("无法确定用户身份")
+
+            if not self.store:
+                return ToolExecResult("日程存储服务未初始化")
+
+            schedules_dict = await self.store.get_schedules(user_id)
             all_items = schedules_dict.get("schedules", []) + schedules_dict.get("habits", [])
             
             matches = []
@@ -302,17 +366,16 @@ class LLMUpdateSchedule(LLMScheduleToolBase):
                     matches.append(s)
 
             if not matches:
-                return f"没有找到匹配的日程"
+                return ToolExecResult("没有找到匹配的日程")
 
             if len(matches) > 1:
                 lines = ["找到多个匹配日程，请提供更具体的信息："]
                 for s in matches:
                     lines.append(f"  [{s.id}] {s.title} @ {s.time}")
-                return "\n".join(lines)
+                return ToolExecResult("\n".join(lines))
 
             target = matches[0]
             
-            # 更新字段
             if new_title:
                 target.title = new_title
             if new_description:
@@ -322,7 +385,7 @@ class LLMUpdateSchedule(LLMScheduleToolBase):
                 dt = date_parser.parse(new_datetime)
                 target.time = dt.strftime("%Y-%m-%d %H:%M")
 
-            await store.update_item(user_id, target)
+            await self.store.update_item(user_id, target)
             
             changes = []
             if new_title:
@@ -332,8 +395,38 @@ class LLMUpdateSchedule(LLMScheduleToolBase):
             if new_description:
                 changes.append("备注已更新")
             
-            return f"已修改日程：{', '.join(changes)} ✅"
+            return ToolExecResult(f"已修改日程：{', '.join(changes)} ✅")
             
         except Exception as e:
             logger.error(f"修改日程失败: {e}")
-            return f"修改日程失败: {e}"
+            return ToolExecResult(f"修改日程失败: {e}")
+
+
+# ============ 工具注册 ============
+
+def register_schedule_tools(plugin_instance) -> None:
+    """注册日程管理工具到 AstrBot"""
+    # 创建工具实例
+    create_tool = CreateScheduleTool()
+    delete_tool = DeleteScheduleTool()
+    list_tool = ListSchedulesTool()
+    update_tool = UpdateScheduleTool()
+    
+    # 注入依赖
+    store = getattr(plugin_instance, 'store', None)
+    default_user_id = getattr(plugin_instance, 'default_user_id', None)
+    
+    create_tool.inject_store(store, default_user_id)
+    delete_tool.inject_store(store, default_user_id)
+    list_tool.inject_store(store, default_user_id)
+    update_tool.inject_store(store, default_user_id)
+    
+    # 注册到 AstrBot
+    plugin_instance.context.add_llm_tools(
+        create_tool,
+        delete_tool,
+        list_tool,
+        update_tool,
+    )
+    
+    logger.info("[ScheduleAssistant] 日程管理工具已注册：create_schedule, delete_schedule, list_schedules, update_schedule")
