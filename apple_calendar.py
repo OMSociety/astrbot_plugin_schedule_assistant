@@ -41,11 +41,9 @@ class AppleCalendar:
         self._discover_lock = asyncio.Lock()
         self._fetch_lock = asyncio.Lock()
         self._events_cache: Dict[int, Dict] = {}
-        self._events_cache_ttl_seconds = 300  # 5分钟缓存，防止疯狂同步
+        self._events_cache_ttl_seconds = 300
         self._calendars_cache: List[Dict] = []
         self._calendars_cache_ttl_seconds = 300
-
-    # ── 认证 ───────────────────────────────────────────────────────────────
 
     def _auth_header(self) -> str:
         creds = f"{self.username}:{self.app_password}"
@@ -78,7 +76,7 @@ class AppleCalendar:
         href = html.unescape((raw or "").strip())
         href = href.replace("\u200b", "")
         href = re.sub(r"[\r\n\t]", "", href)
-        href = href.strip("'<>\")
+        href = href.strip("'\"" + "<>\\")
         for splitter in ('">', "'>", "<", ">"):
             if splitter in href:
                 href = href.split(splitter, 1)[0]
@@ -118,8 +116,6 @@ class AppleCalendar:
             return None
         return candidate
 
-    # ── CalDAV 发现 ───────────────────────────────────────────────────────
-
     async def _discover(self) -> bool:
         """发现 principal URL 和 calendar home set URL"""
         if self._discovered or not self.username or not self.app_password:
@@ -128,7 +124,6 @@ class AppleCalendar:
             if self._discovered:
                 return True
 
-            # Step 1: 获取 principal URL
             body1 = b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:"><D:prop><D:current-user-principal/></D:prop></D:propfind>'
             resp1 = self._request(
                 "https://caldav.icloud.com/",
@@ -155,7 +150,6 @@ class AppleCalendar:
                 return False
             logger.info(f"[AppleCalendar] principal URL: {self._principal_url}")
 
-            # Step 2: 获取 calendar home set
             body2 = b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><C:calendar-home-set/></D:prop></D:propfind>'
             resp2 = self._request(
                 self._principal_url,
@@ -169,12 +163,10 @@ class AppleCalendar:
 
             cal_home_href = self._extract_href(resp2, "calendar-home-set")
             if not cal_home_href:
-                # Fallback 1: 直接搜索已知的 iCloud calendar URL 格式
                 m = re.search(r"https?://[^\s<>\"']+/calendars/", resp2)
                 if m:
                     cal_home_href = m.group(0).rstrip("/")
                 else:
-                    # Fallback 2: 搜索 /数字/calendars/ 路径
                     m = re.search(r"/(\d+/calendars/?)", resp2)
                     if m:
                         cal_home_href = "/" + m.group(1).rstrip("/")
@@ -192,8 +184,6 @@ class AppleCalendar:
             self._discovered = True
             logger.info(f"[AppleCalendar] CalDAV 发现成功: base={self._caldav_base_url}")
             return True
-
-    # ── 日历列表 ─────────────────────────────────────────────────────────
 
     def _propfind(self, url: str, depth: str = "1") -> Optional[str]:
         body = b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:"><D:prop><D:href/></D:prop></D:propfind>'
@@ -245,8 +235,6 @@ class AppleCalendar:
         logger.info(f"[AppleCalendar] 发现 {len(calendars)} 个日历")
         return calendars
 
-    # ── 读取事件（PROPFIND + GET .ics）────────────────────────────────
-
     def _fetch_ics_sync(self, ics_url: str) -> Optional[str]:
         """并发获取单个 .ics 文件"""
         return self._request(
@@ -297,8 +285,6 @@ class AppleCalendar:
         """异步封装，在线程池执行同步 IO"""
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._caldav_fetch_sync, cal_url)
-
-    # ── VEVENT 解析 ───────────────────────────────────────────────────────
 
     def _parse_vevents(self, ical_data: str) -> List[Dict]:
         """解析 VEVENT，有 TZID 标记的 DTSTART 不做 UTC 转换"""
@@ -362,8 +348,6 @@ class AppleCalendar:
 
         return events
 
-    # ── WebCal ────────────────────────────────────────────────────────────
-
     async def fetch_webcal_async(self, url: str, days: int = 30) -> List[Dict]:
         events = []
         try:
@@ -382,8 +366,6 @@ class AppleCalendar:
         except Exception as e:
             logger.error(f"[AppleCalendar] WebCal 读取失败: {e}")
         return events
-
-    # ── 统一获取 ─────────────────────────────────────────────────────────
 
     async def get_all_events(self, days: int = 1) -> List[Dict]:
         cache_key = int(days or 1)
@@ -408,8 +390,6 @@ class AppleCalendar:
                 all_events.extend(await self.fetch_webcal_async(url, days))
             self._events_cache[cache_key] = {"ts": time.monotonic(), "events": list(all_events)}
             return all_events
-
-    # ── 可写操作 ─────────────────────────────────────────────────────────
 
     async def _resolve_calendar_id(self, calendar_id: Optional[str] = None) -> Optional[str]:
         """解析日历 ID，返回日历 UUID"""
