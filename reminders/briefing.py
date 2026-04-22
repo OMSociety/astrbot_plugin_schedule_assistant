@@ -31,7 +31,7 @@ class BriefingReminder:
 天气: {weather_current}（预报: {weather_forecast if weather_forecast else "暂无"}）
 日程:
 {"\n".join(agenda_lines) if agenda_lines else "暂无"}
-待办（Notion）:
+待办:
 {"\n".join(notion_lines) if notion_lines else "暂无"}
 设备状态: {dashboard if dashboard else "暂无"}
 熬夜检测: {"有深夜日程（" + late_night.strip() + "），昨晚辛苦了" if late_night and late_night.strip() else "无深夜日程"}
