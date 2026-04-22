@@ -2,6 +2,7 @@ import json
 import re
 import asyncio
 import aiohttp
+import time
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
@@ -47,8 +48,11 @@ from .reminders.briefing import BriefingReminder
 from .reminders.habits import BathReminder, SleepReminder, WaterReminder
 from .tools.schedule_tools import register_schedule_tools
 
+SCHEDULE_REMINDER_LOG_THROTTLE_SECONDS = 300
+
 
 class ScheduleAssistant(Star):
+    # 单进程单活动实例护栏：防止热重载后旧实例任务继续执行。
     _instance_seq: int = 0
     _active_generation: int = 0
     _active_instance: Optional["ScheduleAssistant"] = None
@@ -73,10 +77,10 @@ class ScheduleAssistant(Star):
         self._init_task: Optional[asyncio.Task] = None
         self._tools_registered = False
         self._runtime_cleaned = False
-        self._cleanup_lock = asyncio.Lock()
-        self._schedule_reminder_scan_lock = asyncio.Lock()
-        self._apple_calendar_sync_lock = asyncio.Lock()
-        self._schedule_scan_last_log_ts = 0.0
+        self._cleanup_lock: Optional[asyncio.Lock] = None
+        self._schedule_reminder_scan_lock: Optional[asyncio.Lock] = None
+        self._apple_calendar_sync_lock: Optional[asyncio.Lock] = None
+        self._schedule_reminder_last_log_ts = 0.0
 
         self.default_user_id: Optional[str] = None
         whitelist = self.config.get("whitelist_qq_ids", [])
@@ -107,6 +111,7 @@ class ScheduleAssistant(Star):
             pass
 
     async def _initialize(self):
+        self._ensure_runtime_locks()
         await self._claim_active_instance()
         if not self._is_active_instance():
             return
@@ -134,13 +139,21 @@ class ScheduleAssistant(Star):
         cls._active_instance = self
         cls._active_generation = self._instance_generation
 
-    def _add_or_replace_job(self, func, trigger, job_id: str, **kwargs):
+    def _add_or_replace_job(self, func, trigger, *, job_id: str, **kwargs):
         options = {
             "id": job_id,
             "replace_existing": True,
         }
         options.update(kwargs)
         self.scheduler.add_job(func, trigger, **options)
+
+    def _ensure_runtime_locks(self):
+        if self._cleanup_lock is None:
+            self._cleanup_lock = asyncio.Lock()
+        if self._schedule_reminder_scan_lock is None:
+            self._schedule_reminder_scan_lock = asyncio.Lock()
+        if self._apple_calendar_sync_lock is None:
+            self._apple_calendar_sync_lock = asyncio.Lock()
 
     def _schedule_next_water_reminder(self, run_date: datetime):
         try:
@@ -150,7 +163,7 @@ class ScheduleAssistant(Star):
         self._add_or_replace_job(
             self._water_reminder,
             "date",
-            "water_reminder",
+            job_id="water_reminder",
             run_date=run_date,
             max_instances=1,
             coalesce=True,
@@ -170,6 +183,7 @@ class ScheduleAssistant(Star):
                 logger.warning(f"{LOG_PREFIX} 关闭 AppleCalendar 失败: {e}")
 
     async def _cleanup_runtime(self, reason: str = "terminate"):
+        self._ensure_runtime_locks()
         if self._runtime_cleaned:
             return
         async with self._cleanup_lock:
@@ -298,7 +312,7 @@ class ScheduleAssistant(Star):
             self._add_or_replace_job(
                 self._morning_briefing,
                 CronTrigger(hour=morning_hour, minute=morning_minute),
-                "morning_briefing",
+                job_id="morning_briefing",
             )
             logger.info(f"{LOG_PREFIX} 早安播报已注册: {morning_time}")
 
@@ -308,7 +322,7 @@ class ScheduleAssistant(Star):
             self._add_or_replace_job(
                 self._bath_reminder,
                 CronTrigger(hour=bath_hour, minute=bath_minute),
-                "bath_reminder",
+                job_id="bath_reminder",
             )
             logger.info(f"{LOG_PREFIX} 洗澡提醒已注册: {bath_time}")
 
@@ -318,7 +332,7 @@ class ScheduleAssistant(Star):
             self._add_or_replace_job(
                 self._sleep_reminder,
                 CronTrigger(hour=sleep_hour, minute=sleep_minute),
-                "sleep_reminder",
+                job_id="sleep_reminder",
             )
             logger.info(f"{LOG_PREFIX} 睡觉提醒已注册: {sleep_time}")
 
@@ -327,8 +341,9 @@ class ScheduleAssistant(Star):
             self._add_or_replace_job(
                 self._apple_calendar_sync,
                 "interval",
-                "apple_calendar_sync",
+                job_id="apple_calendar_sync",
                 minutes=sync_interval,
+                # 防重入/堆积：上次未完成时不并行，错过窗口时合并为一次执行。
                 max_instances=1,
                 coalesce=True,
                 misfire_grace_time=120,
@@ -339,7 +354,8 @@ class ScheduleAssistant(Star):
             self._add_or_replace_job(
                 self._schedule_reminder_scan,
                 CronTrigger(second=30),
-                "schedule_reminder_scan",
+                job_id="schedule_reminder_scan",
+                # 防重入/堆积：单实例执行，misfire 时合并，避免重启后集中补跑。
                 max_instances=1,
                 coalesce=True,
                 misfire_grace_time=30,
@@ -361,10 +377,8 @@ class ScheduleAssistant(Star):
         self._add_or_replace_job(
             self._clear_expired_overrides,
             CronTrigger(hour=0, minute=5),
-            "clear_expired_overrides",
+            job_id="clear_expired_overrides",
         )
-        logger.debug(f"{LOG_PREFIX} 已跳过注册冗余任务 schedule_scan")
-
         if not self.scheduler.running:
             self.scheduler.start()
 
@@ -748,16 +762,17 @@ class ScheduleAssistant(Star):
         logger.debug(f"{LOG_PREFIX} 执行日程扫描")
 
     async def _schedule_reminder_scan(self):
+        self._ensure_runtime_locks()
         if not self._is_active_instance():
             return
         if self._schedule_reminder_scan_lock.locked():
             logger.debug(f"{LOG_PREFIX} 日程提醒扫描仍在运行，跳过本轮")
             return
         async with self._schedule_reminder_scan_lock:
-            now_ts = datetime.now().timestamp()
-            if now_ts - self._schedule_scan_last_log_ts >= 300:
+            now_ts = time.monotonic()
+            if now_ts - self._schedule_reminder_last_log_ts >= SCHEDULE_REMINDER_LOG_THROTTLE_SECONDS:
                 logger.debug(f"{LOG_PREFIX} 执行日程提醒扫描")
-                self._schedule_scan_last_log_ts = now_ts
+                self._schedule_reminder_last_log_ts = now_ts
 
             await self._ensure_services()
             if not hasattr(self, "schedule_reminder"):
@@ -794,13 +809,14 @@ class ScheduleAssistant(Star):
                     logger.warning(f"{LOG_PREFIX} 用户 {user_id} 日程提醒扫描失败: {e}")
 
     async def _apple_calendar_sync(self):
+        self._ensure_runtime_locks()
         if not self._is_active_instance():
             return
         if self._apple_calendar_sync_lock.locked():
             logger.debug(f"{LOG_PREFIX} Apple 同步仍在运行，跳过本轮")
             return
         async with self._apple_calendar_sync_lock:
-            if not hasattr(self, 'apple_calendar') or not self.apple_calendar:
+            if not hasattr(self, "apple_calendar") or not self.apple_calendar:
                 return
             try:
                 events = await self.apple_calendar.get_all_events(days=7)

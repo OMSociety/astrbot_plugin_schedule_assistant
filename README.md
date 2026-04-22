@@ -138,8 +138,8 @@ astrbot_plugin_schedule_assistant/
 │   ├── notion.py              # Notion 服务（5分钟断路器）
 │   ├── dashboard.py           # Live Dashboard 状态获取（单例）
 │   └── llm.py                 # LLM 封装（fallback + 人格注入）
-├── commands.py                # 历史命令模块（当前主流程未接入，计划后续清理）
-├── messaging.py               # 历史消息模块（当前主流程未接入，计划后续清理）
+├── commands.py                # 历史命令模块（为兼容旧结构保留，当前主流程未接入）
+├── messaging.py               # 历史消息模块（为兼容旧结构保留，当前主流程未接入）
 └── reminders/                 # 提醒服务层
     ├── habits.py              # 洗澡/睡觉/喝水提醒（含 fallback + 自动续期）
     ├── briefing.py            # 每日早安播报（LLM 生成）

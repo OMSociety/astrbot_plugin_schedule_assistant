@@ -74,7 +74,7 @@ class AppleCalendar:
         for splitter in ('">', "'>", "<", ">"):
             if splitter in href:
                 href = href.split(splitter, 1)[0]
-        m = re.search(r"(https?://[^\s<>'\"]+|/[^\s<>'\"]+)", href)
+        m = re.search(r'(https?://[^\s<>\'"]+|/[^\s<>\'"]+)', href)
         href = m.group(1) if m else href
         href = re.sub(r"\s+", "", href)
         return href
