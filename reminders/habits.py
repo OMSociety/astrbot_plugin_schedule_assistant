@@ -11,7 +11,7 @@ from ..constants import DEFAULT_BATH_TIME, DEFAULT_SLEEP_TIME, DEFAULT_WATER_STA
 
 class HabitReminder:
     """通用习惯提醒生成器"""
-    
+
     # 默认 fallback 消息
     FALLBACKS = {
         "bath": "🚿 洗澡时间到啦~ 今天流汗了吗？快去洗个澡清爽一下！",
@@ -19,7 +19,7 @@ class HabitReminder:
         "sleep_late": "🌙 都几点了还不睡！快去睡觉！",
         "water": "💧 该喝水啦~ 站起来活动活动，倒杯水润润嗓吧！",
     }
-    
+
     # 各习惯的默认时间配置
     DEFAULT_TIMES = {
         "bath": DEFAULT_BATH_TIME,
@@ -28,9 +28,10 @@ class HabitReminder:
         "water_end": DEFAULT_WATER_END,
         "water_interval": DEFAULT_WATER_INTERVAL,
     }
-    
+
     def __init__(self, config: dict, default_user_id: str, llm_service, store, habit_type: str):
-        """
+        """初始化习惯提醒
+
         Args:
             config: 插件配置
             default_user_id: 默认用户 ID
@@ -44,11 +45,11 @@ class HabitReminder:
         self.store = store
         self.habit_type = habit_type
         self._setup_llm_template()
-    
+
     def _setup_llm_template(self):
-        """根据习惯类型设置 LLM 模板"""
+        """根据习惯类型设置 LLM fallback 模板"""
         self.llm_service.set_fallback_template(self.FALLBACKS.get(self.habit_type, ""))
-    
+
     def _get_default_time(self) -> str:
         """获取默认提醒时间"""
         if self.habit_type == "bath":
@@ -56,13 +57,23 @@ class HabitReminder:
         elif self.habit_type == "sleep":
             return self.config.get("sleep_time", DEFAULT_SLEEP_TIME)
         return ""
-    
+
     def _is_late_hour(self, now: datetime) -> bool:
-        """判断是否已过深夜"""
+        """判断是否已过深夜（23点后或凌晨2点前）"""
         return now.hour >= 23 or now.hour < 2
-    
+
     def _get_prompt_context(self, username: str, dashboard: str, history_text: str, now: datetime) -> dict:
-        """获取 prompt 上下文信息，子类可覆盖"""
+        """获取 prompt 上下文信息
+
+        Args:
+            username: 用户名
+            dashboard: 仪表盘状态描述
+            history_text: 对话历史
+            now: 当前时间
+
+        Returns:
+            包含上下文信息的字典
+        """
         return {
             "username": username,
             "current_time": now.strftime("%H:%M"),
@@ -70,25 +81,36 @@ class HabitReminder:
             "dashboard": dashboard,
             "history": history_text or "（无近期对话）",
         }
-    
+
     def _build_prompt(self, context: dict) -> str:
         """构建 LLM prompt，子类可覆盖"""
         raise NotImplementedError
-    
+
     async def generate(self, username: str, dashboard: str, history_text: str) -> Optional[str]:
-        """生成提醒消息"""
+        """生成提醒消息
+
+        Args:
+            username: 用户名
+            dashboard: 仪表盘状态描述
+            history_text: 近期对话历史
+
+        Returns:
+            生成的提醒消息文本
+        """
         now = datetime.now()
         context = self._get_prompt_context(username, dashboard, history_text, now)
         prompt = self._build_prompt(context)
-        return await self.llm_service.generate(prompt)
+        # 传递对话历史给 LLM，让 AI 有上下文
+        return await self.llm_service.generate(prompt, history=history_text)
+
 
 
 class BathReminder(HabitReminder):
     """洗澡提醒"""
-    
+
     def __init__(self, config: dict, default_user_id: str, llm_service, store):
         super().__init__(config, default_user_id, llm_service, store, "bath")
-    
+
     def _build_prompt(self, context: dict) -> str:
         return f"""你是「{context['username']}」的贴心日程助手，现在需要生成一条洗澡时间提醒~
 
@@ -112,16 +134,16 @@ class BathReminder(HabitReminder):
 
 class SleepReminder(HabitReminder):
     """睡觉提醒"""
-    
+
     def __init__(self, config: dict, default_user_id: str, llm_service, store):
         super().__init__(config, default_user_id, llm_service, store, "sleep")
         self.llm_service.set_fallback_template(self.FALLBACKS["sleep"])
-    
+
     def _get_prompt_context(self, username: str, dashboard: str, history_text: str, now: datetime) -> dict:
         ctx = super()._get_prompt_context(username, dashboard, history_text, now)
         ctx["is_late"] = self._is_late_hour(now)
         return ctx
-    
+
     def _build_prompt(self, context: dict) -> str:
         is_late = context.get("is_late", False)
         self.llm_service.set_fallback_template(
@@ -147,10 +169,10 @@ class SleepReminder(HabitReminder):
 
 class WaterReminder(HabitReminder):
     """喝水提醒"""
-    
+
     def __init__(self, config: dict, default_user_id: str, llm_service, store):
         super().__init__(config, default_user_id, llm_service, store, "water")
-    
+
     def _build_prompt(self, context: dict) -> str:
         return f"""你是「{context['username']}」的贴心日程助手，现在需要生成一条喝水提醒~
 
