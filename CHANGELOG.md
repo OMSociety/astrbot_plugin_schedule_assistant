@@ -145,6 +145,7 @@
 - ✨ `on_unload` 新增 Notion 和日历会话关闭，修复连接泄漏
 - ✨ `AppleCalendar` 新增 `close()` 方法（空实现，保持接口一致性）
 
+
 ### 功能闭环
 - ✨ 新增日程定时扫描任务（每小时01分执行，到期触发私信提醒）
 - ✨ `ScheduleStore` 新增 `update_item()` 方法，支持日程状态持久化
@@ -205,6 +206,7 @@
 - 🔧 修复 LLM 工具描述不一致问题（snooze/日_notion/list_schedules）
 - 📊 `list_schedules` 输出显示具体周期（每天/每周/每月）
 
+
 ### 清理
 - 删除 `backup_before_refactor/` 历史备份目录
 - 删除未使用的 `PREFERENCE_KEY` 常量
@@ -212,6 +214,7 @@
 - `apple_calendar.py` 删除 8 个死方法，改为纯异步
 - `notion_client.py` 删除同步包装函数，统一为 async/await
 - `main.py` 删除死方法 `_generate_morning_advice`
+
 
 ---
 
