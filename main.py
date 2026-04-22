@@ -297,8 +297,13 @@ class ScheduleAssistant(Star):
             username = apple_conf.get("username") if apple_conf else None
             app_password = apple_conf.get("app_password") if apple_conf else None
             if username and app_password:
-                self.apple_calendar = AppleCalendar(username=username, app_password=app_password)
-                logger.info(f"{LOG_PREFIX} Apple Calendar 已配置: {username[:3]}***")
+                cal_id = apple_conf.get("calendar_id", "").strip() or None
+                self.apple_calendar = AppleCalendar(
+                    username=username,
+                    app_password=app_password,
+                    calendar_id=cal_id,
+                )
+                logger.info(f"{LOG_PREFIX} Apple Calendar 已配置: {username[:3]}***, calendar_id={cal_id}")
             else:
                 logger.warning(f"{LOG_PREFIX} Apple Calendar 未配置凭据（username 或 app_password 缺失）")
 
