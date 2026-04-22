@@ -814,6 +814,8 @@ class ScheduleAssistant(Star):
 
 
 async def __initialize(context: Context) -> ScheduleAssistant:
-    config = context.get_config().get("schedule_assistant", {})
+    # 配置文件中 schedule_assistant 是扁平结构（无顶层包装），
+    # 直接取 get_config() 的返回值，无需再 get("schedule_assistant")
+    config = context.get_config()
     assistant = ScheduleAssistant(context, config)
     return assistant
