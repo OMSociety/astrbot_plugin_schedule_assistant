@@ -13,9 +13,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional
 from urllib.parse import urljoin, urlparse
-
 from astrbot import logger
-
 __all__ = ["AppleCalendar"]
 
 
@@ -232,7 +230,6 @@ class AppleCalendar:
     async def _caldav_fetch(self, cal_url: str, days: int = 30) -> List[Dict]:
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, self._caldav_fetch_sync, cal_url)
-
     def _parse_vevents(self, ical_data: str) -> List[Dict]:
         """解析 VEVENT，正确处理 UTC 和本地时区
 
@@ -278,7 +275,6 @@ class AppleCalendar:
                     if value_match:
                         time_str = value_match.group(1)
                         naive = datetime.strptime(time_str, "%Y%m%dT%H%M%S")
-
                         if tzid_match:
                             try:
                                 from dateutil import tz as dateutil_tz
@@ -305,7 +301,6 @@ class AppleCalendar:
                 line = dtend_line.group(0)
                 tzid_match = re.search(r"TZID=([^:]+)", line)
                 value_match = re.search(r":(\d{8}T\d{6})", line)
-
                 if value_match:
                     time_str = value_match.group(1)
                     naive = datetime.strptime(time_str, "%Y%m%dT%H%M%S")
@@ -338,6 +333,7 @@ class AppleCalendar:
                     "all_day": dtstart_all_day
                 })
 
+
         return events
 
     async def fetch_webcal_async(self, url: str, days: int = 30) -> List[Dict]:
@@ -363,7 +359,6 @@ class AppleCalendar:
             for k in expired_keys:
                 del self._events_cache[k]
             logger.debug(f"[AppleCalendar] 清理了 {len(expired_keys)} 个过期缓存键: {expired_keys}")
-
     async def get_all_events(self, days: int = 1) -> List[Dict]:
         # 缓存键包含日期，避免跨天返回错误数据
         today = datetime.now().strftime("%Y%m%d")
