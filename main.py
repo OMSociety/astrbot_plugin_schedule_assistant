@@ -265,13 +265,6 @@ class ScheduleAssistant(Star):
             replace_existing=True
         )
 
-        self.scheduler.add_job(
-            self._schedule_scan,
-            CronTrigger(minute=1),
-            id="schedule_scan",
-            replace_existing=True
-        )
-
         if not self.scheduler.running:
             self.scheduler.start()
 
@@ -468,16 +461,27 @@ class ScheduleAssistant(Star):
             events = await self.apple_calendar.get_all_events(days=1)
             today = datetime.now().date()
             logger.info(f"{LOG_PREFIX} Apple日历获取到 {len(events)} 个事件，开始筛选今日({today})事件...")
+            
+            # 调试：检查是否有19:00的事件
+            debug_19_events = []
+            
             rows = []
             for e in events:
                 start_str = e.get("start", "")
+                summary = e.get("summary", "无标题")
+                
+                # 调试：收集19点附近的事件
+                if start_str and ("19:" in start_str or "19：" in start_str or "19:00" in summary):
+                    debug_19_events.append({
+                        "summary": summary,
+                        "start_raw": start_str,
+                    })
+                
                 if not start_str:
-                    logger.debug(f"{LOG_PREFIX} 事件无start字段，跳过: {e.get('summary')}")
                     continue
                 try:
                     start_dt = datetime.fromisoformat(start_str)
-                except Exception as ex:
-                    logger.debug(f"{LOG_PREFIX} 事件时间解析失败，跳过: {e.get('summary')}, error={ex}")
+                except Exception:
                     continue
                 if start_dt.date() != today:
                     continue
@@ -485,12 +489,17 @@ class ScheduleAssistant(Star):
                     time_label = "全天"
                 else:
                     time_label = start_dt.strftime("%H:%M")
-                rows.append((start_dt, f"⏰ {time_label} │ {e.get('summary', '无标题')}"))
+                rows.append((start_dt, f"⏰ {time_label} │ {summary}"))
+            
+            # 打印19点相关事件的调试信息
+            if debug_19_events:
+                logger.info(f"{LOG_PREFIX} 调试-19点相关事件: {debug_19_events}")
+            
             if not rows:
                 logger.info(f"{LOG_PREFIX} 今日 Apple 日历无日程")
                 return "暂无"
             rows.sort(key=lambda x: x[0])
-            logger.info(f"{LOG_PREFIX} 今日 Apple 日历事件筛选完成，共 {len(rows)} 个")
+            logger.info(f"{LOG_PREFIX} 今日 Apple 日历事件筛选完成，共 {len(rows)} 个: {[s for _, s in rows]}")
             return "\n".join([line for _, line in rows[:limit]])
         except Exception as e:
             logger.warning(f"{LOG_PREFIX} Apple 今日日程读取失败: {e}")
@@ -634,9 +643,6 @@ class ScheduleAssistant(Star):
             )
         except Exception as e:
             logger.error(f"{LOG_PREFIX} 喝水提醒失败: {e}")
-
-    async def _schedule_scan(self):
-        logger.debug(f"{LOG_PREFIX} 执行日程扫描")
 
     async def _schedule_reminder_scan(self):
         logger.debug(f"{LOG_PREFIX} 执行日程提醒扫描")
@@ -823,7 +829,7 @@ class ScheduleAssistant(Star):
             new_time = parts[1]
             success = await self.store.set_temp_override(user_id, habit_name, new_time)
             if success:
-                await event.reply(f"已临时修改{habit_name}时间为 {new_time}~（仅今日生效）")
+                await event.reply(f"已临时修改{habit_name}时间为 {new_time}~（仅当天生效）")
             else:
                 await event.reply("不支持的 habit 类型，支持：喝水/洗澡/睡觉")
         else:
