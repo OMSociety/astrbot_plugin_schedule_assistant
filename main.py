@@ -367,7 +367,9 @@ class ScheduleAssistant(Star):
         except Exception:
             pass
         if not ids:
-            ids = ["aiocqhttp"]
+            fallback_platform = self._global_platform_id or "aiocqhttp"
+            logger.warning(f"{LOG_PREFIX} 未发现已注册平台，使用回退平台: {fallback_platform}")
+            ids = [fallback_platform]
         return ids
 
     def _extract_platform_id_from_event(self, event: AiocqhttpMessageEvent) -> Optional[str]:
@@ -448,11 +450,11 @@ class ScheduleAssistant(Star):
         merged = []
         seen = set()
         for line in self._extract_block_lines(local_text) + self._extract_block_lines(apple_text):
-            key = line.replace("  ", " ").strip()
+            key = " ".join(line.split())
             if key in seen:
                 continue
             seen.add(key)
-            merged.append(line)
+            merged.append(key)
             if len(merged) >= limit:
                 break
         if merged:
@@ -484,7 +486,7 @@ class ScheduleAssistant(Star):
                     logger.warning(
                         f"{LOG_PREFIX} 发送失败 user={user_id} platform={platform} session={session} err={send_err}"
                     )
-            logger.error(f"{LOG_PREFIX} 发送消息失败，已尝试: user={user_id} sessions={sessions_tried}")
+            logger.error(f"{LOG_PREFIX} 发送消息失败，已尝试所有可用平台: user={user_id} sessions={sessions_tried}")
         except Exception as e:
             logger.error(f"{LOG_PREFIX} 发送消息异常: user={user_id} err={e}")
 
@@ -500,7 +502,7 @@ class ScheduleAssistant(Star):
         today_items = []
         for s in schedules:
             if not s.time:
-                # 无时间字段的条目无法参与“今日日程”时点展示，跳过。
+                # 无时间字段既无法按“今日”过滤，也无法进行时间排序，因此跳过。
                 continue
             try:
                 dt = datetime.fromisoformat(s.time)
