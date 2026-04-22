@@ -57,7 +57,7 @@ class AppleCalendar:
                     time.sleep(1 * (attempt + 1))
                     continue
                 body = e.read().decode("utf-8", errors="replace") if e.fp else ""
-                logger.warning(f"[AppleCalendar] 请求失败 HTTP {e.code}: {body[:200]}")
+                logger.debug(f"[AppleCalendar] 请求失败 HTTP {e.code}: {body[:200]}")
                 return None
             except Exception as e:
                 last_error = e
@@ -125,7 +125,7 @@ class AppleCalendar:
                 return False
             principal_href = self._extract_href(resp1, "current-user-principal")
             if not principal_href:
-                m = re.search(r"(/\\d+/\\w+)/?$", resp1)
+                m = re.search(r"(/\d+/\w+)/?$", resp1)
                 principal_href = "/" + m.group(1) if m else None
             if not principal_href:
                 logger.debug("[AppleCalendar] 无法解析 principal URL")
@@ -142,7 +142,7 @@ class AppleCalendar:
                 return False
             cal_home_href = self._extract_href(resp2, "calendar-home-set")
             if not cal_home_href:
-                m = re.search(r"https?://[^\\s<>\"']+/calendars/", resp2)
+                m = re.search(r"https?://[^\s<>\"']+/calendars/", resp2)
                 if m:
                     cal_home_href = m.group(0).rstrip("/")
                 else:
@@ -293,7 +293,7 @@ class AppleCalendar:
             events = self._parse_vevents(ical_data)
             logger.info(f"[AppleCalendar] WebCal 读取成功: {len(events)} 个事件")
         except Exception as e:
-            logger.error(f"[AppleCalendar] WebCal 读取失败: {e}")
+            logger.debug(f"[AppleCalendar] WebCal 读取失败: {e}")
         return events
 
     async def get_all_events(self, days: int = 1) -> List[Dict]:

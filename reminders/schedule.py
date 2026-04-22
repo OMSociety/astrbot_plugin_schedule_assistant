@@ -118,7 +118,7 @@ class ScheduleReminder:
                 logger.debug(f"{LOG_PREFIX} LLM 提醒生成成功: {text[:30]}...")
                 return text
         except Exception as e:
-            logger.warning(f"{LOG_PREFIX} LLM 提醒生成失败: {e}")
+            logger.debug(f"{LOG_PREFIX} LLM 提醒生成失败: {e}")
 
         return f"📅 提醒：「{item_title}」即将开始，记得准备哦~"
 
