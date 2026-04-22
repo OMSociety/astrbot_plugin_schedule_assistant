@@ -41,7 +41,9 @@ class AppleCalendar:
         self._discover_lock = asyncio.Lock()
         self._fetch_lock = asyncio.Lock()
         self._events_cache: Dict[int, Dict] = {}
-        self._events_cache_ttl_seconds = 20
+        self._events_cache_ttl_seconds = 300  # 5分钟缓存，防止疯狂同步
+        self._calendars_cache: List[Dict] = []
+        self._calendars_cache_ttl_seconds = 300
 
     # ── 认证 ───────────────────────────────────────────────────────────────
 
@@ -167,16 +169,18 @@ class AppleCalendar:
 
             cal_home_href = self._extract_href(resp2, "calendar-home-set")
             if not cal_home_href:
-                # 正确的正则：匹配 href 标签中的 URL（支持有无命名空间前缀）
-                hrefs = re.findall(r"<(?:[^<>]*:)?href[^>]*>([^<]+)</(?:[^<>]*:)?href>", resp2)
-                cleaned_hrefs = [AppleCalendar._clean_href(href) for href in hrefs]
-                for href in cleaned_hrefs:
-                    if href and (href.startswith("/") or href.startswith("http")):
-                        cal_home_href = href
-                        break
+                # Fallback 1: 直接搜索已知的 iCloud calendar URL 格式
+                m = re.search(r"https?://[^\s<>\"']+/calendars/", resp2)
+                if m:
+                    cal_home_href = m.group(0).rstrip("/")
+                else:
+                    # Fallback 2: 搜索 /数字/calendars/ 路径
+                    m = re.search(r"/(\d+/calendars/?)", resp2)
+                    if m:
+                        cal_home_href = "/" + m.group(1).rstrip("/")
 
             if not cal_home_href:
-                logger.error("[AppleCalendar] 无法解析 calendar home set URL")
+                logger.error(f"[AppleCalendar] 无法解析 calendar home set URL，响应: {resp2[:500]}")
                 return False
 
             self._caldav_base_url = self._to_absolute_url(self._principal_url, cal_home_href)
@@ -205,7 +209,11 @@ class AppleCalendar:
         )
 
     async def _list_calendars(self) -> List[Dict]:
-        """列出所有日历"""
+        """列出所有日历，带缓存"""
+        now_ts = time.monotonic()
+        if self._calendars_cache and (now_ts - getattr(self, "_calendars_ts", 0)) < self._calendars_cache_ttl_seconds:
+            return list(self._calendars_cache)
+
         if not await self._discover():
             return []
 
@@ -232,6 +240,8 @@ class AppleCalendar:
                         calendars.append({"href": href, "url": cal_url, "id": cal_id, "name": ""})
 
         self._calendars = calendars
+        self._calendars_cache = list(calendars)
+        self._calendars_ts = time.monotonic()
         logger.info(f"[AppleCalendar] 发现 {len(calendars)} 个日历")
         return calendars
 
