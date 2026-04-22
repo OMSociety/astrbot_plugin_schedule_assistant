@@ -1,3 +1,8 @@
+"""日程数据存储模块
+
+提供日程和习惯的数据持久化，基于 AstrBot 的 preference 存储系统。
+支持单次日程、定期习惯、喝水记录、临时覆盖等数据管理。
+"""
 import uuid
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timedelta
@@ -15,11 +20,12 @@ __all__ = ['ScheduleItem', 'ScheduleStore']
 
 @dataclass
 class ScheduleItem:
+    """日程/习惯数据项"""
     id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
-    type: str = ""  # "schedule" | "habit"
+    type: str = ""
     title: str = ""
-    time: str = ""  # "HH:MM" for habits, "YYYY-MM-DD HH:MM" for one-time
-    recur: Optional[str] = None  # "daily" | "weekly" | None
+    time: str = ""
+    recur: Optional[str] = None
     context: str = ""
     enabled: bool = True
     snoozed_until: Optional[str] = None
@@ -28,13 +34,13 @@ class ScheduleItem:
     apple_uid: Optional[str] = None
 
     def to_dict(self) -> dict:
+        """序列化为字典"""
         return asdict(self)
 
     @staticmethod
     def from_dict(data: dict) -> "ScheduleItem":
-        valid_fields = {'id', 'type', 'title', 'time', 'recur', 'context', 
-                        'enabled', 'snoozed_until', 'last_triggered', 
-                        'temp_override', 'apple_uid'}
+        """从字典反序列化，过滤未知字段"""
+        valid_fields = {'id', 'type', 'title', 'time', 'recur', 'context', 'enabled', 'snoozed_until', 'last_triggered', 'temp_override', 'apple_uid'}
         filtered = {k: v for k, v in data.items() if k in valid_fields}
         if not filtered.get("id"):
             filtered["id"] = str(uuid.uuid4())[:8]
@@ -42,6 +48,7 @@ class ScheduleItem:
 
 
 class ScheduleStore:
+    """日程数据存储器"""
     def __init__(self, context: "Context"):
         self.context = context
         logger.info(f"{LOG_PREFIX} ScheduleStore 初始化完成")
@@ -60,12 +67,7 @@ class ScheduleStore:
     async def _save_user_index(self, users: List[str]) -> None:
         try:
             uniq = sorted({str(u) for u in users if u})
-            await self._get_db().insert_preference_or_update(
-                scope=PREFERENCE_SCOPE,
-                scope_id="_meta_",
-                key="users",
-                value=uniq,
-            )
+            await self._get_db().insert_preference_or_update(scope=PREFERENCE_SCOPE, scope_id="_meta_", key="users", value=uniq)
         except Exception as e:
             logger.warning(f"{LOG_PREFIX} 保存用户索引失败: {e}")
 
@@ -88,12 +90,7 @@ class ScheduleStore:
 
     async def _save_user_data(self, user_id: str, data: Dict[str, Any]) -> None:
         try:
-            await self._get_db().insert_preference_or_update(
-                scope=PREFERENCE_SCOPE,
-                scope_id=user_id,
-                key="data",
-                value=data
-            )
+            await self._get_db().insert_preference_or_update(scope=PREFERENCE_SCOPE, scope_id=user_id, key="data", value=data)
             await self._touch_user(user_id)
         except Exception as e:
             logger.error(f"{LOG_PREFIX} 保存用户 {user_id} 数据失败: {e}")
@@ -101,14 +98,11 @@ class ScheduleStore:
     async def add_item(self, user_id: str, item: ScheduleItem) -> None:
         data = await self._get_user_data(user_id)
         item_dict = item.to_dict()
-        
         if item.type == "habit":
-            data[HABITS_KEY] = [h for h in data[HABITS_KEY] 
-                                if h.get("title") != item.title]
+            data[HABITS_KEY] = [h for h in data[HABITS_KEY] if h.get("title") != item.title]
             data[HABITS_KEY].append(item_dict)
         else:
             data[SCHEDULES_KEY].append(item_dict)
-        
         await self._save_user_data(user_id, data)
 
     async def list_all_items(self, user_id: str) -> List[ScheduleItem]:
@@ -128,8 +122,7 @@ class ScheduleStore:
         }
 
     async def get_all_users(self) -> List[str]:
-        users = await self._get_user_index()
-        return sorted(set(users))
+        return sorted(set(await self._get_user_index()))
 
     async def remove_item(self, user_id: str, item_id: str) -> bool:
         data = await self._get_user_data(user_id)
@@ -209,18 +202,17 @@ class ScheduleStore:
                     return temp.split(" ")[1] if " " in temp else default_time
         return default_time
 
-    async def sync_from_apple_calendar(self, user_id: str, apple_events: List[Dict], apple_cal_id: Optional[str] = None) -> Dict[str, int]:
+    async def sync_from_apple_calendar(self, user_id: str, apple_events: List[Dict]) -> Dict[str, int]:
         data = await self._get_user_data(user_id)
         schedules = data.get(SCHEDULES_KEY, [])
-        uid_map: Dict[str, dict] = {s["apple_uid"]: s for s in schedules if s.get("apple_uid")}
-        apple_uids_in_calendar: set = set()
+        uid_map = {s["apple_uid"]: s for s in schedules if s.get("apple_uid")}
+        apple_uids = set()
         stats = {"added": 0, "updated": 0, "deleted": 0}
-        
         for evt in apple_events:
             uid = evt.get("uid")
             if not uid:
                 continue
-            apple_uids_in_calendar.add(uid)
+            apple_uids.add(uid)
             start_str = evt.get("start", "")
             if not start_str:
                 continue
@@ -229,7 +221,6 @@ class ScheduleStore:
                 schedule_time = start_dt.strftime("%Y-%m-%d %H:%M")
             except (ValueError, TypeError):
                 schedule_time = start_str
-            
             if uid in uid_map:
                 local = uid_map[uid]
                 if local.get("title") != evt.get("summary") or local.get("time") != schedule_time:
@@ -237,73 +228,11 @@ class ScheduleStore:
                     local["time"] = schedule_time
                     stats["updated"] += 1
             else:
-                schedules.append({
-                    "id": str(uuid.uuid4())[:8],
-                    "type": "schedule",
-                    "title": evt.get("summary", "无标题"),
-                    "time": schedule_time,
-                    "recur": None,
-                    "context": evt.get("description", ""),
-                    "enabled": True,
-                    "snoozed_until": None,
-                    "last_triggered": None,
-                    "temp_override": None,
-                    "apple_uid": uid,
-                })
+                schedules.append({"id": str(uuid.uuid4())[:8], "type": "schedule", "title": evt.get("summary", "无标题"), "time": schedule_time, "recur": None, "context": evt.get("description", ""), "enabled": True, "snoozed_until": None, "last_triggered": None, "temp_override": None, "apple_uid": uid})
                 stats["added"] += 1
-        
         before_count = len(schedules)
-        schedules = [s for s in schedules if not s.get("apple_uid") or s["apple_uid"] in apple_uids_in_calendar]
+        schedules = [s for s in schedules if not s.get("apple_uid") or s["apple_uid"] in apple_uids]
         stats["deleted"] = before_count - len(schedules)
-        
         data[SCHEDULES_KEY] = schedules
         await self._save_user_data(user_id, data)
         return stats
-
-    async def clear_expired_overrides(self, user_id: str) -> None:
-        data = await self._get_user_data(user_id)
-        today = datetime.now().strftime("%Y-%m-%d")
-        changed = False
-        for habit in data.get(HABITS_KEY, []):
-            temp = habit.get("temp_override", "")
-            if temp and not temp.startswith(today):
-                habit.pop("temp_override", None)
-                changed = True
-        if changed:
-            await self._save_user_data(user_id, data)
-
-    async def add_conversation_message(self, user_id: str, role: str, content: str) -> None:
-        from .constants import CONVERSATION_KEY, CONVERSATION_MAX_AGE_HOURS, CONVERSATION_MAX_MESSAGES
-        data = await self._get_user_data(user_id)
-        history = data.get(CONVERSATION_KEY, [])
-        history.append({"role": role, "content": content, "timestamp": datetime.now().isoformat()})
-        cutoff = datetime.now() - timedelta(hours=CONVERSATION_MAX_AGE_HOURS)
-        history = [m for m in history if datetime.fromisoformat(m["timestamp"]) > cutoff]
-        if len(history) > CONVERSATION_MAX_MESSAGES:
-            history = history[-CONVERSATION_MAX_MESSAGES:]
-        data[CONVERSATION_KEY] = history
-        await self._save_user_data(user_id, data)
-
-    async def get_conversation_history(self, user_id: str) -> List[Dict[str, str]]:
-        from .constants import CONVERSATION_KEY, CONVERSATION_MAX_AGE_HOURS
-        data = await self._get_user_data(user_id)
-        history = data.get(CONVERSATION_KEY, [])
-        cutoff = datetime.now() - timedelta(hours=CONVERSATION_MAX_AGE_HOURS)
-        return [m for m in history if datetime.fromisoformat(m["timestamp"]) > cutoff]
-
-    def format_history_for_prompt(self, history: List[Dict[str, str]], max_tokens: int = 500) -> str:
-        if not history:
-            return "（无近期对话历史）"
-        lines = []
-        total_chars = 0
-        for msg in reversed(history):
-            role_label = "用户" if msg["role"] == "user" else "芙兰"
-            ts = datetime.fromisoformat(msg["timestamp"]).strftime("%H:%M")
-            line = f"[{ts}] {role_label}: {msg['content']}"
-            line_tokens_est = int(len(line) * 1.5)
-            if total_chars + line_tokens_est > max_tokens * 1.5:
-                break
-            total_chars += len(line)
-            lines.append(line)
-        lines.reverse()
-        return "\n".join(lines) if lines else "（无近期对话历史）"

@@ -1,18 +1,21 @@
-"""Notion 服务"""
+"""Notion 服务 - 封装 NotionClient，添加格式化功能"""
 import time
 from datetime import datetime
-from typing import List, Dict
+from typing import List, Dict, Optional
 from ..notion_client import NotionClient
 
 
 class NotionService:
-    def __init__(self, notion_client: NotionClient | None):
+    """Notion 服务，封装 NotionClient，提供格式化输出"""
+
+    def __init__(self, notion_client: Optional[NotionClient]):
         self.notion = notion_client
         self._failure_time = 0.0  # 断路器：记录最近失败时间
         self._CIRCUIT_BREAKER_TTL = 300  # 5分钟
 
     @staticmethod
     def format_ddl(ddl_str: str) -> str:
+        """格式化截止日期显示"""
         if not ddl_str:
             return ""
         try:
@@ -31,27 +34,31 @@ class NotionService:
             return ""
 
     async def get_pending_tasks(self) -> List[Dict]:
-        if self.notion:
-            # 断路器：5分钟内只尝试一次
-            if self._failure_time and (time.time() - self._failure_time) < self._CIRCUIT_BREAKER_TTL:
-                return []
-            return await self.notion.get_pending_transactions()
-        return []
+        """获取未完成任务列表（带断路器保护）"""
+        if not self.notion:
+            return []
+        if self._failure_time and (time.time() - self._failure_time) < self._CIRCUIT_BREAKER_TTL:
+            return []
+        return await self.notion.get_pending_transactions()
+
 
     async def get_pending_str(self) -> str:
+        """获取未完成任务字符串（带断路器保护）"""
+        if not self.notion:
+            return "暂无待办"
+        if self._failure_time and (time.time() - self._failure_time) < self._CIRCUIT_BREAKER_TTL:
+            return "暂无待办"
         try:
-            if not self.notion:
-                return "暂无待办"
-            # 断路器：5分钟内只尝试一次
-            if self._failure_time and (time.time() - self._failure_time) < self._CIRCUIT_BREAKER_TTL:
-                return "暂无待办"
             pending = await self.notion.get_pending_transactions()
             if not pending:
                 return "暂无待办"
             lines = []
             for t in pending[:5]:
                 ddl = self.format_ddl(t.get("ddl", ""))
-                lines.append(f"- {ddl} | {t['title']}" if ddl else f"- {t['title']} ({t['status']})")
+                if ddl:
+                    lines.append(f"- {ddl} | {t['title']}")
+                else:
+                    lines.append(f"- {t['title']} ({t['status']})")
             return "\n".join(lines)
         except Exception:
             self._failure_time = time.time()
