@@ -111,7 +111,7 @@ class BathReminder(HabitReminder):
         super().__init__(config, default_user_id, llm_service, store, "bath")
 
     def _build_prompt(self, context: dict) -> str:
-        return f"""【重要】你的所有回复必须严格遵循系统人格设定。如果系统人格部分为空，则用你默认的对话风格。绝对不要偏离系统人格，不要用生硬的语气，不要叫用户'主人'。
+        return f"""【重要】你的所有回复必须严格遵循系统人格设定。如果系统人格部分为空，则用你默认的对话风格。。
 
 生成一条洗澡时间提醒：
 
@@ -148,7 +148,7 @@ class SleepReminder(HabitReminder):
         self.llm_service.set_fallback_template(
             self.FALLBACKS["sleep_late"] if is_late else self.FALLBACKS["sleep"]
         )
-        return f"""【重要】你的所有回复必须严格遵循系统人格设定。如果系统人格部分为空，则用你默认的对话风格。绝对不要偏离系统人格，不要用生硬的语气，不要叫用户'主人'。
+        return f"""【重要】你的所有回复必须严格遵循系统人格设定。如果系统人格部分为空，则用你默认的对话风格。。
 
 生成一条睡觉时间提醒：
 
@@ -174,7 +174,7 @@ class WaterReminder(HabitReminder):
         super().__init__(config, default_user_id, llm_service, store, "water")
 
     def _build_prompt(self, context: dict) -> str:
-        return f"""【重要】你的所有回复必须严格遵循系统人格设定。如果系统人格部分为空，则用你默认的对话风格。绝对不要偏离系统人格，不要用生硬的语气，不要叫用户'主人'。
+        return f"""【重要】你的所有回复必须严格遵循系统人格设定。如果系统人格部分为空，则用你默认的对话风格。。
 
 生成一条喝水提醒：
 
