@@ -232,62 +232,108 @@ class AppleCalendar:
         return await loop.run_in_executor(None, self._caldav_fetch_sync, cal_url)
 
     def _parse_vevents(self, ical_data: str) -> List[Dict]:
-        """解析 VEVENT，正确处理 UTC 和本地时区"""
+        """解析 VEVENT，正确处理 UTC 和本地时区
+
+        iCloud ICS 格式支持:
+        - DTSTART:20260422T073500Z           (UTC时间，带Z后缀)
+        - DTSTART;TZID=Asia/Shanghai:...     (本地时间，带TZID)
+        - DTSTART;VALUE=DATE:20260202        (全天事件)
+        """
         events = []
         local_tz = datetime.now().astimezone().tzinfo
+
         for ev in re.findall(r"BEGIN:VEVENT(.*?)END:VEVENT", ical_data, re.DOTALL):
             summary_m = re.search(r"SUMMARY:([^\r\n]+)", ev)
-            dtstart_m = re.search(r"DTSTART(?:;[^:]*)?:([\dTZ]+)", ev)
-            dtend_m = re.search(r"DTEND(?:;[^:]*)?:([\dTZ]+)", ev)
             uid_m = re.search(r"UID:([^\r\n]+)", ev)
             desc_m = re.search(r"DESCRIPTION:([^\r\n]*)", ev)
+
             summary = summary_m.group(1).strip() if summary_m else "无标题"
             uid = uid_m.group(1).strip() if uid_m else str(uuid.uuid4())
-            description = desc_m.group(1).replace(r"\n", "\n").strip() if desc_m else ""
-            dtstart_raw = dtstart_m.group(0) if dtstart_m else ""
-            has_tzid = bool(re.search(r"TZID=", dtstart_raw))
-            dtstart_str = dtstart_m.group(1) if dtstart_m else ""
-            dtstart_all_day = bool(re.search(r"VALUE=DATE", dtstart_raw) or (dtstart_str and len(dtstart_str) == 8))
-            def parse_dt(ds: str, is_all_day: bool = False, has_tz: bool = False) -> Optional[datetime]:
-                if not ds:
-                    return None
-                ds = ds.strip()
-                try:
-                    if len(ds) == 8:
-                        # 全天事件
-                        return datetime.strptime(ds, "%Y%m%d")
-                    elif len(ds) >= 15:
-                        # 尝试解析混合格式
-                        naive = datetime.strptime(ds[:15], "%Y%m%dT%H%M%S")
-                        is_utc = ds.upper().endswith("Z")
-                        
-                        # 有 TZID 标记 → 直接使用
-                        if has_tz:
-                            return naive
-                        
-                        # 有 Z 后缀 → 明确是 UTC
-                        if is_utc:
+            description = desc_m.group(1).replace("\\n", "\n").strip() if desc_m else ""
+
+            # 解析 DTSTART
+            dtstart_line = re.search(r"DTSTART[^\r\n]*", ev)
+            dtstart_all_day = False
+            start_time = None
+
+            if dtstart_line:
+                line = dtstart_line.group(0)
+
+                # 全天事件检测
+                if "VALUE=DATE" in line or re.search(r":\d{8}$", line):
+                    dtstart_all_day = True
+                    date_match = re.search(r":(\d{8})(?:T\d{6})?$", line)
+                    if date_match:
+                        start_time = datetime.strptime(date_match.group(1), "%Y%m%d")
+                else:
+                    # 提取时区信息
+                    tzid_match = re.search(r"TZID=([^:]+)", line)
+                    # 提取时间值
+                    value_match = re.search(r":(\d{8}T\d{6})", line)
+
+                    if value_match:
+                        time_str = value_match.group(1)
+                        naive = datetime.strptime(time_str, "%Y%m%dT%H%M%S")
+
+                        if tzid_match:
+                            try:
+                                from dateutil import tz as dateutil_tz
+                                tz_name = tzid_match.group(1)
+                                tz_obj = dateutil_tz.gettz(tz_name)
+                                if tz_obj:
+                                    aware = naive.replace(tzinfo=tz_obj)
+                                    start_time = aware.astimezone(local_tz).replace(tzinfo=None)
+                                else:
+                                    start_time = naive
+                            except Exception:
+                                start_time = naive
+                        elif line.rstrip().endswith("Z"):
                             utc = naive.replace(tzinfo=timezone.utc)
-                            return utc.astimezone(local_tz).replace(tzinfo=None)
-                        
-                        # 没有时区信息 → iCloud 使用本地时区，直接返回
-                        return naive
-                except ValueError:
-                    try:
-                        return datetime.strptime(ds[:8], "%Y%m%d")
-                    except ValueError:
-                        pass
-                return None
-            start_time = parse_dt(dtstart_str, dtstart_all_day, has_tzid)
+                            start_time = utc.astimezone(local_tz).replace(tzinfo=None)
+                        else:
+                            start_time = naive
+
+            # 解析 DTEND
+            dtend_line = re.search(r"DTEND[^\r\n]*", ev)
             end_time = None
-            if dtend_m:
-                dtend_str = dtend_m.group(1)
-                dtend_raw = dtend_m.group(0)
-                has_tzid_end = bool(re.search(r"TZID=", dtend_raw))
-                is_utc_end = dtend_str.upper().endswith("Z")
-                end_time = parse_dt(dtend_str, False, has_tzid_end or is_utc_end)
+
+            if dtend_line and not dtstart_all_day:
+                line = dtend_line.group(0)
+                tzid_match = re.search(r"TZID=([^:]+)", line)
+                value_match = re.search(r":(\d{8}T\d{6})", line)
+
+                if value_match:
+                    time_str = value_match.group(1)
+                    naive = datetime.strptime(time_str, "%Y%m%dT%H%M%S")
+
+                    if tzid_match:
+                        try:
+                            from dateutil import tz as dateutil_tz
+                            tz_name = tzid_match.group(1)
+                            tz_obj = dateutil_tz.gettz(tz_name)
+                            if tz_obj:
+                                aware = naive.replace(tzinfo=tz_obj)
+                                end_time = aware.astimezone(local_tz).replace(tzinfo=None)
+                            else:
+                                end_time = naive
+                        except Exception:
+                            end_time = naive
+                    elif line.rstrip().endswith("Z"):
+                        utc = naive.replace(tzinfo=timezone.utc)
+                        end_time = utc.astimezone(local_tz).replace(tzinfo=None)
+                    else:
+                        end_time = naive
+
             if start_time:
-                events.append({"uid": uid, "summary": summary, "description": description, "start": start_time.isoformat(), "end": end_time.isoformat() if end_time else None, "all_day": dtstart_all_day})
+                events.append({
+                    "uid": uid,
+                    "summary": summary,
+                    "description": description,
+                    "start": start_time.isoformat(),
+                    "end": end_time.isoformat() if end_time else None,
+                    "all_day": dtstart_all_day
+                })
+
         return events
 
     async def fetch_webcal_async(self, url: str, days: int = 30) -> List[Dict]:
