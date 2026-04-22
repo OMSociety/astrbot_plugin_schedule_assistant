@@ -55,8 +55,6 @@ class AppleCalendar:
                 if e.code >= 500 and attempt < retries - 1:
                     time.sleep(1 * (attempt + 1))
                     continue
-                body = e.read().decode("utf-8", errors="replace") if e.fp else ""
-                logger.warning(f"[AppleCalendar] 请求失败 HTTP {e.code}: {body[:200]}")
                 return None
             except Exception as e:
                 last_error = e
@@ -133,7 +131,7 @@ class AppleCalendar:
             if not self._principal_url:
                 logger.debug("[AppleCalendar] principal URL 组装失败")
                 return False
-            logger.info(f"[AppleCalendar] principal URL: {self._principal_url}")
+            logger.debug(f"[AppleCalendar] principal URL: {self._principal_url}")
             body2 = b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><C:calendar-home-set/></D:prop></D:propfind>'
             resp2 = self._request(self._principal_url, method="PROPFIND", data=body2, headers={"Authorization": self._auth_header(), "Content-Type": "text/xml"})
             if not resp2:
@@ -157,13 +155,12 @@ class AppleCalendar:
                 return False
             self._caldav_base_domain = urlparse(self._caldav_base_url).netloc
             self._discovered = True
-            logger.info(f"[AppleCalendar] CalDAV 发现成功: base={self._caldav_base_url}")
+            logger.debug(f"[AppleCalendar] CalDAV 发现成功: base={self._caldav_base_url}")
             return True
 
     def _propfind(self, url: str, depth: str = "1") -> Optional[str]:
         body = b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:"><D:prop><D:href/></D:prop></D:propfind>'
         return self._request(url, method="PROPFIND", data=body, headers={"Authorization": self._auth_header(), "Content-Type": "text/xml", "Depth": depth})
-
 
     async def _list_calendars(self) -> List[Dict]:
         """列出所有日历，带缓存"""
@@ -189,7 +186,7 @@ class AppleCalendar:
         self._calendars = calendars
         self._calendars_cache = list(calendars)
         self._calendars_ts = time.monotonic()
-        logger.info(f"[AppleCalendar] 发现 {len(calendars)} 个日历")
+        logger.debug(f"[AppleCalendar] 发现 {len(calendars)} 个日历")
         return calendars
 
     def _fetch_ics_sync(self, ics_url: str) -> Optional[str]:
@@ -290,9 +287,9 @@ class AppleCalendar:
                 async with session.get(http_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=aiohttp.ClientTimeout(total=30)) as resp:
                     ical_data = await resp.text()
             events = self._parse_vevents(ical_data)
-            logger.info(f"[AppleCalendar] WebCal 读取成功: {len(events)} 个事件")
-        except Exception as e:
-            logger.warning(f"[AppleCalendar] WebCal 读取失败: {e}")
+            logger.debug(f"[AppleCalendar] WebCal 读取成功: {len(events)} 个事件")
+        except Exception:
+            pass
         return events
 
     async def get_all_events(self, days: int = 1) -> List[Dict]:
