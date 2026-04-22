@@ -1,7 +1,4 @@
-"""
-Apple iCloud CalDAV 日历同步模块
-支持：日历发现 / PROPFIND读取事件 / 创建&删除事件 / 时区正确处理
-"""
+"""Apple iCloud CalDAV 日历同步模块"""
 import urllib.request
 import urllib.error
 import base64
@@ -82,20 +79,21 @@ class AppleCalendar:
             logger.debug("[AppleCalendar] CalDAV 发现失败，未配置 Apple 日历")
             return False
 
-        # 兼容有无命名空间前缀
+        # 兼容有无命名空间前缀，principal href 格式是 /数字/principal/
         m = re.search(r"<current-user-principal[^>]*>(.*?)</[^>]+>", resp1, re.DOTALL)
-        if not m:
-            m = re.search(r"href>([^<]+)<", resp1)
-        principal_href = m.group(1).strip() if m else None
+        if m:
+            inner = m.group(1)
+            m2 = re.search(r"/(\d+/\w+)/?$", inner)
+            principal_href = "/" + m2.group(1) if m2 else None
+        else:
+            principal_href = None
 
         if not principal_href:
             logger.error("[AppleCalendar] 无法解析 principal URL")
             return False
 
-        if principal_href.startswith("https://"):
-            self._principal_url = principal_href.rstrip("/")
-        else:
-            self._principal_url = f"https://caldav.icloud.com{principal_href}".rstrip("/")
+        self._principal_url = f"https://caldav.icloud.com{principal_href}".rstrip("/")
+        logger.info(f"[AppleCalendar] principal URL: {self._principal_url}")
 
         # Step 2: 获取 calendar home set
         body2 = b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><C:calendar-home-set/></D:prop></D:propfind>'
@@ -109,24 +107,28 @@ class AppleCalendar:
             logger.error("[AppleCalendar] principal URL 无响应，跳过日历发现（请检查网络或凭据）")
             return False
 
-        m2 = re.search(r"calendar-home-set[^>]*>(.*?)(?:</calendar-home-set>|/>)", resp2, re.DOTALL)
-        cal_home_block = m2.group(1) if m2 else ""
-        m3 = re.search(r"href[^>]*>([^<]+)<", cal_home_block)
-        cal_home_href = m3.group(1).strip() if m3 else None
+        # 直接找所有 href，取包含数字的那个（calendar home 路径）
+        hrefs = re.findall(r"<[^>]*:href[^>]*>([^<]+)<", resp2)
+        cal_home_href = None
+        for href in hrefs:
+            if re.match(r"/\d+/", href):
+                cal_home_href = href.strip()
+                break
 
         if not cal_home_href:
             logger.error("[AppleCalendar] 无法解析 calendar home set URL")
             return False
 
-        if cal_home_href.startswith("https://"):
-            self._caldav_base_url = cal_home_href.rstrip("/")
-            self._caldav_base_domain = cal_home_href.split("/")[2]
+        self._caldav_base_url = f"https://caldav.icloud.com{cal_home_href}".rstrip("/")
+        # 提取域名
+        path_parts = cal_home_href.strip("/").split("/")
+        if path_parts:
+            self._caldav_base_domain = f"p{path_parts[0]}-caldav.icloud.com:443"
         else:
-            self._caldav_base_domain = "p218-caldav.icloud.com.cn:443"
-            self._caldav_base_url = f"https://{self._caldav_base_domain}{cal_home_href}".rstrip("/")
+            self._caldav_base_domain = "caldav.icloud.com:443"
 
         self._discovered = True
-        logger.info(f"[AppleCalendar] CalDAV 发现成功: base={self._caldav_base_url}")
+        logger.info(f"[AppleCalendar] CalDAV 发现成功: base={self._caldav_base_url}, domain={self._caldav_base_domain}")
         return True
 
     # ── 日历列表 ─────────────────────────────────────────────────────────
@@ -154,22 +156,20 @@ class AppleCalendar:
             return []
 
         calendars = []
-        for pattern in [
-            r"<D:href[^>]*>([^<]+)</D:href>",
-            r"<href[^>]*>([^<]+)</href>",
-            r"<(?:D:)?href[^>]*>([^<]+)</(?:D:)?href>",
-        ]:
-            for m in re.findall(pattern, resp):
-                href = m.strip()
-                if not href:
-                    continue
-                if re.search(r"/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/$", href):
-                    path_parts = [p for p in href.strip("/").split("/") if p]
-                    last = path_parts[-1] if path_parts else ""
-                    if re.match(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", last):
-                        cal_id = last
-                        cal_url = f"{self._caldav_base_url}/{cal_id}"
-                        calendars.append({"href": href, "url": cal_url, "id": cal_id, "name": ""})
+        # 匹配日历 UUID
+        hrefs = re.findall(r"<[^>]*:href[^>]*>([^<]+)</[^>]*:href>", resp)
+        for href in hrefs:
+            href = href.strip()
+            if not href:
+                continue
+            # 日历 UUID 在路径中
+            path_parts = [p for p in href.strip("/").split("/") if p]
+            if path_parts:
+                last = path_parts[-1]
+                if re.match(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", last):
+                    cal_id = last
+                    cal_url = f"{self._caldav_base_url}/{cal_id}"
+                    calendars.append({"href": href, "url": cal_url, "id": cal_id, "name": ""})
 
         self._calendars = calendars
         logger.info(f"[AppleCalendar] 发现 {len(calendars)} 个日历")
@@ -192,21 +192,17 @@ class AppleCalendar:
             return []
 
         ics_urls = []
-        for pattern in [
-            r"<D:href[^>]*>([^<]+)</D:href>",
-            r"<href[^>]*>([^<]+)</href>",
-            r"<(?:D:)?href[^>]*>([^<]+)</(?:D:)?href>",
-        ]:
-            for m in re.findall(pattern, resp):
-                href = m.strip()
-                if href.endswith(".ics"):
-                    if href.startswith("/"):
-                        ics_url = f"https://{self._caldav_base_domain}{href}"
-                    elif href.startswith("https://"):
-                        ics_url = href
-                    else:
-                        ics_url = f"{cal_url.rstrip('/')}/{href}"
-                    ics_urls.append(ics_url)
+        hrefs = re.findall(r"<[^>]*:href[^>]*>([^<]+)</[^>]*:href>", resp)
+        for href in hrefs:
+            href = href.strip()
+            if href.endswith(".ics"):
+                if href.startswith("/"):
+                    ics_url = f"https://{self._caldav_base_domain}{href}"
+                elif href.startswith("https://"):
+                    ics_url = href
+                else:
+                    ics_url = f"{cal_url.rstrip('/')}/{href}"
+                ics_urls.append(ics_url)
 
         if not ics_urls:
             return []
@@ -239,7 +235,7 @@ class AppleCalendar:
             summary_m = re.search(r"SUMMARY:([^\r\n]+)", ev)
             dtstart_m = re.search(r"DTSTART(?:;[^:]*)?:([\dT]+)", ev)
             dtend_m = re.search(r"DTEND(?:;[^:]*)?:([\dT]+)", ev)
-            uid_m = re.search(r"UID:[^\r\n]+", ev)
+            uid_m = re.search(r"UID:([^\r\n]+)", ev)
             desc_m = re.search(r"DESCRIPTION:([^\r\n]*)", ev)
 
             summary = summary_m.group(1).strip() if summary_m else "无标题"
