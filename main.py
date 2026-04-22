@@ -149,6 +149,7 @@ class ScheduleAssistant(Star):
                                 transaction_db = db_id
                             elif name in ("阅读", "reading"):
                                 reading_db = db_id
+                        # 兼容旧格式：未带前缀时按顺序映射（第1个→事务，第2个→阅读）
                         elif not transaction_db:
                             transaction_db = raw
                             logger.warning(
@@ -158,6 +159,10 @@ class ScheduleAssistant(Star):
                             reading_db = raw
                             logger.warning(
                                 f"{LOG_PREFIX} notion_db_ids 使用无前缀字符串，已按顺序第2个映射为「阅读库」"
+                            )
+                        elif raw:
+                            logger.warning(
+                                f"{LOG_PREFIX} notion_db_ids 额外无前缀字符串未使用: {raw[:12]}..."
                             )
                 self.notion = NotionClient(
                     maton_key,
@@ -507,6 +512,11 @@ class ScheduleAssistant(Star):
             raw_minutes = self.config.get("schedule_reminder_minutes", 10)
             if raw_minutes in (None, ""):
                 raw_minutes = 10
+            if isinstance(raw_minutes, str):
+                raw_minutes = raw_minutes.strip()
+                if not raw_minutes.isdigit():
+                    logger.warning(f"{LOG_PREFIX} schedule_reminder_minutes 非数字，使用默认值 10")
+                    raw_minutes = 10
             minutes_ahead = int(raw_minutes)
         except Exception:
             minutes_ahead = 10

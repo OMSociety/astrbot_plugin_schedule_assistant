@@ -43,15 +43,18 @@ class ScheduleReminder:
             label = "日程"
             time_display = f"时间 {item_time}"
         
-        if isinstance(dashboard_status, dict) and dashboard_status.get("has_dashboard"):
+        if not isinstance(dashboard_status, dict):
+            dashboard_status = {}
+
+        if dashboard_status.get("has_dashboard"):
             dash_lines = []
             for section in ["mood", "energy", "health", "weather", "tasks"]:
                 val = dashboard_status.get(section)
                 if val:
                     dash_lines.append(f"  - {section}: {val}")
             dash_block = "近期状态:\n" + "\n".join(dash_lines) if dash_lines else "近期状态:（暂无数据）"
-        elif isinstance(dashboard_status, str) and dashboard_status.strip():
-            dash_block = f"近期状态:\n{dashboard_status.strip()}"
+        elif dashboard_status.get("raw_text"):
+            dash_block = f"近期状态:\n{dashboard_status.get('raw_text').strip()}"
         else:
             dash_block = "近期状态:（未开启 Dashboard）"
         
@@ -92,7 +95,8 @@ class ScheduleReminder:
         
         try:
             if self.dashboard and hasattr(self.dashboard, "get_status"):
-                dashboard_status = await self.dashboard.get_status()
+                dashboard_text = await self.dashboard.get_status()
+                dashboard_status = {"raw_text": dashboard_text} if dashboard_text else {"has_dashboard": False}
             else:
                 dashboard_status = {"has_dashboard": False}
         except Exception:

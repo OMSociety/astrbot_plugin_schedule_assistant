@@ -51,7 +51,7 @@ class LLMService:
         self, prompt: str, system_prompt: str | None = None, temperature: float = 0.7
     ) -> str:
         global _llm_failure_time
-        # 兼容旧接口参数；当前 AstrBot llm_generate 接口未暴露 temperature
+        # 兼容旧接口参数；当前 AstrBot llm_generate 接口未公开 temperature
         if not self.context:
             return self._fallback_template if self._fallback_template else ""
         provider_id = self._get_provider_id()
