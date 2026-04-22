@@ -45,6 +45,7 @@ from .services.dashboard import DashboardService, get_dashboard_status
 from .services.llm import LLMService
 from .reminders.briefing import BriefingReminder
 from .reminders.habits import BathReminder, SleepReminder, WaterReminder
+from .tools.schedule_tools import register_schedule_tools
 
 
 class ScheduleAssistant(Star):
@@ -56,11 +57,13 @@ class ScheduleAssistant(Star):
         self.weather_service: Optional[WeatherService] = None
         self.notion_service: Optional[NotionService] = None
         self.llm_service: Optional[LLMService] = None
+        self.dashboard_service: Optional[DashboardService] = None
         self.apple_calendar: Optional[AppleCalendar] = None
         self.notion: Optional[NotionClient] = None
         self._services_ready = False
         self._tasks_registered = False
         self._init_task: Optional[asyncio.Task] = None
+        self._tools_registered = False
 
         self.default_user_id: Optional[str] = None
         whitelist = self.config.get("whitelist_qq_ids", [])
@@ -100,7 +103,13 @@ class ScheduleAssistant(Star):
         if self._services_ready:
             return
         self._services_ready = True
+
         conf = self.config
+
+        # 注册 LLM 日程管理工具（需要等服务初始化完成后）
+        if not self._tools_registered:
+            register_schedule_tools(self)
+            self._tools_registered = True
 
         api_key = self.config.get("weather_api_key")
         city = self.config.get("weather_city", "杭州")
@@ -514,7 +523,7 @@ class ScheduleAssistant(Star):
             date_str = now.strftime("%Y-%m-%d")
             weekday_str = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][now.weekday()]
 
-            dashboard_status = await get_dashboard_status() if hasattr(self, 'dashboard_service') else "暂无"
+            dashboard_status = await get_dashboard_status() if self.dashboard_service else "暂无"
             late_night_text = ""
             if self.apple_calendar:
                 try:
@@ -552,7 +561,7 @@ class ScheduleAssistant(Star):
             if not target_user_ids:
                 return
 
-            dashboard = await get_dashboard_status() if hasattr(self, 'dashboard_service') and self.dashboard_service else ""
+            dashboard = await get_dashboard_status() if self.dashboard_service else ""
             for user_id in target_user_ids:
                 history = await self.store.get_conversation_history(user_id)
                 history_text = self.store.format_history_for_prompt(history[-5:]) if history else ""
@@ -570,7 +579,7 @@ class ScheduleAssistant(Star):
             if not target_user_ids:
                 return
 
-            dashboard = await get_dashboard_status() if hasattr(self, 'dashboard_service') and self.dashboard_service else ""
+            dashboard = await get_dashboard_status() if self.dashboard_service else ""
             for user_id in target_user_ids:
                 history = await self.store.get_conversation_history(user_id)
                 history_text = self.store.format_history_for_prompt(history[-5:]) if history else ""
@@ -588,7 +597,7 @@ class ScheduleAssistant(Star):
             if not target_user_ids:
                 return
 
-            dashboard = await get_dashboard_status() if hasattr(self, 'dashboard_service') and self.dashboard_service else ""
+            dashboard = await get_dashboard_status() if self.dashboard_service else ""
             for user_id in target_user_ids:
                 history = await self.store.get_conversation_history(user_id)
                 history_text = self.store.format_history_for_prompt(history[-5:]) if history else ""
@@ -828,7 +837,13 @@ class ScheduleAssistant(Star):
 /喝水 - 立即提醒喝水
 /早安 - 生成早安播报
 /洗澡 - 立即提醒洗澡
-/睡觉 - 立即提醒睡觉"""
+/睡觉 - 立即提醒睡觉
+
+✨ 也可以直接用自然语言管理日程：
+"帮我加个明天9点开组会"
+"看看这周有什么安排"
+"删除明天的读书会"
+"""
         await event.reply(help_text)
 
 
