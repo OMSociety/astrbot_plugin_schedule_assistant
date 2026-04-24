@@ -1,6 +1,6 @@
 # Schedule Assistant 日程助手
 
-> 图标来源：[Pixiv PID: 130776279](https://www.pixiv.net/artworks/130776279)
+> 插件 Logo 来源于 Pixiv Pid: [130776279](https://www.pixiv.net/artworks/130776279)
 
 你的贴心日程管家，支持 Apple 日历双向同步、Notion 待办、日程 LLM 智能提醒、Live Dashboard 视奸面板
 
