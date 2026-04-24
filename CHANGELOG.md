@@ -4,7 +4,7 @@
 
 ---
 
-## [2.1.0] - 2026-04-XX
+## [2.1.0] - 2026-04-25
 
 ### 新增
 - **Live Dashboard 视奸面板功能**：合并自 [astrbot_plugin_live_dashboard](https://github.com/DBJD-CR/astrbot_plugin_live_dashboard)
