@@ -105,6 +105,7 @@ LLM 工具：`query_live_dashboard_status` — 在对话中自动调用查询
 | `water_start_time` | string | `09:30` | 喝水开始时间 |
 | `water_end_time` | string | `21:30` | 喝水结束时间 |
 | `schedule_reminder_minutes` | int | `10` | 日程提前提醒分钟数 |
+| `schedule_reminder_check_interval` | int | `5` | 日程提醒扫描间隔（分钟），建议设为提前量的 1/3~1/2 |
 | `apple_calendar_sync_interval` | int | `30` | Apple 日历同步间隔（分钟） |
 
 ### 其他配置

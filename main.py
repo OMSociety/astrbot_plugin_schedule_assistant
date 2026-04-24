@@ -363,16 +363,22 @@ class ScheduleAssistant(Star):
             logger.info(f"{LOG_PREFIX} Apple 日历同步任务已注册（每 {sync_interval} 分钟）")
 
         if conf.get("enable_schedule_reminder"):
+            check_interval = conf.get("schedule_reminder_check_interval", 5)
+            try:
+                check_interval = max(2, int(check_interval))
+            except (ValueError, TypeError):
+                check_interval = 5
             self._add_or_replace_job(
                 self._schedule_reminder_scan,
-                CronTrigger(second=30),
+                "interval",
                 job_id="schedule_reminder_scan",
-                # 防重入/堆积：单实例执行，misfire 时合并，避免重启后集中补跑。
+                minutes=check_interval,
+                # 防重入/堆积：单实例执行，misfire 时合并。
                 max_instances=1,
                 coalesce=True,
-                misfire_grace_time=30,
+                misfire_grace_time=check_interval * 60,
             )
-            logger.info(f"{LOG_PREFIX} 日程 LLM 提醒已启用（每分钟）")
+            logger.info(f"{LOG_PREFIX} 日程 LLM 提醒已启用（每 {check_interval} 分钟）")
 
         if conf.get("enable_water_reminder", True):
             water_interval = conf.get("water_interval", DEFAULT_WATER_INTERVAL)
@@ -772,16 +778,32 @@ class ScheduleAssistant(Star):
                 if not user_ids:
                     logger.debug(f"{LOG_PREFIX} Apple Calendar 已读取 {len(events)} 个事件，但无可同步用户")
                     return
+                recent_events_added = False
                 for user_id in user_ids:
                     stats = await self.store.sync_from_apple_calendar(user_id, events)
                     logger.debug(
                         f"{LOG_PREFIX} Apple→本地同步 user={user_id} "
                         f"added={stats['added']} updated={stats['updated']} deleted={stats['deleted']}"
                     )
+                    if stats.get('added', 0) > 0:
+                        recent_events_added = True
+
+                # 如果新增了近期事件，触发一次即时扫描（30秒后）
+                if recent_events_added and conf.get("enable_schedule_reminder"):
+                    asyncio.create_task(self._delayed_schedule_reminder_scan())
+                    logger.debug(f"{LOG_PREFIX} 检测到 Apple 日程新增，已安排即时扫描")
             except Exception as e:
                 logger.error(f"{LOG_PREFIX} Apple Calendar 同步失败: {e}")
         finally:
             lock.release()
+
+    async def _delayed_schedule_reminder_scan(self):
+        """延迟触发日程提醒扫描，用于 Apple 同步后补扫"""
+        await asyncio.sleep(30)
+        try:
+            await self._schedule_reminder_scan()
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} 即时扫描失败: {e}")
 
     async def _clear_expired_overrides(self):
         if not self._is_active_instance():
