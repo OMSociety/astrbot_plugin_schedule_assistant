@@ -134,12 +134,15 @@ class DeleteScheduleTool(FunctionTool[AstrAgentContext]):
                 "schedule_id": {
                     "type": "string",
                     "description": "日程ID（精确匹配），如 abc123",
+                    "nullable": True,
                 },
                 "title_keyword": {
                     "type": "string",
                     "description": "日程标题关键词（模糊匹配），如「开会」「组会」",
+                    "nullable": True,
                 },
             },
+            "required": [],
         }
     )
 
@@ -154,8 +157,8 @@ class DeleteScheduleTool(FunctionTool[AstrAgentContext]):
 
     async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs):
         try:
-            schedule_id = kwargs.get("schedule_id", "").strip()
-            title_keyword = kwargs.get("title_keyword", "").strip()
+            schedule_id = (kwargs.get("schedule_id") or "").strip()
+            title_keyword = (kwargs.get("title_keyword") or "").strip()
 
             if not schedule_id and not title_keyword:
                 return ToolExecResult("请提供日程ID或标题关键词")
@@ -211,8 +214,10 @@ class ListSchedulesTool(FunctionTool[AstrAgentContext]):
                 "days": {
                     "type": "number",
                     "description": "查看最近几天的日程，默认7天",
+                    "nullable": True,
                 },
             },
+            "required": [],
         }
     )
 
@@ -298,24 +303,30 @@ class UpdateScheduleTool(FunctionTool[AstrAgentContext]):
                 "schedule_id": {
                     "type": "string",
                     "description": "日程ID（精确匹配）",
+                    "nullable": True,
                 },
                 "title_keyword": {
                     "type": "string",
                     "description": "日程标题关键词（模糊匹配），用于定位日程",
+                    "nullable": True,
                 },
                 "new_title": {
                     "type": "string",
                     "description": "新标题",
+                    "nullable": True,
                 },
                 "new_datetime": {
                     "type": "string",
                     "description": "新时间，格式如「2024-01-15 14:30」「明天9点」",
+                    "nullable": True,
                 },
                 "new_description": {
                     "type": "string",
                     "description": "新备注",
+                    "nullable": True,
                 },
             },
+            "required": [],
         }
     )
 
@@ -330,11 +341,11 @@ class UpdateScheduleTool(FunctionTool[AstrAgentContext]):
 
     async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs):
         try:
-            schedule_id = kwargs.get("schedule_id", "").strip()
-            title_keyword = kwargs.get("title_keyword", "").strip()
-            new_title = kwargs.get("new_title", "").strip()
-            new_datetime = kwargs.get("new_datetime", "").strip()
-            new_description = kwargs.get("new_description", "").strip()
+            schedule_id = (kwargs.get("schedule_id") or "").strip()
+            title_keyword = (kwargs.get("title_keyword") or "").strip()
+            new_title = (kwargs.get("new_title") or "").strip()
+            new_datetime = (kwargs.get("new_datetime") or "").strip()
+            new_description = (kwargs.get("new_description") or "").strip()
 
             if not schedule_id and not title_keyword:
                 return ToolExecResult("请提供要修改的日程ID或标题关键词")

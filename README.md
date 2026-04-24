@@ -33,6 +33,24 @@
 用户: 看看这周有什么安排
 ```
 
+### 📊 Live Dashboard 视奸面板
+**实时查询设备状态：**
+- 查询当前设备在线情况
+- 显示应用名、窗口标题
+- 电量与充电状态
+- 音乐播放信息
+- **黑名单机制**：用户/群组/信息黑名单
+
+**使用方式：**
+```
+/视奸
+/live
+/dashboard
+/设备状态
+```
+
+**LLM 工具**：`query_live_dashboard_status` — 在对话中自动调用查询
+
 ### 🍎 Apple iCloud 日历双向同步
 **读取（Apple → 本地）：**
 - 配置 `enable_apple_calendar_sync`，定时拉取 iCloud 日历事件到本地
