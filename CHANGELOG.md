@@ -2,6 +2,21 @@
 
 ---
 
+## v2.0.0
+
+### 新增
+- **Live Dashboard 视奸面板功能**：合并自 [astrbot_plugin_live_dashboard](https://github.com/DBJD-CR/astrbot_plugin_live_dashboard)
+  - 支持 `/视奸` `/live` `/dashboard` `/设备状态` 命令查询设备状态
+  - LLM 工具 `query_live_dashboard_status`，支持对话中自动调用
+  - 丰富的黑名单机制（用户/群组/信息黑名单）
+  - 可配置显示项（平台/应用名/标题/电量/音乐/最后活跃时间等）
+- 配置项重构：Live Dashboard 配置独立成区块，与日程、Apple日历等配置分类管理
+
+### 修复
+- 修复 LLM 工具 schema 中可选参数校验问题（nullable + required: []）
+
+---
+
 ## v1.9.0
 
 ### 新增

@@ -3,7 +3,7 @@
 > 🤖 **AI Generated** — 本插件由 AI 编写
 
 > 图标 Pixiv ID: [130776279](https://www.pixiv.net/artworks/130776279)
-你的贴心日程管家，支持 Apple 日历双向同步、Notion 待办、日程 LLM 智能提醒
+你的贴心日程管家，支持 Apple 日历双向同步、Notion 待办、日程 LLM 智能提醒、Live Dashboard 视奸面板
 
 ---
 
@@ -50,6 +50,9 @@
 ```
 
 **LLM 工具**：`query_live_dashboard_status` — 在对话中自动调用查询
+
+> [!NOTE]
+> Live Dashboard 功能由 [astrbot_plugin_live_dashboard](https://github.com/DBJD-CR/astrbot_plugin_live_dashboard) 合并而来，感谢原作者 DBJD-CR 的贡献！
 
 ### 🍎 Apple iCloud 日历双向同步
 **读取（Apple → 本地）：**
