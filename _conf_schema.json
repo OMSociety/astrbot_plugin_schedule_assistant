@@ -103,6 +103,119 @@
     "description": "WebCal 共享日历链接",
     "hint": "格式：webcal://pXXX-caldav.icloud.com.cn/published/..."
   },
+  "live_dashboard": {
+    "type": "object",
+    "description": "Live Dashboard 视奸面板配置",
+    "properties": {
+      "base_url": {
+        "description": "Live Dashboard 服务地址",
+        "type": "string",
+        "hint": "例如 https://your-domain.com 或 http://localhost:3000。不需要填写 /api/current，插件会自动拼接。",
+        "default": ""
+      },
+      "auth_token": {
+        "description": "可选鉴权 Token",
+        "type": "string",
+        "hint": "仅当你的服务端或反向代理要求认证时填写。会以 Authorization: Bearer <token> 形式发送。",
+        "default": "",
+        "obvious_hint": true
+      },
+      "request_timeout_sec": {
+        "description": "请求超时时间（秒）",
+        "type": "int",
+        "default": 30,
+        "hint": ""
+      },
+      "include_offline_devices": {
+        "description": "是否包含离线设备",
+        "type": "bool",
+        "default": false
+      },
+      "max_devices": {
+        "description": "最多展示设备数量",
+        "type": "int",
+        "default": 10,
+        "hint": "用于避免回复过长。"
+      },
+      "device_whitelist_keywords": {
+        "description": "设备白名单关键词（命中才显示）",
+        "type": "string",
+        "default": "",
+        "hint": "支持逗号/分号/换行分隔；仅匹配 device_name（设备名）。"
+      },
+      "device_blacklist_keywords": {
+        "description": "设备黑名单关键词（命中则隐藏）",
+        "type": "string",
+        "default": "",
+        "hint": "支持逗号/分号/换行分隔；仅匹配 device_name（设备名），黑名单优先级高于白名单。"
+      },
+      "group_blacklist_sessions": {
+        "description": "群组黑名单（按 session_id 匹配）",
+        "type": "string",
+        "default": "",
+        "hint": "支持逗号/分号/换行分隔；命中后该会话内不响应查询。可填写完整 session_id（如 GroupMessage:123456789），也可仅填写尾部群号。"
+      },
+      "user_blacklist_senders": {
+        "description": "用户黑名单（按 sender_id 匹配）",
+        "type": "string",
+        "default": "",
+        "hint": "支持逗号/分号/换行分隔；命中后不响应该用户查询。"
+      },
+      "info_blacklist_keywords": {
+        "description": "信息黑名单关键词（应用名/标题命中即替换）",
+        "type": "string",
+        "default": "",
+        "hint": "支持逗号/分号/换行分隔；用于隐藏个人姓名、私密应用等敏感词。"
+      },
+      "info_blacklist_replacement": {
+        "description": "信息黑名单替换文案",
+        "type": "string",
+        "default": "不想让你看到我在干什么喵~",
+        "hint": "当应用名或标题命中信息黑名单关键词时，用该文案替换。"
+      },
+      "show_platform": {
+        "description": "显示设备平台（windows/macos/android）",
+        "type": "bool",
+        "default": true
+      },
+      "show_app_name": {
+        "description": "显示当前应用名",
+        "type": "bool",
+        "default": true
+      },
+      "show_display_title": {
+        "description": "显示 display_title 字段",
+        "type": "bool",
+        "default": true,
+        "hint": "若更重视隐私可关闭。"
+      },
+      "show_battery": {
+        "description": "显示电量信息",
+        "type": "bool",
+        "default": true
+      },
+      "show_music": {
+        "description": "显示音乐信息",
+        "type": "bool",
+        "default": true
+      },
+      "show_last_seen": {
+        "description": "显示最后上报时间",
+        "type": "bool",
+        "default": true
+      },
+      "show_viewer_count": {
+        "description": "显示访客数量",
+        "type": "bool",
+        "default": false
+      },
+      "show_server_time": {
+        "description": "显示服务端时间",
+        "type": "bool",
+        "default": false
+      }
+    }
+  },
   "notion_db_ids": {
     "type": "list",
     "items": {
@@ -164,112 +277,5 @@
     },
     "description": "用户平台绑定",
     "hint": "格式：user_id:platform_id，用于多平台路由"
-  },
-  "live_dashboard_base_url": {
-    "description": "Live Dashboard 服务地址",
-    "type": "string",
-    "hint": "例如 https://your-domain.com 或 http://localhost:3000。不需要填写 /api/current，插件会自动拼接。",
-    "default": ""
-  },
-  "live_dashboard_auth_token": {
-    "description": "可选鉴权 Token",
-    "type": "string",
-    "hint": "仅当你的服务端或反向代理要求认证时填写。会以 Authorization: Bearer <token> 形式发送。",
-    "default": "",
-    "obvious_hint": true
-  },
-  "live_dashboard_request_timeout_sec": {
-    "description": "请求超时时间（秒）",
-    "type": "int",
-    "default": 30,
-    "hint": ""
-  },
-  "live_dashboard_include_offline_devices": {
-    "description": "是否包含离线设备",
-    "type": "bool",
-    "default": false
-  },
-  "live_dashboard_max_devices": {
-    "description": "最多展示设备数量",
-    "type": "int",
-    "default": 10,
-    "hint": "用于避免回复过长。"
-  },
-  "live_dashboard_device_whitelist_keywords": {
-    "description": "设备白名单关键词（命中才显示）",
-    "type": "string",
-    "default": "",
-    "hint": "支持逗号/分号/换行分隔；仅匹配 device_name（设备名）。"
-  },
-  "live_dashboard_device_blacklist_keywords": {
-    "description": "设备黑名单关键词（命中则隐藏）",
-    "type": "string",
-    "default": "",
-    "hint": "支持逗号/分号/换行分隔；仅匹配 device_name（设备名），黑名单优先级高于白名单。"
-  },
-  "live_dashboard_group_blacklist_sessions": {
-    "description": "群组黑名单（按 session_id 匹配）",
-    "type": "string",
-    "default": "",
-    "hint": "支持逗号/分号/换行分隔；命中后该会话内不响应查询。可填写完整 session_id（如 GroupMessage:123456789），也可仅填写尾部群号。"
-  },
-  "live_dashboard_user_blacklist_senders": {
-    "description": "用户黑名单（按 sender_id 匹配）",
-    "type": "string",
-    "default": "",
-    "hint": "支持逗号/分号/换行分隔；命中后不响应该用户查询。"
-  },
-  "live_dashboard_info_blacklist_keywords": {
-    "description": "信息黑名单关键词（应用名/标题命中即替换）",
-    "type": "string",
-    "default": "",
-    "hint": "支持逗号/分号/换行分隔；用于隐藏个人姓名、私密应用等敏感词。"
-  },
-  "live_dashboard_info_blacklist_replacement": {
-    "description": "信息黑名单替换文案",
-    "type": "string",
-    "default": "不想让你看到我在干什么喵~",
-    "hint": "当应用名或标题命中信息黑名单关键词时，用该文案替换。"
-  },
-  "live_dashboard_show_platform": {
-    "description": "显示设备平台（windows/macos/android）",
-    "type": "bool",
-    "default": true
-  },
-  "live_dashboard_show_app_name": {
-    "description": "显示当前应用名",
-    "type": "bool",
-    "default": true
-  },
-  "live_dashboard_show_display_title": {
-    "description": "显示 display_title 字段",
-    "type": "bool",
-    "default": true,
-    "hint": "若更重视隐私可关闭。"
-  },
-  "live_dashboard_show_battery": {
-    "description": "显示电量信息",
-    "type": "bool",
-    "default": true
-  },
-  "live_dashboard_show_music": {
-    "description": "显示音乐信息",
-    "type": "bool",
-    "default": true
-  },
-  "live_dashboard_show_last_seen": {
-    "description": "显示最后上报时间",
-    "type": "bool",
-    "default": true
-  },
-  "live_dashboard_show_viewer_count": {
-    "description": "显示访客数量",
-    "type": "bool",
-    "default": false
-  },
-  "live_dashboard_show_server_time": {
-    "description": "显示服务端时间",
-    "type": "bool",
-    "default": false
   }
 }

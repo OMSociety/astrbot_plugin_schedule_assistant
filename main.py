@@ -821,26 +821,27 @@ class ScheduleAssistant(Star):
 
     def _get_live_dashboard_config(self) -> dict:
         """从主配置中提取 live_dashboard 相关配置"""
+        live_config = self.config.get("live_dashboard", {}) or {}
         return {
-            "base_url": self.config.get("live_dashboard_base_url", ""),
-            "auth_token": self.config.get("live_dashboard_auth_token", ""),
-            "request_timeout_sec": self.config.get("live_dashboard_request_timeout_sec", 30),
-            "include_offline_devices": self.config.get("live_dashboard_include_offline_devices", False),
-            "max_devices": self.config.get("live_dashboard_max_devices", 10),
-            "device_whitelist_keywords": self.config.get("live_dashboard_device_whitelist_keywords", ""),
-            "device_blacklist_keywords": self.config.get("live_dashboard_device_blacklist_keywords", ""),
-            "group_blacklist_sessions": self.config.get("live_dashboard_group_blacklist_sessions", ""),
-            "user_blacklist_senders": self.config.get("live_dashboard_user_blacklist_senders", ""),
-            "info_blacklist_keywords": self.config.get("live_dashboard_info_blacklist_keywords", ""),
-            "info_blacklist_replacement": self.config.get("live_dashboard_info_blacklist_replacement", "不想让你看到我在干什么喵~"),
-            "show_platform": self.config.get("live_dashboard_show_platform", True),
-            "show_app_name": self.config.get("live_dashboard_show_app_name", True),
-            "show_display_title": self.config.get("live_dashboard_show_display_title", True),
-            "show_battery": self.config.get("live_dashboard_show_battery", True),
-            "show_music": self.config.get("live_dashboard_show_music", True),
-            "show_last_seen": self.config.get("live_dashboard_show_last_seen", True),
-            "show_viewer_count": self.config.get("live_dashboard_show_viewer_count", False),
-            "show_server_time": self.config.get("live_dashboard_show_server_time", False),
+            "base_url": live_config.get("base_url", ""),
+            "auth_token": live_config.get("auth_token", ""),
+            "request_timeout_sec": live_config.get("request_timeout_sec", 30),
+            "include_offline_devices": live_config.get("include_offline_devices", False),
+            "max_devices": live_config.get("max_devices", 10),
+            "device_whitelist_keywords": live_config.get("device_whitelist_keywords", ""),
+            "device_blacklist_keywords": live_config.get("device_blacklist_keywords", ""),
+            "group_blacklist_sessions": live_config.get("group_blacklist_sessions", ""),
+            "user_blacklist_senders": live_config.get("user_blacklist_senders", ""),
+            "info_blacklist_keywords": live_config.get("info_blacklist_keywords", ""),
+            "info_blacklist_replacement": live_config.get("info_blacklist_replacement", "不想让你看到我在干什么喵~"),
+            "show_platform": live_config.get("show_platform", True),
+            "show_app_name": live_config.get("show_app_name", True),
+            "show_display_title": live_config.get("show_display_title", True),
+            "show_battery": live_config.get("show_battery", True),
+            "show_music": live_config.get("show_music", True),
+            "show_last_seen": live_config.get("show_last_seen", True),
+            "show_viewer_count": live_config.get("show_viewer_count", False),
+            "show_server_time": live_config.get("show_server_time", False),
         }
 
     def _get_live_dashboard_denied_text(self, event) -> str:
