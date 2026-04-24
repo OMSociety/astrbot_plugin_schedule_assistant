@@ -1,8 +1,10 @@
 # 更新日志
 
+> 本项目仍处于活跃维护中。
+
 ---
 
-## v2.0.0
+## [2.1.0] - 2026-04-XX
 
 ### 新增
 - **Live Dashboard 视奸面板功能**：合并自 [astrbot_plugin_live_dashboard](https://github.com/DBJD-CR/astrbot_plugin_live_dashboard)
@@ -17,26 +19,35 @@
 
 ---
 
-## v1.9.0
+## [2.0.0] - 2026-04-23
 
 ### 新增
-- 注册 4 个 LLM 日程管理工具：`create_schedule` / `delete_schedule` / `list_schedules` / `update_schedule`。
-- 支持自然语言时间解析与标题关键词匹配。
+- 注册 4 个 LLM 日程管理工具：`create_schedule` / `delete_schedule` / `list_schedules` / `update_schedule`
+- 支持自然语言时间解析与标题关键词匹配
 
 ### 修复
-- 修复 Apple 日历 UTC/TZID 时间解析相关问题。
+- 修复 Apple 日历 UTC/TZID 时间解析相关问题
 
 ---
 
-## v1.8.0
+## [1.9.0] - 2026-04-XX
 
 ### 新增
-- Apple iCloud 日历同步能力（含定时拉取与本地同步）。
-- 日程 LLM 智能提醒（支持开关与提前量配置）。
+- Apple iCloud 日历同步能力（含定时拉取与本地同步）
+- 日程 LLM 智能提醒（支持开关与提前量配置）
 
 ### 修复
-- 多项 CalDAV 兼容性与事件时间解析问题。
+- 多项 CalDAV 兼容性与事件时间解析问题
 
 ---
 
-> 更早版本记录已归档，不再在此文件维护，以避免过时信息造成误解。
+## [1.8.0] - 2026-04-XX
+
+### 新增
+- Notion 待办同步能力
+- 每日早安播报
+- 习惯提醒（洗澡/睡觉/喝水）
+
+---
+
+> 更早版本记录已归档，不再在此文件维护。
