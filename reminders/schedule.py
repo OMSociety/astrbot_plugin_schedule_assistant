@@ -122,9 +122,20 @@ class ScheduleReminder:
 
 
 def _parse_time(time_str: str) -> Optional[datetime]:
-    """解析时间字符串为 datetime"""
+    """解析时间字符串为 datetime，支持 ISO 格式和时区后缀"""
     if not time_str:
         return None
+    # 先尝试 ISO 格式（带时区后缀）
+    for suffix in ["+08:00", "+09:00", "-05:00", "Z", ""]:
+        for fmt in [
+            f"%Y-%m-%dT%H:%M:%S{suffix}",
+            f"%Y-%m-%dT%H:%M{suffix}",
+        ]:
+            try:
+                return datetime.strptime(time_str.strip(), fmt)
+            except ValueError:
+                continue
+    # 再尝试普通格式
     for fmt in ["%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S", "%H:%M"]:
         try:
             return datetime.strptime(time_str.strip(), fmt)
