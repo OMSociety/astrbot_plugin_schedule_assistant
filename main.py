@@ -645,7 +645,7 @@ class ScheduleAssistant(Star):
             if not target_user_ids:
                 return
 
-            dashboard = await get_dashboard_status() if self.dashboard_service else ""
+            dashboard = await self.dashboard_service.get_status() if self.dashboard_service else ""
             for user_id in target_user_ids:
                 history = await self.store.get_conversation_history(user_id)
                 history_text = self.store.format_history_for_prompt(history[-5:]) if history else ""
@@ -665,7 +665,7 @@ class ScheduleAssistant(Star):
             if not target_user_ids:
                 return
 
-            dashboard = await get_dashboard_status() if self.dashboard_service else ""
+            dashboard = await self.dashboard_service.get_status() if self.dashboard_service else ""
             for user_id in target_user_ids:
                 history = await self.store.get_conversation_history(user_id)
                 history_text = self.store.format_history_for_prompt(history[-5:]) if history else ""
@@ -685,7 +685,7 @@ class ScheduleAssistant(Star):
             if not target_user_ids:
                 return
 
-            dashboard = await get_dashboard_status() if self.dashboard_service else ""
+            dashboard = await self.dashboard_service.get_status() if self.dashboard_service else ""
             for user_id in target_user_ids:
                 history = await self.store.get_conversation_history(user_id)
                 history_text = self.store.format_history_for_prompt(history[-5:]) if history else ""
