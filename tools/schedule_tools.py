@@ -1,4 +1,3 @@
-```python
 """日程管理 LLM 工具
 
 提供自然语言操作日程的能力：
@@ -440,4 +439,3 @@ def register_schedule_tools(plugin_instance) -> None:
     )
     
     logger.info("[ScheduleAssistant] 日程管理工具已注册：create_schedule, delete_schedule, list_schedules, update_schedule")
-```
