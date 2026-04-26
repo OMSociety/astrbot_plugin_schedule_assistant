@@ -3,7 +3,7 @@ Live Dashboard 状态获取模块
 
 提供异步方式获取 Live Dashboard 设备状态，用于结合用户当前状态生成智能提醒。
 
-使用实例方法缓存，消除全局变量，支持多个 DashboardService 实例独立运行。
+使用实例方法缓存，消除全局变量，支持多个 BasicDashboardService 实例独立运行。
 """
 import json
 import time
@@ -16,7 +16,7 @@ from astrbot import logger
 from ..constants import LOG_PREFIX
 
 
-class DashboardService:
+class BasicDashboardService:
     """
     Dashboard 服务封装
 
@@ -146,12 +146,12 @@ class DashboardService:
             return "（Dashboard 数据解析失败）"
 
 
-# 兼容旧代码的全局函数（已废弃，建议使用 DashboardService 实例）
+# 兼容旧代码的全局函数（建议使用 BasicDashboardService 实例）
 async def get_dashboard_status() -> str:
     """
-    兼容性别名（已废弃）
+    兼容性别名
 
-    创建临时实例并获取状态。建议改为持有 DashboardService 实例并调用 get_status()。
+    创建临时实例并获取状态。建议改为持有 BasicDashboardService 实例并调用 get_status()。
     """
-    service = DashboardService()
+    service = BasicDashboardService()
     return await service.get_status()

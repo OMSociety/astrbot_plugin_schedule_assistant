@@ -42,22 +42,3 @@ class NotionService:
         if not self.notion:
             return []
         return await self.notion.get_pending_transactions()
-
-    async def get_pending_str(self) -> str:
-        """获取未完成任务格式化字符串（使用 NotionClient 内部缓存）"""
-        if not self.notion:
-            return "暂无待办"
-        try:
-            pending = await self.notion.get_pending_transactions()
-            if not pending:
-                return "暂无待办"
-            lines = []
-            for t in pending[:5]:
-                ddl = self.format_ddl(t.get("ddl", ""))
-                if ddl:
-                    lines.append(f"- {ddl} | {t['title']}")
-                else:
-                    lines.append(f"- {t['title']} ({t['status']})")
-            return "\n".join(lines)
-        except Exception:
-            return "暂无待办"

@@ -52,7 +52,7 @@ from .constants import (
 from .services.weather import WeatherService
 from .services.notion import NotionService
 from .services.dashboard_service import DashboardService as LiveDashboardService
-from .services.dashboard import DashboardService
+from .services.dashboard import BasicDashboardService
 from .services.llm import LLMService
 from .reminders.briefing import BriefingReminder
 from .reminders.habits import BathReminder, SleepReminder, WaterReminder
@@ -81,7 +81,7 @@ class ScheduleAssistant(Star):
         self.weather_service: Optional[WeatherService] = None
         self.notion_service: Optional[NotionService] = None
         self.llm_service: Optional[LLMService] = None
-        self.dashboard_service: Optional[DashboardService] = None
+        self.dashboard_service: Optional[BasicDashboardService] = None
         self.live_dashboard_service = None
         self.apple_calendar: Optional[AppleCalendar] = None
         self.notion: Optional[NotionClient] = None
@@ -248,7 +248,7 @@ class ScheduleAssistant(Star):
             self.weather_service = WeatherService({"weather_api_key": api_key, "weather_city": city})
 
         self.llm_service = LLMService(self.context)
-        self.dashboard_service = DashboardService()
+        self.dashboard_service = BasicDashboardService()
 
         notion_db_ids = self.config.get("notion_db_ids", [])
         maton_key = self.config.get("maton_api_key")
