@@ -1,3 +1,4 @@
+```python
 """日程管理 LLM 工具
 
 提供自然语言操作日程的能力：
@@ -15,7 +16,7 @@ from pydantic import Field
 from pydantic.dataclasses import dataclass
 
 from astrbot import logger
-from astrbot.core.agent.tool import FunctionTool, ToolExecResult
+from astrbot.core.agent.tool import FunctionTool
 from astrbot.core.astr_agent_context import AstrAgentContext
 from astrbot.core.agent.run_context import ContextWrapper
 
@@ -68,7 +69,7 @@ class CreateScheduleTool(FunctionTool[AstrAgentContext]):
             description = kwargs.get("description", "").strip()
 
             if not title or not datetime_str:
-                return ToolExecResult(f"请提供日程标题和时间")
+                return f"请提供日程标题和时间"
 
             now = datetime.now()
             dt = None
@@ -101,10 +102,10 @@ class CreateScheduleTool(FunctionTool[AstrAgentContext]):
                 user_id = self.default_user_id
 
             if not user_id:
-                return ToolExecResult("无法确定用户身份")
+                return "无法确定用户身份"
 
             if not self.store:
-                return ToolExecResult("日程存储服务未初始化")
+                return "日程存储服务未初始化"
 
             item = ScheduleItem(
                 type="schedule",
@@ -114,11 +115,11 @@ class CreateScheduleTool(FunctionTool[AstrAgentContext]):
             )
 
             await self.store.add_item(user_id, item)
-            return ToolExecResult(f"已创建日程「{title}」，时间：{dt.strftime('%m-%d %H:%M')} ✅")
+            return f"已创建日程「{title}」，时间：{dt.strftime('%m-%d %H:%M')} ✅"
             
         except Exception as e:
             logger.error(f"创建日程失败: {e}")
-            return ToolExecResult(f"创建日程失败: {e}")
+            return f"创建日程失败: {e}"
 
 
 @dataclass(config=dict(arbitrary_types_allowed=True))
@@ -161,7 +162,7 @@ class DeleteScheduleTool(FunctionTool[AstrAgentContext]):
             title_keyword = (kwargs.get("title_keyword") or "").strip()
 
             if not schedule_id and not title_keyword:
-                return ToolExecResult("请提供日程ID或标题关键词")
+                return "请提供日程ID或标题关键词"
 
             event = context.context.event
             user_id = str(event.get_sender_id() or '')
@@ -169,14 +170,14 @@ class DeleteScheduleTool(FunctionTool[AstrAgentContext]):
                 user_id = self.default_user_id
 
             if not user_id:
-                return ToolExecResult("无法确定用户身份")
+                return "无法确定用户身份"
 
             if not self.store:
-                return ToolExecResult("日程存储服务未初始化")
+                return "日程存储服务未初始化"
 
             if schedule_id:
                 success = await self.store.remove_item(user_id, schedule_id)
-                return ToolExecResult(f"已删除日程 ✅" if success else "未找到指定日程")
+                return f"已删除日程 ✅" if success else "未找到指定日程"
 
             if title_keyword:
                 schedules_dict = await self.store.get_schedules(user_id)
@@ -184,21 +185,21 @@ class DeleteScheduleTool(FunctionTool[AstrAgentContext]):
                 matches = [s for s in all_items if title_keyword in s.title]
 
                 if not matches:
-                    return ToolExecResult(f"没有找到包含「{title_keyword}」的日程")
+                    return f"没有找到包含「{title_keyword}」的日程"
                 elif len(matches) == 1:
                     await self.store.remove_item(user_id, matches[0].id)
-                    return ToolExecResult(f"已删除日程「{matches[0].title}」✅")
+                    return f"已删除日程「{matches[0].title}」✅"
                 else:
                     lines = ["找到多个匹配日程，请提供更具体的信息："]
                     for s in matches:
                         lines.append(f"  [{s.id}] {s.title} @ {s.time}")
-                    return ToolExecResult("\n".join(lines))
+                    return "\n".join(lines)
 
-            return ToolExecResult("请提供日程ID或标题关键词")
+            return "请提供日程ID或标题关键词"
 
         except Exception as e:
             logger.error(f"删除日程失败: {e}")
-            return ToolExecResult(f"删除日程失败: {e}")
+            return f"删除日程失败: {e}"
 
 
 @dataclass(config=dict(arbitrary_types_allowed=True))
@@ -242,10 +243,10 @@ class ListSchedulesTool(FunctionTool[AstrAgentContext]):
                 user_id = self.default_user_id
 
             if not user_id:
-                return ToolExecResult("无法确定用户身份")
+                return "无法确定用户身份"
 
             if not self.store:
-                return ToolExecResult("日程存储服务未初始化")
+                return "日程存储服务未初始化"
 
             schedules_dict = await self.store.get_schedules(user_id)
             all_items = schedules_dict.get("schedules", []) + schedules_dict.get("habits", [])
@@ -265,7 +266,7 @@ class ListSchedulesTool(FunctionTool[AstrAgentContext]):
                     continue
             
             if not user_schedules:
-                return ToolExecResult(f"最近{days}天没有日程安排~")
+                return f"最近{days}天没有日程安排~"
 
             user_schedules.sort(key=lambda x: x[0])
 
@@ -283,11 +284,11 @@ class ListSchedulesTool(FunctionTool[AstrAgentContext]):
                 if s.context:
                     lines.append(f"      📝 {s.context}")
 
-            return ToolExecResult("\n".join(lines))
+            return "\n".join(lines)
             
         except Exception as e:
             logger.error(f"查看日程失败: {e}")
-            return ToolExecResult(f"查看日程失败: {e}")
+            return f"查看日程失败: {e}"
 
 
 @dataclass(config=dict(arbitrary_types_allowed=True))
@@ -348,10 +349,10 @@ class UpdateScheduleTool(FunctionTool[AstrAgentContext]):
             new_description = (kwargs.get("new_description") or "").strip()
 
             if not schedule_id and not title_keyword:
-                return ToolExecResult("请提供要修改的日程ID或标题关键词")
+                return "请提供要修改的日程ID或标题关键词"
 
             if not new_title and not new_datetime and not new_description:
-                return ToolExecResult("请提供要修改的内容（新标题/新时间/新备注）")
+                return "请提供要修改的内容（新标题/新时间/新备注）"
 
             event = context.context.event
             user_id = str(event.get_sender_id() or '')
@@ -359,10 +360,10 @@ class UpdateScheduleTool(FunctionTool[AstrAgentContext]):
                 user_id = self.default_user_id
 
             if not user_id:
-                return ToolExecResult("无法确定用户身份")
+                return "无法确定用户身份"
 
             if not self.store:
-                return ToolExecResult("日程存储服务未初始化")
+                return "日程存储服务未初始化"
 
             schedules_dict = await self.store.get_schedules(user_id)
             all_items = schedules_dict.get("schedules", []) + schedules_dict.get("habits", [])
@@ -376,13 +377,13 @@ class UpdateScheduleTool(FunctionTool[AstrAgentContext]):
                     matches.append(s)
 
             if not matches:
-                return ToolExecResult("没有找到匹配的日程")
+                return "没有找到匹配的日程"
 
             if len(matches) > 1:
                 lines = ["找到多个匹配日程，请提供更具体的信息："]
                 for s in matches:
                     lines.append(f"  [{s.id}] {s.title} @ {s.time}")
-                return ToolExecResult("\n".join(lines))
+                return "\n".join(lines)
 
             target = matches[0]
             
@@ -404,11 +405,11 @@ class UpdateScheduleTool(FunctionTool[AstrAgentContext]):
             if new_description:
                 changes.append("备注已更新")
             
-            return ToolExecResult(f"已修改日程：{', '.join(changes)} ✅")
+            return f"已修改日程：{', '.join(changes)} ✅"
             
         except Exception as e:
             logger.error(f"修改日程失败: {e}")
-            return ToolExecResult(f"修改日程失败: {e}")
+            return f"修改日程失败: {e}"
 
 
 # ============ 工具注册 ============
@@ -439,3 +440,4 @@ def register_schedule_tools(plugin_instance) -> None:
     )
     
     logger.info("[ScheduleAssistant] 日程管理工具已注册：create_schedule, delete_schedule, list_schedules, update_schedule")
+```
