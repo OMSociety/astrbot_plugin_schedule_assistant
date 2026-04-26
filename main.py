@@ -28,6 +28,7 @@ from .schedule_store import ScheduleStore, ScheduleItem
 from .notion_client import NotionClient
 from .apple_calendar import AppleCalendar
 from .reminders.schedule import ScheduleReminder, check_and_trigger_schedule_reminder
+from .services.dashboard import get_dashboard_status
 from .messaging import MessagingService
 from .commands import CommandHandler
 
