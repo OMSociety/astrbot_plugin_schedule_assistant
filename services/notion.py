@@ -1,13 +1,14 @@
 """Notion 服务 - 封装 NotionClient，添加格式化功能"""
+
 from datetime import datetime
-from typing import List, Dict, Optional
+
 from ..notion_client import NotionClient
 
 
 class NotionService:
     """Notion 服务，封装 NotionClient，提供格式化输出（复用 NotionClient 内部缓存）"""
 
-    def __init__(self, notion_client: Optional[NotionClient]):
+    def __init__(self, notion_client: NotionClient | None):
         self.notion = notion_client
 
     @staticmethod
@@ -37,7 +38,7 @@ class NotionService:
         except Exception:
             return ""
 
-    async def get_pending_tasks(self) -> List[Dict]:
+    async def get_pending_tasks(self) -> list[dict]:
         """获取未完成任务列表（使用 NotionClient 内部缓存）"""
         if not self.notion:
             return []

@@ -188,7 +188,8 @@ def _build_activity_description(
 
     base_text = ""
 
-    # 若有 display_title，优先使用模板；但音乐应用且有 music.title 时跳过模板，避免与 ♪ 信息重复。
+    # 若有 display_title，优先使用模板；
+    # 但音乐应用且有 music.title 时跳过模板，避免与 ♪ 信息重复。
     if cleaned_title and not (is_music_app_foreground and music_data.get("title")):
         if app_lower == "steam":
             base_text = _steam_title_to_description(cleaned_title)

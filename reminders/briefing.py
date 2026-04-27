@@ -1,5 +1,5 @@
 """早安播报服务"""
-from ..constants import LOG_PREFIX
+# ruff: noqa: E501
 
 
 class BriefingReminder:
@@ -15,8 +15,9 @@ class BriefingReminder:
         agenda: str, notion_todos: str,
         dashboard: str = "", late_night: str = ""
     ) -> str:
-        agenda_lines = [l.strip().replace("|", " ") for l in agenda.split("\n") if l.strip()] if agenda and agenda not in ("暂无", "获取失败") else []
-        notion_lines = [l.strip() for l in notion_todos.split("\n") if l.strip()] if notion_todos and notion_todos not in ("暂无", "获取失败") else []
+        agenda_lines = [ln.strip().replace("|", " ") for ln in agenda.split("\n") if ln.strip()] if agenda and agenda not in ("暂无", "获取失败") else []
+        _nl = chr(10)  # newline char for f-string
+        notion_lines = [ln.strip() for ln in notion_todos.split("\n") if ln.strip()] if notion_todos and notion_todos not in ("暂无", "获取失败") else []
 
         prompt = f"""【任务】生成一份完整的早安播报。
 
@@ -26,9 +27,9 @@ class BriefingReminder:
 日期: {date} {weekday}
 天气: {weather_current}（预报: {weather_forecast if weather_forecast else "暂无"}）
 日程:
-{"\n".join(agenda_lines) if agenda_lines else "暂无"}
+{_nl.join(agenda_lines) if agenda_lines else "暂无"}
 待办:
-{"\n".join(notion_lines) if notion_lines else "暂无"}
+{_nl.join(notion_lines) if notion_lines else "暂无"}
 设备状态: {dashboard if dashboard else "暂无"}
 熬夜检测: {"有深夜日程（" + late_night.strip() + "），昨晚辛苦了" if late_night and late_night.strip() else "无深夜日程"}
 
@@ -69,3 +70,4 @@ class BriefingReminder:
 今天阴天但气温还行，不用带伞~四门课连轴转辛苦了，中午记得吃点好的补充能量🥺读书报告只剩1天了，合理安排时间哦~"""
 
         return await self.llm_service.generate(prompt)
+        _nl = "\n"

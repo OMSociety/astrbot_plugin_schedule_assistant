@@ -2,11 +2,17 @@
 通用习惯提醒模块
 BathReminder, SleepReminder, WaterReminder 都基于此类
 """
+# ruff: noqa: E501
 
 from datetime import datetime
-from typing import Optional
 
-from ..constants import DEFAULT_BATH_TIME, DEFAULT_SLEEP_TIME, DEFAULT_WATER_START, DEFAULT_WATER_END, DEFAULT_WATER_INTERVAL
+from ..constants import (
+    DEFAULT_BATH_TIME,
+    DEFAULT_SLEEP_TIME,
+    DEFAULT_WATER_END,
+    DEFAULT_WATER_INTERVAL,
+    DEFAULT_WATER_START,
+)
 
 
 class HabitReminder:
@@ -86,7 +92,7 @@ class HabitReminder:
         """构建 LLM prompt，子类可覆盖"""
         raise NotImplementedError
 
-    async def generate(self, username: str, dashboard: str, history_text: str) -> Optional[str]:
+    async def generate(self, username: str, dashboard: str, history_text: str) -> str | None:
         """生成提醒消息
 
         Args:

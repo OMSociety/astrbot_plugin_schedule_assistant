@@ -5,11 +5,12 @@ Live Dashboard 状态获取模块
 
 使用实例方法缓存，消除全局变量，支持多个 BasicDashboardService 实例独立运行。
 """
+
 import json
 import time
-import aiohttp
 from pathlib import Path
-from typing import Optional
+
+import aiohttp
 
 from astrbot import logger
 
@@ -31,10 +32,12 @@ class BasicDashboardService:
         Args:
             cache_ttl: 缓存时间（秒），默认 300 秒
         """
-        self._cached_status: Optional[str] = None
+        self._cached_status: str | None = None
         self._cache_timestamp: float = 0
         self._cache_ttl: int = cache_ttl
-        self._config_path: Path = Path("/AstrBot/data/config/astrbot_plugin_live_dashboard_config.json")
+        self._config_path: Path = Path(
+            "/AstrBot/data/config/astrbot_plugin_live_dashboard_config.json"
+        )
 
     async def get_status(self) -> str:
         """
@@ -46,7 +49,10 @@ class BasicDashboardService:
         now = time.time()
 
         # 检查缓存
-        if self._cached_status is not None and (now - self._cache_timestamp) < self._cache_ttl:
+        if (
+            self._cached_status is not None
+            and (now - self._cache_timestamp) < self._cache_ttl
+        ):
             return self._cached_status
 
         # 从 Dashboard API 获取
@@ -62,7 +68,7 @@ class BasicDashboardService:
             if not self._config_path.exists():
                 return "（未配置 Dashboard）"
 
-            with open(self._config_path, "r", encoding="utf-8-sig") as f:
+            with open(self._config_path, encoding="utf-8-sig") as f:
                 config = json.load(f)
 
             base_url = config.get("base_url", "").rstrip("/")
@@ -79,9 +85,7 @@ class BasicDashboardService:
             timeout = aiohttp.ClientTimeout(total=10)
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                    f"{base_url}/api/current",
-                    headers=headers,
-                    timeout=timeout
+                    f"{base_url}/api/current", headers=headers, timeout=timeout
                 ) as resp:
                     if resp.status == 200:
                         data = await resp.json()

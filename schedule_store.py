@@ -1,34 +1,48 @@
-import uuid
 """日程数据存储模块
 
 提供日程和习惯的数据持久化，基于 AstrBot 的 preference 存储系统。
 支持单次日程、定期习惯、喝水记录、临时覆盖等数据管理。
 """
+
 import uuid
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
-from typing import Optional, Dict, List, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
 from astrbot import logger
-from .constants import PREFERENCE_SCOPE, SCHEDULES_KEY, HABITS_KEY, WATER_LAST_KEY, LOG_PREFIX, CONVERSATION_KEY, CONVERSATION_MAX_AGE_HOURS, CONVERSATION_MAX_MESSAGES, USER_NICKNAME_KEY
+
+from .constants import (
+    CONVERSATION_KEY,
+    CONVERSATION_MAX_AGE_HOURS,
+    CONVERSATION_MAX_MESSAGES,
+    HABITS_KEY,
+    LOG_PREFIX,
+    PREFERENCE_SCOPE,
+    SCHEDULES_KEY,
+    USER_NICKNAME_KEY,
+    WATER_LAST_KEY,
+)
+
 if TYPE_CHECKING:
     from astrbot.api.star import Context
-__all__ = ['ScheduleItem', 'ScheduleStore']
+__all__ = ["ScheduleItem", "ScheduleStore"]
 
 
 @dataclass
 class ScheduleItem:
     """日程/习惯数据项"""
+
     id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
     type: str = ""
     title: str = ""
     time: str = ""
-    recur: Optional[str] = None
+    recur: str | None = None
     context: str = ""
     enabled: bool = True
-    snoozed_until: Optional[str] = None
-    last_triggered: Optional[str] = None
-    temp_override: Optional[str] = None
-    apple_uid: Optional[str] = None
+    snoozed_until: str | None = None
+    last_triggered: str | None = None
+    temp_override: str | None = None
+    apple_uid: str | None = None
 
     def to_dict(self) -> dict:
         """序列化为字典"""
@@ -37,7 +51,19 @@ class ScheduleItem:
     @staticmethod
     def from_dict(data: dict) -> "ScheduleItem":
         """从字典反序列化，过滤未知字段"""
-        valid_fields = {'id', 'type', 'title', 'time', 'recur', 'context', 'enabled', 'snoozed_until', 'last_triggered', 'temp_override', 'apple_uid'}
+        valid_fields = {
+            "id",
+            "type",
+            "title",
+            "time",
+            "recur",
+            "context",
+            "enabled",
+            "snoozed_until",
+            "last_triggered",
+            "temp_override",
+            "apple_uid",
+        }
         filtered = {k: v for k, v in data.items() if k in valid_fields}
         if not filtered.get("id"):
             filtered["id"] = str(uuid.uuid4())[:8]
@@ -46,6 +72,7 @@ class ScheduleItem:
 
 class ScheduleStore:
     """日程数据存储器"""
+
     def __init__(self, context: "Context"):
         self.context = context
         logger.info(f"{LOG_PREFIX} ScheduleStore 初始化完成")
@@ -53,18 +80,22 @@ class ScheduleStore:
     def _get_db(self):
         return self.context.get_db()
 
-    async def _get_user_index(self) -> List[str]:
+    async def _get_user_index(self) -> list[str]:
         try:
-            pref = await self._get_db().get_preference(PREFERENCE_SCOPE, "_meta_", "users")
+            pref = await self._get_db().get_preference(
+                PREFERENCE_SCOPE, "_meta_", "users"
+            )
             users = pref.value if pref and pref.value else []
             return [str(u) for u in users if u]
         except Exception:
             return []
 
-    async def _save_user_index(self, users: List[str]) -> None:
+    async def _save_user_index(self, users: list[str]) -> None:
         try:
             uniq = sorted({str(u) for u in users if u})
-            await self._get_db().insert_preference_or_update(scope=PREFERENCE_SCOPE, scope_id="_meta_", key="users", value=uniq)
+            await self._get_db().insert_preference_or_update(
+                scope=PREFERENCE_SCOPE, scope_id="_meta_", key="users", value=uniq
+            )
         except Exception as e:
             logger.warning(f"{LOG_PREFIX} 保存用户索引失败: {e}")
 
@@ -76,19 +107,22 @@ class ScheduleStore:
             users.append(user_id)
             await self._save_user_index(users)
 
-    async def _get_user_data(self, user_id: str) -> Dict[str, Any]:
+    async def _get_user_data(self, user_id: str) -> dict[str, Any]:
         try:
-            pref = await self._get_db().get_preference(PREFERENCE_SCOPE, user_id, "data")
+            pref = await self._get_db().get_preference(
+                PREFERENCE_SCOPE, user_id, "data"
+            )
             if pref and pref.value:
                 return pref.value
         except Exception as e:
             logger.warning(f"{LOG_PREFIX} 读取用户 {user_id} 数据失败: {e}")
         return {SCHEDULES_KEY: [], HABITS_KEY: [], WATER_LAST_KEY: ""}
 
-
-    async def _save_user_data(self, user_id: str, data: Dict[str, Any]) -> None:
+    async def _save_user_data(self, user_id: str, data: dict[str, Any]) -> None:
         try:
-            await self._get_db().insert_preference_or_update(scope=PREFERENCE_SCOPE, scope_id=user_id, key="data", value=data)
+            await self._get_db().insert_preference_or_update(
+                scope=PREFERENCE_SCOPE, scope_id=user_id, key="data", value=data
+            )
             await self._touch_user(user_id)
         except Exception as e:
             logger.error(f"{LOG_PREFIX} 保存用户 {user_id} 数据失败: {e}")
@@ -97,14 +131,15 @@ class ScheduleStore:
         data = await self._get_user_data(user_id)
         item_dict = item.to_dict()
         if item.type == "habit":
-            data[HABITS_KEY] = [h for h in data[HABITS_KEY] if h.get("title") != item.title]
+            data[HABITS_KEY] = [
+                h for h in data[HABITS_KEY] if h.get("title") != item.title
+            ]
             data[HABITS_KEY].append(item_dict)
         else:
             data[SCHEDULES_KEY].append(item_dict)
         await self._save_user_data(user_id, data)
 
-
-    async def list_all_items(self, user_id: str) -> List[ScheduleItem]:
+    async def list_all_items(self, user_id: str) -> list[ScheduleItem]:
         data = await self._get_user_data(user_id)
         items = []
         for s in data.get(SCHEDULES_KEY, []):
@@ -113,21 +148,27 @@ class ScheduleStore:
             items.append(ScheduleItem.from_dict(h))
         return items
 
-    async def get_schedules(self, user_id: str) -> Dict[str, List[ScheduleItem]]:
+    async def get_schedules(self, user_id: str) -> dict[str, list[ScheduleItem]]:
         data = await self._get_user_data(user_id)
         return {
-            SCHEDULES_KEY: [ScheduleItem.from_dict(s) for s in data.get(SCHEDULES_KEY, [])],
+            SCHEDULES_KEY: [
+                ScheduleItem.from_dict(s) for s in data.get(SCHEDULES_KEY, [])
+            ],
             HABITS_KEY: [ScheduleItem.from_dict(h) for h in data.get(HABITS_KEY, [])],
         }
 
-    async def get_all_users(self) -> List[str]:
+    async def get_all_users(self) -> list[str]:
         return sorted(set(await self._get_user_index()))
 
     async def remove_item(self, user_id: str, item_id: str) -> bool:
         data = await self._get_user_data(user_id)
         before = len(data.get(SCHEDULES_KEY, [])) + len(data.get(HABITS_KEY, []))
-        data[SCHEDULES_KEY] = [s for s in data.get(SCHEDULES_KEY, []) if s.get("id") != item_id]
-        data[HABITS_KEY] = [h for h in data.get(HABITS_KEY, []) if h.get("id") != item_id]
+        data[SCHEDULES_KEY] = [
+            s for s in data.get(SCHEDULES_KEY, []) if s.get("id") != item_id
+        ]
+        data[HABITS_KEY] = [
+            h for h in data.get(HABITS_KEY, []) if h.get("id") != item_id
+        ]
         after = len(data.get(SCHEDULES_KEY, [])) + len(data.get(HABITS_KEY, []))
         if before != after:
             await self._save_user_data(user_id, data)
@@ -146,7 +187,9 @@ class ScheduleStore:
         return False
 
     async def snooze_item(self, user_id: str, item_id: str, minutes: int) -> bool:
-        new_time = (datetime.now() + timedelta(minutes=minutes)).strftime("%Y-%m-%d %H:%M")
+        new_time = (datetime.now() + timedelta(minutes=minutes)).strftime(
+            "%Y-%m-%d %H:%M"
+        )
         data = await self._get_user_data(user_id)
         found = False
         for key in [SCHEDULES_KEY, HABITS_KEY]:
@@ -179,7 +222,9 @@ class ScheduleStore:
         data[WATER_LAST_KEY] = ts
         await self._save_user_data(user_id, data)
 
-    async def set_temp_override(self, user_id: str, habit_title: str, new_time: str) -> bool:
+    async def set_temp_override(
+        self, user_id: str, habit_title: str, new_time: str
+    ) -> bool:
         data = await self._get_user_data(user_id)
         today = datetime.now().strftime("%Y-%m-%d")
         found = False
@@ -191,7 +236,9 @@ class ScheduleStore:
             await self._save_user_data(user_id, data)
         return found
 
-    async def get_effective_time(self, user_id: str, habit_title: str, default_time: str) -> str:
+    async def get_effective_time(
+        self, user_id: str, habit_title: str, default_time: str
+    ) -> str:
         data = await self._get_user_data(user_id)
         today = datetime.now().strftime("%Y-%m-%d")
         for habit in data.get(HABITS_KEY, []):
@@ -201,7 +248,9 @@ class ScheduleStore:
                     return temp.split(" ")[1] if " " in temp else default_time
         return default_time
 
-    async def sync_from_apple_calendar(self, user_id: str, apple_events: List[Dict]) -> Dict[str, int]:
+    async def sync_from_apple_calendar(
+        self, user_id: str, apple_events: list[dict]
+    ) -> dict[str, int]:
         data = await self._get_user_data(user_id)
         schedules = data.get(SCHEDULES_KEY, [])
         uid_map = {s["apple_uid"]: s for s in schedules if s.get("apple_uid")}
@@ -222,20 +271,40 @@ class ScheduleStore:
                 schedule_time = start_str
             if uid in uid_map:
                 local = uid_map[uid]
-                if local.get("title") != evt.get("summary") or local.get("time") != schedule_time:
+                if (
+                    local.get("title") != evt.get("summary")
+                    or local.get("time") != schedule_time
+                ):
                     local["title"] = evt.get("summary", "无标题")
                     local["time"] = schedule_time
                     stats["updated"] += 1
             else:
-                schedules.append({"id": str(uuid.uuid4())[:8], "type": "schedule", "title": evt.get("summary", "无标题"), "time": schedule_time, "recur": None, "context": evt.get("description", ""), "enabled": True, "snoozed_until": None, "last_triggered": None, "temp_override": None, "apple_uid": uid})
+                schedules.append(
+                    {
+                        "id": str(uuid.uuid4())[:8],
+                        "type": "schedule",
+                        "title": evt.get("summary", "无标题"),
+                        "time": schedule_time,
+                        "recur": None,
+                        "context": evt.get("description", ""),
+                        "enabled": True,
+                        "snoozed_until": None,
+                        "last_triggered": None,
+                        "temp_override": None,
+                        "apple_uid": uid,
+                    }
+                )
                 stats["added"] += 1
         before_count = len(schedules)
-        schedules = [s for s in schedules if not s.get("apple_uid") or s["apple_uid"] in apple_uids]
+        schedules = [
+            s
+            for s in schedules
+            if not s.get("apple_uid") or s["apple_uid"] in apple_uids
+        ]
         stats["deleted"] = before_count - len(schedules)
         data[SCHEDULES_KEY] = schedules
         await self._save_user_data(user_id, data)
         return stats
-
 
     async def get_user_nickname(self, user_id: str) -> str:
         """读取用户昵称（优先读取存储的昵称）"""
@@ -262,27 +331,34 @@ class ScheduleStore:
         if changed:
             await self._save_user_data(user_id, data)
 
-    async def add_conversation_message(self, user_id: str, role: str, content: str) -> None:
+    async def add_conversation_message(
+        self, user_id: str, role: str, content: str
+    ) -> None:
         """记录用户对话消息"""
         data = await self._get_user_data(user_id)
         history = data.get(CONVERSATION_KEY, [])
-        history.append({"role": role, "content": content, "timestamp": datetime.now().isoformat()})
+        history.append(
+            {"role": role, "content": content, "timestamp": datetime.now().isoformat()}
+        )
         cutoff = datetime.now() - timedelta(hours=CONVERSATION_MAX_AGE_HOURS)
-        history = [m for m in history if datetime.fromisoformat(m["timestamp"]) > cutoff]
+        history = [
+            m for m in history if datetime.fromisoformat(m["timestamp"]) > cutoff
+        ]
         if len(history) > CONVERSATION_MAX_MESSAGES:
             history = history[-CONVERSATION_MAX_MESSAGES:]
         data[CONVERSATION_KEY] = history
         await self._save_user_data(user_id, data)
 
-
-    async def get_conversation_history(self, user_id: str) -> List[Dict[str, str]]:
+    async def get_conversation_history(self, user_id: str) -> list[dict[str, str]]:
         """获取用户对话历史"""
         data = await self._get_user_data(user_id)
         history = data.get(CONVERSATION_KEY, [])
         cutoff = datetime.now() - timedelta(hours=CONVERSATION_MAX_AGE_HOURS)
         return [m for m in history if datetime.fromisoformat(m["timestamp"]) > cutoff]
 
-    def format_history_for_prompt(self, history: List[Dict[str, str]], max_tokens: int = 500) -> str:
+    def format_history_for_prompt(
+        self, history: list[dict[str, str]], max_tokens: int = 500
+    ) -> str:
         """将对话历史格式化为 prompt 字符串"""
         if not history:
             return "（无近期对话历史）"

@@ -4,11 +4,12 @@
 只扫描 schedule 类型的日程，habit 类型（洗澡/睡觉/喝水）由独立定时任务处理，
 避免同一条目被多次提醒。
 """
-import re
-from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any
+# ruff: noqa: E501
+from datetime import datetime
+from typing import Any
 
 from astrbot import logger
+
 from ..constants import LOG_PREFIX
 
 
@@ -33,7 +34,7 @@ class ScheduleReminder:
         item_time: str,
         item_context: str,
         minutes_ahead: int,
-        dashboard_status: Dict[str, Any],
+        dashboard_status: dict[str, Any],
         conv_history: str,
     ) -> str:
         """构建 LLM 提醒 prompt"""
@@ -84,7 +85,7 @@ class ScheduleReminder:
         item_time: str,
         item_context: str,
         minutes_ahead: int = 10,
-        conv_history: Optional[str] = None,
+        conv_history: str | None = None,
     ) -> str:
         """生成提醒文本（带 LLM fallback）"""
 
@@ -121,7 +122,7 @@ class ScheduleReminder:
         return f"📅 提醒：「{item_title}」即将开始，记得准备哦~"
 
 
-def _parse_time(time_str: str) -> Optional[datetime]:
+def _parse_time(time_str: str) -> datetime | None:
     """解析时间字符串为 datetime，支持 ISO 格式和时区后缀"""
     if not time_str:
         return None
@@ -150,7 +151,7 @@ async def check_and_trigger_schedule_reminder(
     dashboard_service,
     user_id: str,
     minutes_window: int = 30,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """
     扫描即将到来的日程（仅 schedule 类型）并生成提醒。
 

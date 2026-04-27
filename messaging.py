@@ -5,11 +5,15 @@
 支持多平台候选、会话记忆、优雅降级。
 由 main.py 的内联发送逻辑迁移而来，整合了最健壮的回复兜底机制。
 """
-from typing import Optional, List
-from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
-from astrbot.core.message.message_event_result import MessageChain
-from astrbot.core.message.components import Plain
+
+
 from astrbot import logger
+from astrbot.core.message.components import Plain
+from astrbot.core.message.message_event_result import MessageChain
+from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
+    AiocqhttpMessageEvent,
+)
+
 from .constants import LOG_PREFIX
 
 
@@ -37,7 +41,9 @@ class MessagingService:
         """
         self.context = context
         self.config = config
-        self._session_type = str(config.get("default_session_type", "FriendMessage") or "FriendMessage")
+        self._session_type = str(
+            config.get("default_session_type", "FriendMessage") or "FriendMessage"
+        )
         self._global_platform_id = str(config.get("send_platform_id", "") or "").strip()
         self._user_platform_bindings = self._parse_user_platform_bindings()
         self._recent_user_platforms: dict = {}
@@ -65,14 +71,14 @@ class MessagingService:
                 bindings[user_id] = platform_id
         return bindings
 
-    def _get_available_platform_ids(self) -> List[str]:
+    def _get_available_platform_ids(self) -> list[str]:
         """
         获取当前已注册的所有平台ID
 
         Returns:
             List[str]: 可用平台ID列表
         """
-        ids: List[str] = []
+        ids: list[str] = []
         try:
             for platform in self.context.platform_manager.platform_insts:
                 pid = platform.meta().id
@@ -86,7 +92,9 @@ class MessagingService:
             ids = [fallback]
         return ids
 
-    def _extract_platform_id_from_event(self, event: AiocqhttpMessageEvent) -> Optional[str]:
+    def _extract_platform_id_from_event(
+        self, event: AiocqhttpMessageEvent
+    ) -> str | None:
         """
         从事件对象中提取平台ID
 
@@ -108,7 +116,9 @@ class MessagingService:
             return "aiocqhttp"
         return None
 
-    def _build_platform_candidates(self, user_id: str, preferred_platform: Optional[str] = None) -> List[str]:
+    def _build_platform_candidates(
+        self, user_id: str, preferred_platform: str | None = None
+    ) -> list[str]:
         """
         构建平台候选列表（按优先级排序）
 
@@ -121,7 +131,7 @@ class MessagingService:
         Returns:
             List[str]: 排序后的平台ID列表
         """
-        candidates: List[str] = []
+        candidates: list[str] = []
         if preferred_platform:
             candidates.append(str(preferred_platform).strip())
         recent = self._recent_user_platforms.get(str(user_id))
@@ -152,7 +162,9 @@ class MessagingService:
         """
         self._recent_user_platforms[str(user_id)] = platform_id
 
-    async def send_to_user(self, user_id: str, message: str, platform_id: Optional[str] = None) -> bool:
+    async def send_to_user(
+        self, user_id: str, message: str, platform_id: str | None = None
+    ) -> bool:
         """
         向指定用户发送私聊消息
 
@@ -183,11 +195,17 @@ class MessagingService:
                 try:
                     await self.context.send_message(session, chain)
                     self.remember_user_platform(user_id, platform)
-                    logger.info(f"{LOG_PREFIX} 发送成功 user={user_id} platform={platform}")
+                    logger.info(
+                        f"{LOG_PREFIX} 发送成功 user={user_id} platform={platform}"
+                    )
                     return True
                 except Exception as send_err:
                     logger.warning(
-                        f"{LOG_PREFIX} 发送失败 user={user_id} platform={platform} err={send_err}"
+
+                            f"{LOG_PREFIX} 发送失败"
+                            f" user={user_id} platform={platform}"
+                            f" err={send_err}"
+
                     )
 
             logger.error(
@@ -216,7 +234,9 @@ class MessagingService:
         try:
             session_id = getattr(event, "session_id", "")
             if isinstance(session_id, str) and session_id.strip():
-                await self.context.send_message(session_id, MessageChain([Plain(message)]))
+                await self.context.send_message(
+                    session_id, MessageChain([Plain(message)])
+                )
                 return
         except Exception:
             pass
@@ -235,4 +255,6 @@ class MessagingService:
             pass
 
         # 第三层：兜底告警，不抛异常
-        logger.warning(f"{LOG_PREFIX} 回复失败，且无可用回退通道: message={message[:40]}")
+        logger.warning(
+            f"{LOG_PREFIX} 回复失败，且无可用回退通道: message={message[:40]}"
+        )

@@ -8,14 +8,17 @@
 - main.py：插件生命周期、定时任务调度、LLM 提醒触发
 - 本模块：用户命令解析与执行、日程增删改查
 """
+
 import re
 from datetime import datetime
-from typing import Optional, List, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
-from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
+from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
+    AiocqhttpMessageEvent,
+)
+
+from .constants import SCHEDULES_KEY
 from .schedule_store import ScheduleItem
-from .constants import SCHEDULES_KEY, LOG_PREFIX
-from astrbot import logger
 
 if TYPE_CHECKING:
     from .messaging import MessagingService
@@ -68,7 +71,9 @@ class CommandHandler:
 
     # ============ 主入口 ============
 
-    async def handle_message(self, event: AiocqhttpMessageEvent, user_id: str, msg_text: str) -> bool:
+    async def handle_message(
+        self, event: AiocqhttpMessageEvent, user_id: str, msg_text: str
+    ) -> bool:
         """
         处理普通消息文本命令
 
@@ -107,7 +112,9 @@ class CommandHandler:
 
     # ============ 斜杠命令路由 ============
 
-    async def _handle_command(self, event: AiocqhttpMessageEvent, user_id: str, cmd: str) -> bool:
+    async def _handle_command(
+        self, event: AiocqhttpMessageEvent, user_id: str, cmd: str
+    ) -> bool:
         """处理斜杠命令（顶层路由）"""
         cmd = cmd.strip()
 
@@ -123,10 +130,14 @@ class CommandHandler:
         elif cmd == "/睡觉":
             return await self._handle_sleep(event)
         else:
-            await self.messaging.reply_to_event(event, "未知命令，输入「帮助」查看可用命令~")
+            await self.messaging.reply_to_event(
+                event, "未知命令，输入「帮助」查看可用命令~"
+            )
             return True
 
-    async def _handle_schedule_sub(self, event: AiocqhttpMessageEvent, user_id: str, sub: str) -> bool:
+    async def _handle_schedule_sub(
+        self, event: AiocqhttpMessageEvent, user_id: str, sub: str
+    ) -> bool:
         """处理 /日程 子命令"""
         if sub in ("", "列表", "查看"):
             return await self._handle_list(event, user_id)
@@ -141,12 +152,16 @@ class CommandHandler:
         elif sub == "帮助":
             return await self._handle_help(event)
         else:
-            await self.messaging.reply_to_event(event, "未知命令，输入「帮助」查看可用命令~")
+            await self.messaging.reply_to_event(
+                event, "未知命令，输入「帮助」查看可用命令~"
+            )
             return True
 
     # ============ 日程 CRUD ============
 
-    async def _handle_add(self, event: AiocqhttpMessageEvent, user_id: str, text: str) -> bool:
+    async def _handle_add(
+        self, event: AiocqhttpMessageEvent, user_id: str, text: str
+    ) -> bool:
         """
         处理添加日程命令
 
@@ -155,7 +170,9 @@ class CommandHandler:
         """
         time_match = re.search(r"(\d{1,2})[:：时](\d{0,2})", text)
         if not time_match:
-            await self.messaging.reply_to_event(event, "请告诉我时间哦~ 比如「添加 14:30 开会」")
+            await self.messaging.reply_to_event(
+                event, "请告诉我时间哦~ 比如「添加 14:30 开会」"
+            )
             return True
 
         hour = int(time_match.group(1))
@@ -164,23 +181,33 @@ class CommandHandler:
         content = content.replace("添加", "").replace("新增", "").strip()
 
         if not (0 <= hour <= 23 and 0 <= minute <= 59):
-            await self.messaging.reply_to_event(event, "时间格式有误，请检查~ (小时 0-23，分钟 0-59)")
+            await self.messaging.reply_to_event(
+                event, "时间格式有误，请检查~ (小时 0-23，分钟 0-59)"
+            )
             return True
 
         item = ScheduleItem(
             type="schedule",
             title=content or "待办",
-            time=datetime.now().replace(hour=hour, minute=minute, second=0, microsecond=0).strftime("%Y-%m-%d %H:%M"),
+            time=datetime.now()
+            .replace(hour=hour, minute=minute, second=0, microsecond=0)
+            .strftime("%Y-%m-%d %H:%M"),
         )
         await self.store.add_item(user_id, item)
-        await self.messaging.reply_to_event(event, f"日程已添加：{content or '待办'} @ {hour:02d}:{minute:02d}")
+        await self.messaging.reply_to_event(
+            event, f"日程已添加：{content or '待办'} @ {hour:02d}:{minute:02d}"
+        )
         return True
 
-    async def _handle_delete(self, event: AiocqhttpMessageEvent, user_id: str, text: str) -> bool:
+    async def _handle_delete(
+        self, event: AiocqhttpMessageEvent, user_id: str, text: str
+    ) -> bool:
         """处理删除日程命令，格式：「删除 #1」"""
         idx_match = re.search(r"#?(\d+)", text)
         if not idx_match:
-            await self.messaging.reply_to_event(event, "请告诉我要删除的编号~ 比如「删除 #1」")
+            await self.messaging.reply_to_event(
+                event, "请告诉我要删除的编号~ 比如「删除 #1」"
+            )
             return True
 
         idx = int(idx_match.group(1)) - 1
@@ -200,7 +227,9 @@ class CommandHandler:
         schedules = await self._get_user_schedules(user_id)
 
         if not schedules:
-            await self.messaging.reply_to_event(event, "暂无日程安排，输入「添加 14:30 开会」来添加~")
+            await self.messaging.reply_to_event(
+                event, "暂无日程安排，输入「添加 14:30 开会」来添加~"
+            )
             return True
 
         lines = ["📅 你的日程："]
@@ -211,16 +240,24 @@ class CommandHandler:
         await self.messaging.reply_to_event(event, "\n".join(lines))
         return True
 
-    async def _handle_skip(self, event: AiocqhttpMessageEvent, user_id: str, text: str) -> bool:
+    async def _handle_skip(
+        self, event: AiocqhttpMessageEvent, user_id: str, text: str
+    ) -> bool:
         """处理跳过提醒命令"""
         reminder_type = text.replace("跳过", "").strip()
         if reminder_type in ("喝水", "bath", "洗澡", "睡觉"):
-            await self.messaging.reply_to_event(event, f"已跳过本次{reminder_type}提醒~")
+            await self.messaging.reply_to_event(
+                event, f"已跳过本次{reminder_type}提醒~"
+            )
         else:
-            await self.messaging.reply_to_event(event, "请告诉我跳过什么~ 如「跳过喝水」")
+            await self.messaging.reply_to_event(
+                event, "请告诉我跳过什么~ 如「跳过喝水」"
+            )
         return True
 
-    async def _handle_modify_time(self, event: AiocqhttpMessageEvent, user_id: str, text: str) -> bool:
+    async def _handle_modify_time(
+        self, event: AiocqhttpMessageEvent, user_id: str, text: str
+    ) -> bool:
         """处理修改习惯时间命令，格式：「修改时间 喝水 10:30」"""
         parts = text.replace("修改时间", "").strip().split(" ")
         if len(parts) >= 2:
@@ -228,11 +265,17 @@ class CommandHandler:
             new_time = parts[1]
             success = await self.store.set_temp_override(user_id, habit_name, new_time)
             if success:
-                await self.messaging.reply_to_event(event, f"已临时修改{habit_name}时间为 {new_time}~（仅今天生效）")
+                await self.messaging.reply_to_event(
+                    event, f"已临时修改{habit_name}时间为 {new_time}~（仅今天生效）"
+                )
             else:
-                await self.messaging.reply_to_event(event, "不支持的 habit 类型，支持：喝水/洗澡/睡觉")
+                await self.messaging.reply_to_event(
+                    event, "不支持的 habit 类型，支持：喝水/洗澡/睡觉"
+                )
         else:
-            await self.messaging.reply_to_event(event, "格式不对哦~ 如「修改时间 喝水 10:30」")
+            await self.messaging.reply_to_event(
+                event, "格式不对哦~ 如「修改时间 喝水 10:30」"
+            )
         return True
 
     async def _handle_help(self, event: AiocqhttpMessageEvent) -> bool:
@@ -264,7 +307,7 @@ class CommandHandler:
 
     # ============ 内部辅助方法 ============
 
-    async def _get_user_schedules(self, user_id: str) -> List[ScheduleItem]:
+    async def _get_user_schedules(self, user_id: str) -> list[ScheduleItem]:
         """获取用户的日程列表（仅 schedule 类型）"""
         schedules_dict = await self.store.get_schedules(user_id)
         return schedules_dict.get(SCHEDULES_KEY, [])

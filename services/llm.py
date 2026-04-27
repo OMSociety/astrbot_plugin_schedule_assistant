@@ -1,7 +1,10 @@
 """LLM 服务 - 封装 AstrBot LLM 接口，支持人设和对话历史"""
+
 import time
+
 from astrbot import logger
 from astrbot.core.provider.entities import ProviderType
+
 from ..constants import LOG_PREFIX
 
 # 全局断路器：记录 LLM 最近失败时间，5分钟内不回退到模板
@@ -26,7 +29,9 @@ class LLMService:
         if self._provider_id:
             return self._provider_id
         try:
-            provider = self.context.provider_manager.get_using_provider(ProviderType.CHAT_COMPLETION)
+            provider = self.context.provider_manager.get_using_provider(
+                ProviderType.CHAT_COMPLETION
+            )
             if provider:
                 self._provider_id = provider.meta().id
                 return self._provider_id
@@ -44,7 +49,9 @@ class LLMService:
         except Exception:
             return ""
 
-    async def generate(self, prompt: str, use_persona: bool = True, history: str = "") -> str:
+    async def generate(
+        self, prompt: str, use_persona: bool = True, history: str = ""
+    ) -> str:
         """生成 LLM 回复
 
         Args:
@@ -87,7 +94,8 @@ class LLMService:
             return self._fallback_template if self._fallback_template else ""
         try:
             resp = await self.context.llm_generate(
-                chat_provider_id=provider_id, prompt=prompt,
+                chat_provider_id=provider_id,
+                prompt=prompt,
                 system_prompt=system_prompt,
             )
             _llm_failure_time = 0.0  # 成功，重置断路器
