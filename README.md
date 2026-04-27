@@ -6,11 +6,13 @@
 
 你的贴心日程管家，支持早安播报、习惯提醒、LLM 智能日程管理、Apple 日历双向同步、Notion 待办同步、Live Dashboard 视奸面板。动动嘴就能管理日程~
 
+> 本项目由AI编写
+> 
+> 插件 Logo 来源于 Pixiv Pid: [130776279](https://www.pixiv.net/artworks/130776279)
+
 [快速开始](#-快速开始) • [功能概览](#-功能概览) • [配置项](#-配置项说明) • [LLM 工具](#-llm-可调用工具) • [更新日志](CHANGELOG.md)
 
 ---
-
-> 插件 Logo 来源于 Pixiv Pid: [130776279](https://www.pixiv.net/artworks/130776279)
 
 ## 📖 功能概览
 
