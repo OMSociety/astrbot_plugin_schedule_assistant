@@ -81,10 +81,8 @@ class DashboardService:
             # 401/403 常见于代理鉴权或 token 配置问题。
             if status_code in (401, 403):
                 return (
-                    (
                     "鉴权失败：请检查 auth_token 是否正确，"
-                    "或确认服务端是否允许访问 /api/current。"
-                ),
+                    "或确认服务端是否允许访问 /api/current。",
                     0,
                 )
 

@@ -14,7 +14,7 @@ from dateutil.relativedelta import relativedelta
 from pydantic import Field
 from pydantic.dataclasses import dataclass
 
-from astrbot import logger
+from astrbot.api import logger
 from astrbot.core.agent.run_context import ContextWrapper
 from astrbot.core.agent.tool import FunctionTool
 from astrbot.core.astr_agent_context import AstrAgentContext
@@ -107,8 +107,6 @@ class CreateScheduleTool(FunctionTool[AstrAgentContext]):
                         hour=t.hour, minute=t.minute, second=0, microsecond=0
                     )
             else:
-                from dateutil import parser as date_parser
-
                 dt = date_parser.parse(datetime_str)
 
             event = context.context.event

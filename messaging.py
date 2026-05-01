@@ -7,7 +7,7 @@
 """
 
 
-from astrbot import logger
+from astrbot.api import logger
 from astrbot.core.message.components import Plain
 from astrbot.core.message.message_event_result import MessageChain
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (

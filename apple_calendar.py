@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urljoin, urlparse
 
-from astrbot import logger
+from astrbot.api import logger
 
 __all__ = ["AppleCalendar"]
 
@@ -85,6 +85,25 @@ class AppleCalendar:
         )
         return None
 
+    async def _async_request(
+        self,
+        url: str,
+        method: str = "GET",
+        data: bytes | None = None,
+        headers: dict | None = None,
+        timeout: int = 30,
+        retries: int = 3,
+    ) -> str | None:
+        """异步包装：将阻塞的 _request 放到线程池执行，避免阻塞事件循环"""
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(
+            None,
+            lambda: self._request(
+                url, method=method, data=data, headers=headers,
+                timeout=timeout, retries=retries,
+            ),
+        )
+
     @staticmethod
     def _clean_href(raw: str) -> str:
         href = html.unescape((raw or "").strip())
@@ -138,7 +157,7 @@ class AppleCalendar:
             if self._discovered:
                 return True
             body1 = b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:"><D:prop><D:current-user-principal/></D:prop></D:propfind>'  # noqa: E501
-            resp1 = self._request(
+            resp1 = await self._async_request(
                 "https://caldav.icloud.com/",
                 method="PROPFIND",
                 data=body1,
@@ -165,7 +184,7 @@ class AppleCalendar:
                 return False
             logger.debug(f"[AppleCalendar] principal URL: {self._principal_url}")
             body2 = b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><C:calendar-home-set/></D:prop></D:propfind>'  # noqa: E501
-            resp2 = self._request(
+            resp2 = await self._async_request(
                 self._principal_url,
                 method="PROPFIND",
                 data=body2,
@@ -215,6 +234,19 @@ class AppleCalendar:
             },
         )
 
+    async def _async_propfind(self, url: str, depth: str = "1") -> str | None:
+        body = b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:"><D:prop><D:href/></D:prop></D:propfind>'  # noqa: E501
+        return await self._async_request(
+            url,
+            method="PROPFIND",
+            data=body,
+            headers={
+                "Authorization": self._auth_header(),
+                "Content-Type": "text/xml",
+                "Depth": depth,
+            },
+        )
+
     async def _list_calendars(self) -> list[dict]:
         """列出所有日历，带缓存"""
         now_ts = time.monotonic()
@@ -226,7 +258,7 @@ class AppleCalendar:
             return list(self._calendars_cache)
         if not await self._discover():
             return []
-        resp = self._propfind(self._caldav_base_url + "/")
+        resp = await self._async_propfind(self._caldav_base_url + "/")
         if not resp:
             return []
         calendars = []
@@ -555,7 +587,7 @@ class AppleCalendar:
         created = datetime.now().strftime("%Y%m%dT%H%M%S")
         vevent = f"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:{uid}\r\nDTSTAMP:{created}\r\nDTSTART;TZID=Asia/Shanghai:{dtstart_fmt}\r\nDTEND;TZID=Asia/Shanghai:{dtend_fmt}\r\nSUMMARY:{summary}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n".encode()  # noqa: E501
         event_url = f"{cal_url}{uid}.ics"
-        resp = self._request(
+        resp = await self._async_request(
             event_url,
             method="PUT",
             data=vevent,
@@ -579,7 +611,7 @@ class AppleCalendar:
         resolved_id = calendar_id or self._calendar_id or calendars[0]["id"]
         cal_url = f"{self._caldav_base_url}/{resolved_id}/"
         event_url = f"{cal_url}{uid}.ics"
-        resp = self._request(
+        resp = await self._async_request(
             event_url, method="DELETE", headers={"Authorization": self._auth_header()}
         )
         if resp is not None:

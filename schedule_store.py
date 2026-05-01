@@ -9,7 +9,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
-from astrbot import logger
+from astrbot.api import logger
 
 from .constants import (
     CONVERSATION_KEY,

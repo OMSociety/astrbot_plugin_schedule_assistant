@@ -92,13 +92,14 @@ class HabitReminder:
         """构建 LLM prompt，子类可覆盖"""
         raise NotImplementedError
 
-    async def generate(self, username: str, dashboard: str, history_text: str) -> str | None:
+    async def generate(self, username: str, dashboard: str, history_text: str, user_id: str = None) -> str | None:
         """生成提醒消息
 
         Args:
             username: 用户名
             dashboard: 仪表盘状态描述
             history_text: 近期对话历史
+            user_id: 用户ID，用于获取当前会话的人格
 
         Returns:
             生成的提醒消息文本
@@ -107,7 +108,7 @@ class HabitReminder:
         context = self._get_prompt_context(username, dashboard, history_text, now)
         prompt = self._build_prompt(context)
         # prompt 中已含【近期对话】上下文，不再额外传 history= 避免重复注入
-        return await self.llm_service.generate(prompt)
+        return await self.llm_service.generate(prompt, umo=user_id)
 
 
 class BathReminder(HabitReminder):
@@ -117,7 +118,7 @@ class BathReminder(HabitReminder):
         super().__init__(config, default_user_id, llm_service, store, "bath")
 
     def _build_prompt(self, context: dict) -> str:
-        return f"""【重要】你的所有回复必须严格遵循系统人格设定。如果系统人格部分为空，则用你默认的对话风格。。
+        return f"""【重要】你的所有回复必须严格遵循系统人格设定。如果系统人格部分为空，则用你默认的对话风格。
 
 生成一条洗澡时间提醒：
 
@@ -153,7 +154,7 @@ class SleepReminder(HabitReminder):
         self.llm_service.set_fallback_template(
             self.FALLBACKS["sleep_late"] if is_late else self.FALLBACKS["sleep"]
         )
-        return f"""【重要】你的所有回复必须严格遵循系统人格设定。如果系统人格部分为空，则用你默认的对话风格。。
+        return f"""【重要】你的所有回复必须严格遵循系统人格设定。如果系统人格部分为空，则用你默认的对话风格。
 
 生成一条睡觉时间提醒：
 
@@ -179,7 +180,7 @@ class WaterReminder(HabitReminder):
         super().__init__(config, default_user_id, llm_service, store, "water")
 
     def _build_prompt(self, context: dict) -> str:
-        return f"""【重要】你的所有回复必须严格遵循系统人格设定。如果系统人格部分为空，则用你默认的对话风格。。
+        return f"""【重要】你的所有回复必须严格遵循系统人格设定。如果系统人格部分为空，则用你默认的对话风格。
 
 生成一条喝水提醒：
 

@@ -8,7 +8,7 @@
 from datetime import datetime
 from typing import Any
 
-from astrbot import logger
+from astrbot.api import logger
 
 from ..constants import LOG_PREFIX
 
@@ -86,6 +86,7 @@ class ScheduleReminder:
         item_context: str,
         minutes_ahead: int = 10,
         conv_history: str | None = None,
+        user_id: str | None = None,
     ) -> str:
         """生成提醒文本（带 LLM fallback）"""
 
@@ -110,8 +111,8 @@ class ScheduleReminder:
         )
 
         try:
-            # 使用 generate() 方法，默认 use_persona=True，人格会被正确注入
-            resp = await self.llm.generate(prompt, history=conv_str)
+            # prompt 已含 conv_history，不再额外传 history= 避免重复注入
+            resp = await self.llm.generate(prompt, umo=user_id)
             text = resp.strip() if resp else None
             if text and len(text) > 5:
                 logger.debug(f"{LOG_PREFIX} LLM 提醒生成成功: {text[:30]}...")
@@ -123,23 +124,20 @@ class ScheduleReminder:
 
 
 def _parse_time(time_str: str) -> datetime | None:
-    """解析时间字符串为 datetime，支持 ISO 格式和时区后缀"""
+    """解析时间字符串为 datetime，支持 ISO 格式、时区后缀和普通格式"""
     if not time_str:
         return None
-    # 先尝试 ISO 格式（带时区后缀）
-    for suffix in ["+08:00", "+09:00", "-05:00", "Z", ""]:
-        for fmt in [
-            f"%Y-%m-%dT%H:%M:%S{suffix}",
-            f"%Y-%m-%dT%H:%M{suffix}",
-        ]:
-            try:
-                return datetime.strptime(time_str.strip(), fmt)
-            except ValueError:
-                continue
+    s = time_str.strip()
+    # 优先使用 fromisoformat（原生支持 ISO 8601，含时区）
+    try:
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        return dt.replace(tzinfo=None) if dt.tzinfo else dt
+    except (ValueError, TypeError):
+        pass
     # 再尝试普通格式
     for fmt in ["%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S", "%H:%M"]:
         try:
-            return datetime.strptime(time_str.strip(), fmt)
+            return datetime.strptime(s, fmt)
         except ValueError:
             continue
     return None
@@ -202,6 +200,7 @@ async def check_and_trigger_schedule_reminder(
                 item_context=item.context,
                 minutes_ahead=int(minutes_until),
                 conv_history=conv_history,
+                user_id=user_id,
             )
             # prompt 已含 conv_history，不再额外传 history= 避免重复注入
 

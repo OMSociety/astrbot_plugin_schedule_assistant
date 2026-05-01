@@ -13,7 +13,8 @@ class BriefingReminder:
         username: str, date: str, weekday: str,
         weather_current: str, weather_forecast: str,
         agenda: str, notion_todos: str,
-        dashboard: str = "", late_night: str = ""
+        dashboard: str = "", late_night: str = "",
+        user_id: str = None
     ) -> str:
         agenda_lines = [ln.strip().replace("|", " ") for ln in agenda.split("\n") if ln.strip()] if agenda and agenda not in ("暂无", "获取失败") else []
         _nl = chr(10)  # newline char for f-string
@@ -69,5 +70,4 @@ class BriefingReminder:
 🫕 温馨提示
 今天阴天但气温还行，不用带伞~四门课连轴转辛苦了，中午记得吃点好的补充能量🥺读书报告只剩1天了，合理安排时间哦~"""
 
-        return await self.llm_service.generate(prompt)
-        _nl = "\n"
+        return await self.llm_service.generate(prompt, umo=user_id)

@@ -12,7 +12,7 @@ from pathlib import Path
 
 import aiohttp
 
-from astrbot import logger
+from astrbot.api import logger
 
 from ..constants import LOG_PREFIX
 

@@ -9,12 +9,12 @@
 import asyncio
 import time
 from datetime import datetime, timedelta
-from typing import Any, Optional
+from typing import Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from astrbot import logger
+from astrbot.api import logger
 from astrbot.api.event import filter
 from astrbot.api.star import Context, Star
 from astrbot.core.message.components import Node, Nodes, Plain, Reply
@@ -44,6 +44,7 @@ from .services.llm import LLMService
 from .services.notion import NotionService
 from .services.weather import WeatherService
 from .tools.schedule_tools import register_schedule_tools
+from .utils.config_parser import parse_list_config
 
 SCHEDULE_REMINDER_LOG_THROTTLE_SECONDS = 300  # seconds (5 minutes)
 
@@ -52,7 +53,7 @@ class ScheduleAssistant(Star):
     # Single-process active-instance guard to prevent duplicate jobs after hot reload.
     _instance_seq: int = 0
     _active_generation: int = 0
-    _active_instance: Optional["ScheduleAssistant"] = None
+    _active_instance: "ScheduleAssistant | None" = None
 
     def __init__(self, context: Context, config: dict[str, Any]):
         super().__init__(context)
@@ -236,7 +237,7 @@ class ScheduleAssistant(Star):
                 {"weather_api_key": api_key, "weather_city": city}
             )
 
-        self.llm_service = LLMService(self.context)
+        self.llm_service = LLMService(self.context, self.config)
         self.dashboard_service = BasicDashboardService()
 
         notion_db_ids = self.config.get("notion_db_ids", [])
@@ -485,19 +486,11 @@ class ScheduleAssistant(Star):
                     user_ids.add(str(uid))
         return sorted(user_ids)
 
-    def _extract_block_lines(self, block: str, remove_pipe: bool = False) -> list[str]:
+    def _extract_block_lines(self, block: str) -> list[str]:
         """提取并清洗文本块中的行"""
         if not block or block in ("暂无", "获取失败"):
             return []
-        rows = []
-        for line in block.split("\n"):
-            clean = line.strip()
-            if not clean:
-                continue
-            if remove_pipe:
-                clean = clean.replace("|", " ")
-            rows.append(clean)
-        return rows
+        return [line.strip() for line in block.split("\n") if line.strip()]
 
     def _merge_today_schedule_blocks(
         self, local_text: str, apple_text: str, limit: int = 12
@@ -679,15 +672,19 @@ class ScheduleAssistant(Star):
                     notion_todos=notion_text,
                     dashboard=dashboard_status,
                     late_night=late_night_text,
+                    user_id=user_id,
                 )
                 await self.messaging.send_to_user(user_id, briefing)
             logger.info(f"{LOG_PREFIX} 早安播报已发送 users={target_user_ids}")
         except Exception as e:
             logger.error(f"{LOG_PREFIX} 早安播报失败: {e}")
 
-    async def _bath_reminder(self, target_user_id: str | None = None):
+    async def _run_habit_reminder(
+        self, reminder_obj, label: str, target_user_id: str | None = None
+    ) -> list[str]:
+        """通用习惯提醒执行逻辑，返回目标用户列表（调用方可追加后续操作）。"""
         if not self._is_active_instance():
-            return
+            return []
         try:
             await self._ensure_services()
             target_user_ids = (
@@ -696,7 +693,7 @@ class ScheduleAssistant(Star):
                 else await self._get_target_user_ids()
             )
             if not target_user_ids:
-                return
+                return []
 
             dashboard = (
                 await self.dashboard_service.get_status()
@@ -710,97 +707,45 @@ class ScheduleAssistant(Star):
                     if history
                     else ""
                 )
-                message = await self.bath_reminder.generate(
-                    await self._get_user_nickname(user_id), dashboard, history_text
+                message = await reminder_obj.generate(
+                    await self._get_user_nickname(user_id), dashboard, history_text, user_id=user_id
                 )
                 if message:
                     await self.messaging.send_to_user(user_id, message)
-            logger.info(f"{LOG_PREFIX} 洗澡提醒已发送 users={target_user_ids}")
+            logger.info(f"{LOG_PREFIX} {label}提醒已发送 users={target_user_ids}")
+            return target_user_ids
         except Exception as e:
-            logger.error(f"{LOG_PREFIX} 洗澡提醒失败: {e}")
+            logger.error(f"{LOG_PREFIX} {label}提醒失败: {e}")
+            return []
+
+    async def _bath_reminder(self, target_user_id: str | None = None):
+        await self._run_habit_reminder(self.bath_reminder, "洗澡", target_user_id)
 
     async def _sleep_reminder(self, target_user_id: str | None = None):
-        if not self._is_active_instance():
-            return
-        try:
-            await self._ensure_services()
-            target_user_ids = (
-                [str(target_user_id)]
-                if target_user_id
-                else await self._get_target_user_ids()
-            )
-            if not target_user_ids:
-                return
-
-            dashboard = (
-                await self.dashboard_service.get_status()
-                if self.dashboard_service
-                else ""
-            )
-            for user_id in target_user_ids:
-                history = await self.store.get_conversation_history(user_id)
-                history_text = (
-                    self.store.format_history_for_prompt(history[-5:])
-                    if history
-                    else ""
-                )
-                message = await self.sleep_reminder.generate(
-                    await self._get_user_nickname(user_id), dashboard, history_text
-                )
-                if message:
-                    await self.messaging.send_to_user(user_id, message)
-            logger.info(f"{LOG_PREFIX} 睡觉提醒已发送 users={target_user_ids}")
-        except Exception as e:
-            logger.error(f"{LOG_PREFIX} 睡觉提醒失败: {e}")
+        await self._run_habit_reminder(self.sleep_reminder, "睡觉", target_user_id)
 
     async def _water_reminder(self, target_user_id: str | None = None):
-        if not self._is_active_instance():
+        sent_users = await self._run_habit_reminder(
+            self.water_reminder, "喝水", target_user_id
+        )
+        if not sent_users:
             return
-        try:
-            await self._ensure_services()
-            target_user_ids = (
-                [str(target_user_id)]
-                if target_user_id
-                else await self._get_target_user_ids()
-            )
-            if not target_user_ids:
-                return
 
-            dashboard = (
-                await self.dashboard_service.get_status()
-                if self.dashboard_service
-                else ""
-            )
-            for user_id in target_user_ids:
-                history = await self.store.get_conversation_history(user_id)
-                history_text = (
-                    self.store.format_history_for_prompt(history[-5:])
-                    if history
-                    else ""
-                )
-                message = await self.water_reminder.generate(
-                    await self._get_user_nickname(user_id), dashboard, history_text
-                )
-                if message:
-                    await self.messaging.send_to_user(user_id, message)
+        water_interval = self.config.get("water_interval", DEFAULT_WATER_INTERVAL)
+        water_start = self.config.get("water_start_time", DEFAULT_WATER_START)
+        water_end = self.config.get("water_end_time", DEFAULT_WATER_END)
 
-            water_interval = self.config.get("water_interval", DEFAULT_WATER_INTERVAL)
-            water_start = self.config.get("water_start_time", DEFAULT_WATER_START)
-            water_end = self.config.get("water_end_time", DEFAULT_WATER_END)
+        next_trigger = self._get_water_next_trigger(
+            datetime.now() + timedelta(minutes=water_interval),
+            water_start,
+            water_end,
+            water_interval,
+        )
+        delay = max((next_trigger - datetime.now()).total_seconds(), 30.0)
 
-            next_trigger = self._get_water_next_trigger(
-                datetime.now() + timedelta(minutes=water_interval),
-                water_start,
-                water_end,
-                water_interval,
-            )
-            delay = max((next_trigger - datetime.now()).total_seconds(), 30.0)
-
-            self._schedule_next_water_reminder(
-                datetime.now() + timedelta(seconds=delay)
-            )
-        except Exception as e:
-            logger.error(f"{LOG_PREFIX} 喝水提醒失败: {e}")
+        self._schedule_next_water_reminder(
+            datetime.now() + timedelta(seconds=delay)
+        )
 
     async def _schedule_reminder_scan(self):
         self._ensure_runtime_locks()
@@ -985,11 +930,7 @@ class ScheduleAssistant(Star):
 
         # 检查群组黑名单
         group_raw = self.config.get("live_dashboard_group_blacklist_sessions", "") or ""
-        group_list = []
-        for sep in [";", ","]:
-            for item in group_raw.replace(sep, "\n").split("\n"):
-                if item.strip():
-                    group_list.append(item.strip())
+        group_list = parse_list_config(group_raw)
         if any(
             blocked == session_id or session_id.endswith(":" + blocked)
             for blocked in group_list
@@ -998,11 +939,7 @@ class ScheduleAssistant(Star):
 
         # 检查用户黑名单
         user_raw = self.config.get("live_dashboard_user_blacklist_senders", "") or ""
-        user_list = []
-        for sep in [";", ","]:
-            for item in user_raw.replace(sep, "\n").split("\n"):
-                if item.strip():
-                    user_list.append(item.strip())
+        user_list = parse_list_config(user_raw)
         if sender_id and any(blocked == sender_id for blocked in user_list):
             return "你已被禁止使用该查询喵。"
 

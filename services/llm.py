@@ -2,7 +2,7 @@
 
 import time
 
-from astrbot import logger
+from astrbot.api import logger
 from astrbot.core.provider.entities import ProviderType
 
 from ..constants import LOG_PREFIX
@@ -15,8 +15,9 @@ _LLM_CIRCUIT_BREAKER_TTL = 300  # 5分钟
 class LLMService:
     """LLM 服务，封装 AstrBot 的 llm_generate 接口"""
 
-    def __init__(self, context):
+    def __init__(self, context, config: dict = None):
         self.context = context
+        self.config = config or {}
         self._provider_id = None
         self._fallback_template = ""
 
@@ -39,18 +40,42 @@ class LLMService:
             logger.error(f"{LOG_PREFIX} 获取默认模型失败: {e}")
         return None
 
-    def _get_persona_prompt(self) -> str:
-        """获取默认人设 prompt"""
+    def _get_persona_prompt(self, umo: str = None) -> str:
+        """获取人设 prompt，按优先级：配置指定 > 当前会话 > 全局默认"""
         try:
+            # 1. 从插件配置中读取指定的人格ID
+            persona_id = self.config.get("persona_id", "")
+            if persona_id:
+                logger.debug(f"{LOG_PREFIX} 使用插件配置的人格: {persona_id}")
+                persona = self.context.persona_manager.get_persona(persona_id)
+                if persona:
+                    if isinstance(persona, dict):
+                        return persona.get("prompt", "")
+                    return getattr(persona, "prompt", "") if hasattr(persona, "prompt") else ""
+                else:
+                    logger.warning(f"{LOG_PREFIX} 配置的人格 '{persona_id}' 不存在，回退到会话人格")
+            
+            # 2. 尝试获取当前会话的人格（如果提供了umo）
+            if umo:
+                logger.debug(f"{LOG_PREFIX} 尝试获取会话 {umo} 的当前人格")
+                persona = self.context.persona_manager.get_default_persona_v3(umo=umo)
+                if persona:
+                    if isinstance(persona, dict):
+                        return persona.get("prompt", "")
+                    return getattr(persona, "prompt", "") if hasattr(persona, "prompt") else ""
+            
+            # 3. 回退到全局默认人格
+            logger.debug(f"{LOG_PREFIX} 使用全局默认人格")
             persona = self.context.persona_manager.get_default_persona_v3()
             if isinstance(persona, dict):
                 return persona.get("prompt", "")
             return getattr(persona, "prompt", "") if hasattr(persona, "prompt") else ""
-        except Exception:
+        except Exception as e:
+            logger.error(f"{LOG_PREFIX} 获取人格失败: {e}")
             return ""
 
     async def generate(
-        self, prompt: str, use_persona: bool = True, history: str = ""
+        self, prompt: str, use_persona: bool = True, history: str = "", umo: str = None
     ) -> str:
         """生成 LLM 回复
 
@@ -58,11 +83,12 @@ class LLMService:
             prompt: 用户输入的 prompt
             use_persona: 是否使用人设 prompt
             history: 近期对话历史，会拼接到 system_prompt 末尾
+            umo: 统一会话标识，用于获取当前会话的人格
 
         Returns:
             LLM 生成的文本
         """
-        system_prompt = self._get_persona_prompt() if use_persona else ""
+        system_prompt = self._get_persona_prompt(umo=umo) if use_persona else ""
         # 追加对话历史，让 AI 有上下文
         if history:
             history_section = "\n\n【近期对话】\n" + history
