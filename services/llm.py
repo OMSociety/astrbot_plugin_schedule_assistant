@@ -40,8 +40,32 @@ class LLMService:
             logger.error(f"{LOG_PREFIX} 获取默认模型失败: {e}")
         return None
 
+    def _normalize_umo(self, umo: str | None) -> str | None:
+        """将纯 QQ 号转换为合法的 MessageSession 格式。
+
+        persona_manager.get_default_persona_v3 内部会调用
+        MessageSession.from_str() 验证格式，纯数字 QQ 号会
+        导致 ValueError 从而回退到默认人格。
+        """
+        if not umo or ":" in umo:
+            return umo
+        # 获取主平台 ID
+        platform = "aiocqhttp"
+        try:
+            for p in self.context.platform_manager.platform_insts:
+                pid = p.meta().id
+                if pid:
+                    platform = str(pid)
+                    break
+        except Exception:
+            pass
+        normalized = f"{platform}:FriendMessage:{umo}"
+        logger.debug(f"{LOG_PREFIX} 规范化 umo: {umo} → {normalized}")
+        return normalized
+
     def _get_persona_prompt(self, umo: str = None) -> str:
         """获取人设 prompt，按优先级：配置指定 > 当前会话 > 全局默认"""
+        umo = self._normalize_umo(umo)
         try:
             # 1. 从插件配置中读取指定的人格ID
             persona_id = self.config.get("persona_id", "")
