@@ -58,11 +58,16 @@ class CreateScheduleTool(FunctionTool[AstrAgentContext]):
         super().__init__(**data)
         self.store = None
         self.default_user_id = None
+        self._plugin = None
 
     def inject_store(self, store, default_user_id):
         """注入 store 和 default_user_id"""
         self.store = store
         self.default_user_id = default_user_id
+
+    def inject_plugin(self, plugin_instance):
+        """注入插件实例（用于 Apple 日历写入）"""
+        self._plugin = plugin_instance
 
     async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs):
         try:
@@ -128,7 +133,23 @@ class CreateScheduleTool(FunctionTool[AstrAgentContext]):
             )
 
             await self.store.add_item(user_id, item)
-            return f"已创建日程「{title}」，时间：{dt.strftime('%m-%d %H:%M')} ✅"
+
+            # Apple 日历写入（需 enable_sync 开启且已配置 Apple Calendar）
+            apple_msg = ""
+            if self._plugin is not None:
+                try:
+                    apple_conf = self._plugin.config.get("apple_calendar", {}) or {}
+                    if apple_conf.get("enable_sync") and self._plugin.apple_calendar:
+                        await self._plugin.apple_calendar.create_event(
+                            summary=title,
+                            start=dt,
+                            description=description,
+                        )
+                        apple_msg = "，已同步到 Apple 日历"
+                except Exception as e:
+                    logger.warning(f"Apple 日历写入失败: {e}")
+
+            return f"已创建日程「{title}」，时间：{dt.strftime('%m-%d %H:%M')} ✅{apple_msg}"
 
         except Exception as e:
             logger.error(f"创建日程失败: {e}")
@@ -164,10 +185,34 @@ class DeleteScheduleTool(FunctionTool[AstrAgentContext]):
         super().__init__(**data)
         self.store = None
         self.default_user_id = None
+        self._plugin = None
 
     def inject_store(self, store, default_user_id):
         self.store = store
         self.default_user_id = default_user_id
+
+    def inject_plugin(self, plugin_instance):
+        """注入插件实例（用于 Apple 日历删除）"""
+        self._plugin = plugin_instance
+
+    async def _sync_delete_to_apple(self, title: str):
+        """尝试从 Apple 日历中删除对应事件（静默失败）"""
+        if self._plugin is None:
+            return
+        try:
+            apple_conf = self._plugin.config.get("apple_calendar", {}) or {}
+            if not apple_conf.get("enable_sync") or not self._plugin.apple_calendar:
+                return
+            calendars = await self._plugin.apple_calendar._list_calendars()
+            for cal in calendars:
+                events = await self._plugin.apple_calendar._caldav_fetch(cal["url"], 30)
+                for evt in events:
+                    if evt.get("summary") == title:
+                        await self._plugin.apple_calendar.delete_event(
+                            evt["uid"], cal["id"]
+                        )
+        except Exception as e:
+            logger.warning(f"Apple 日历同步删除失败: {e}")
 
     async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs):
         try:
@@ -203,6 +248,7 @@ class DeleteScheduleTool(FunctionTool[AstrAgentContext]):
                     return f"没有找到包含「{title_keyword}」的日程"
                 elif len(matches) == 1:
                     await self.store.remove_item(user_id, matches[0].id)
+                    await self._sync_delete_to_apple(matches[0].title)
                     return f"已删除日程「{matches[0].title}」✅"
                 else:
                     lines = ["找到多个匹配日程，请提供更具体的信息："]
@@ -452,6 +498,10 @@ def register_schedule_tools(plugin_instance) -> None:
     delete_tool.inject_store(store, default_user_id)
     list_tool.inject_store(store, default_user_id)
     update_tool.inject_store(store, default_user_id)
+
+    # 注入插件实例（用于 Apple 日历双向同步）
+    create_tool.inject_plugin(plugin_instance)
+    delete_tool.inject_plugin(plugin_instance)
 
     # 注册到 AstrBot
     plugin_instance.context.add_llm_tools(
