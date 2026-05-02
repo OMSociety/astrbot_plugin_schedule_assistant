@@ -42,12 +42,6 @@ class CommandHandler:
 ⏭️ 跳过提醒：跳过喝水
 ⏰ 修改习惯时间：修改时间 喝水 10:30
 
-💡 快捷命令：
-/喝水 - 立即提醒喝水
-/早安 - 生成早安播报
-/洗澡 - 立即提醒洗澡
-/睡觉 - 立即提醒睡觉
-
 ✨ 也可以直接用自然语言管理日程：
 "帮我加个明天9点开组会"
 "看看这周有什么安排"
@@ -104,10 +98,6 @@ class CommandHandler:
             return await self._handle_modify_time(event, user_id, msg_text)
         elif msg_text in ("帮助", "help"):
             return await self._handle_help(event)
-        elif msg_text in ("早安", "天气"):
-            return await self._handle_morning(event)
-        elif msg_text == "喝水":
-            return await self._handle_water(event)
         return False
 
     # ============ 斜杠命令路由 ============
@@ -121,19 +111,8 @@ class CommandHandler:
         if cmd.startswith("/日程"):
             sub = cmd[3:].strip()
             return await self._handle_schedule_sub(event, user_id, sub)
-        elif cmd == "/喝水":
-            return await self._handle_water(event)
-        elif cmd in ("/早安", "/天气"):
-            return await self._handle_morning(event)
-        elif cmd == "/洗澡":
-            return await self._handle_bath(event)
-        elif cmd == "/睡觉":
-            return await self._handle_sleep(event)
         else:
-            await self.messaging.reply_to_event(
-                event, "未知命令，输入「帮助」查看可用命令~"
-            )
-            return True
+            return False
 
     async def _handle_schedule_sub(
         self, event: AiocqhttpMessageEvent, user_id: str, sub: str
@@ -281,28 +260,6 @@ class CommandHandler:
     async def _handle_help(self, event: AiocqhttpMessageEvent) -> bool:
         """处理帮助命令"""
         await self.messaging.reply_to_event(event, self.HELP_TEXT)
-        return True
-
-    # ============ 快捷命令 Stub（由 main.py 的定时任务处理具体逻辑） ============
-
-    async def _handle_morning(self, event: AiocqhttpMessageEvent) -> bool:
-        """早安命令占位（具体逻辑在 main.py）"""
-        await self.messaging.reply_to_event(event, "早安播报已生成~")
-        return True
-
-    async def _handle_water(self, event: AiocqhttpMessageEvent) -> bool:
-        """喝水命令占位"""
-        await self.messaging.reply_to_event(event, "喝水提醒已触发~")
-        return True
-
-    async def _handle_bath(self, event: AiocqhttpMessageEvent) -> bool:
-        """洗澡命令占位"""
-        await self.messaging.reply_to_event(event, "洗澡提醒已触发~")
-        return True
-
-    async def _handle_sleep(self, event: AiocqhttpMessageEvent) -> bool:
-        """睡觉命令占位"""
-        await self.messaging.reply_to_event(event, "睡觉提醒已触发~")
         return True
 
     # ============ 内部辅助方法 ============

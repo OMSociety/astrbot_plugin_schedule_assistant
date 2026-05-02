@@ -7,7 +7,7 @@ import httpx
 # AstrBot 统一日志对象。
 from astrbot.api import logger
 
-from ..utils.config_parser import get_int_value
+from .config_parser import get_int_value
 
 # 渲染层：把结构化数据转成可直接回复的文本。
 from .message_renderer import get_render_device_count, render_dashboard_message

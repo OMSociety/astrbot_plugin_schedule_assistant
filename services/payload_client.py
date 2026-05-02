@@ -8,7 +8,7 @@ import httpx
 from astrbot.api import logger
 
 # 配置读取工具：统一处理默认值、类型转换与边界裁剪。
-from ..utils.config_parser import get_int_value, get_text_value
+from .config_parser import get_int_value, get_text_value
 
 
 def _build_headers(config: dict[str, Any]) -> dict[str, str]:

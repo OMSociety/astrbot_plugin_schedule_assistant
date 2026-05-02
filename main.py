@@ -39,12 +39,12 @@ from .reminders.briefing import BriefingReminder
 from .reminders.habits import BathReminder, SleepReminder, WaterReminder
 from .reminders.schedule import ScheduleReminder, check_and_trigger_schedule_reminder
 from .schedule_store import ScheduleItem, ScheduleStore
+from .services.config_parser import parse_list_config
 from .services.dashboard import BasicDashboardService, get_dashboard_status
 from .services.llm import LLMService
 from .services.notion import NotionService
 from .services.weather import WeatherService
 from .tools.schedule_tools import register_schedule_tools
-from .utils.config_parser import parse_list_config
 
 SCHEDULE_REMINDER_LOG_THROTTLE_SECONDS = 300  # seconds (5 minutes)
 
@@ -708,7 +708,10 @@ class ScheduleAssistant(Star):
                     else ""
                 )
                 message = await reminder_obj.generate(
-                    await self._get_user_nickname(user_id), dashboard, history_text, user_id=user_id
+                    await self._get_user_nickname(user_id),
+                    dashboard,
+                    history_text,
+                    user_id=user_id,
                 )
                 if message:
                     await self.messaging.send_to_user(user_id, message)
@@ -743,9 +746,7 @@ class ScheduleAssistant(Star):
         )
         delay = max((next_trigger - datetime.now()).total_seconds(), 30.0)
 
-        self._schedule_next_water_reminder(
-            datetime.now() + timedelta(seconds=delay)
-        )
+        self._schedule_next_water_reminder(datetime.now() + timedelta(seconds=delay))
 
     async def _schedule_reminder_scan(self):
         self._ensure_runtime_locks()
@@ -821,6 +822,9 @@ class ScheduleAssistant(Star):
                 return
             try:
                 events = await self.apple_calendar.get_all_events(days=7)
+                if not events:
+                    logger.debug(f"{LOG_PREFIX} Apple Calendar 无事件，跳过同步")
+                    return
                 user_ids = await self._get_target_user_ids(include_known_users=True)
                 if not user_ids:
                     logger.debug(
@@ -839,8 +843,10 @@ class ScheduleAssistant(Star):
 
                 # 如果新增了近期事件，触发一次即时扫描（30秒后）
                 if recent_events_added and self.config.get("enable_schedule_reminder"):
-                    asyncio.create_task(self._delayed_schedule_reminder_scan())
-                    logger.debug(f"{LOG_PREFIX} 检测到 Apple 日程新增，已安排即时扫描")
+                    self._schedule_task(
+                        self._delayed_schedule_reminder_scan(),
+                        "delayed_schedule_reminder_scan",
+                    )
             except Exception as e:
                 logger.error(f"{LOG_PREFIX} Apple Calendar 同步失败: {e}")
         finally:
@@ -891,36 +897,43 @@ class ScheduleAssistant(Star):
     # ============ Live Dashboard 功能 ============
 
     def _get_live_dashboard_config(self) -> dict:
-        """从主配置中提取 live_dashboard 相关配置"""
-        live_config = self.config.get("live_dashboard", {}) or {}
+        """从主配置中提取 live_dashboard 相关配置（扁平键）"""
+        cfg = self.config
         return {
-            "base_url": live_config.get("base_url", ""),
-            "auth_token": live_config.get("auth_token", ""),
-            "request_timeout_sec": live_config.get("request_timeout_sec", 30),
-            "include_offline_devices": live_config.get(
-                "include_offline_devices", False
+            "base_url": cfg.get("live_dashboard_base_url", ""),
+            "auth_token": cfg.get("live_dashboard_auth_token", ""),
+            "request_timeout_sec": cfg.get("live_dashboard_request_timeout_sec", 30),
+            "include_offline_devices": cfg.get(
+                "live_dashboard_include_offline_devices", False
             ),
-            "max_devices": live_config.get("max_devices", 10),
-            "device_whitelist_keywords": live_config.get(
-                "device_whitelist_keywords", ""
+            "max_devices": cfg.get("live_dashboard_max_devices", 10),
+            "device_whitelist_keywords": cfg.get(
+                "live_dashboard_device_whitelist_keywords", ""
             ),
-            "device_blacklist_keywords": live_config.get(
-                "device_blacklist_keywords", ""
+            "device_blacklist_keywords": cfg.get(
+                "live_dashboard_device_blacklist_keywords", ""
             ),
-            "group_blacklist_sessions": live_config.get("group_blacklist_sessions", ""),
-            "user_blacklist_senders": live_config.get("user_blacklist_senders", ""),
-            "info_blacklist_keywords": live_config.get("info_blacklist_keywords", ""),
-            "info_blacklist_replacement": live_config.get(
-                "info_blacklist_replacement", "不想让你看到我在干什么喵~"
+            "group_blacklist_sessions": cfg.get(
+                "live_dashboard_group_blacklist_sessions", ""
             ),
-            "show_platform": live_config.get("show_platform", True),
-            "show_app_name": live_config.get("show_app_name", True),
-            "show_display_title": live_config.get("show_display_title", True),
-            "show_battery": live_config.get("show_battery", True),
-            "show_music": live_config.get("show_music", True),
-            "show_last_seen": live_config.get("show_last_seen", True),
-            "show_viewer_count": live_config.get("show_viewer_count", False),
-            "show_server_time": live_config.get("show_server_time", False),
+            "user_blacklist_senders": cfg.get(
+                "live_dashboard_user_blacklist_senders", ""
+            ),
+            "info_blacklist_keywords": cfg.get(
+                "live_dashboard_info_blacklist_keywords", ""
+            ),
+            "info_blacklist_replacement": cfg.get(
+                "live_dashboard_info_blacklist_replacement",
+                "不想让你看到我在干什么喵~",
+            ),
+            "show_platform": cfg.get("live_dashboard_show_platform", True),
+            "show_app_name": cfg.get("live_dashboard_show_app_name", True),
+            "show_display_title": cfg.get("live_dashboard_show_display_title", True),
+            "show_battery": cfg.get("live_dashboard_show_battery", True),
+            "show_music": cfg.get("live_dashboard_show_music", True),
+            "show_last_seen": cfg.get("live_dashboard_show_last_seen", True),
+            "show_viewer_count": cfg.get("live_dashboard_show_viewer_count", False),
+            "show_server_time": cfg.get("live_dashboard_show_server_time", False),
         }
 
     def _get_live_dashboard_denied_text(self, event) -> str:

@@ -6,7 +6,6 @@
 由 main.py 的内联发送逻辑迁移而来，整合了最健壮的回复兜底机制。
 """
 
-
 from astrbot.api import logger
 from astrbot.core.message.components import Plain
 from astrbot.core.message.message_event_result import MessageChain
@@ -201,11 +200,9 @@ class MessagingService:
                     return True
                 except Exception as send_err:
                     logger.warning(
-
-                            f"{LOG_PREFIX} 发送失败"
-                            f" user={user_id} platform={platform}"
-                            f" err={send_err}"
-
+                        f"{LOG_PREFIX} 发送失败"
+                        f" user={user_id} platform={platform}"
+                        f" err={send_err}"
                     )
 
             logger.error(

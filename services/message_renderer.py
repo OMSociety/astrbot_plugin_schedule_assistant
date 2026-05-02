@@ -7,7 +7,7 @@ from typing import Any
 from astrbot.api import logger
 
 # 配置读取工具：统一处理类型转换和默认值。
-from ..utils.config_parser import (
+from .config_parser import (
     get_bool_value,
     get_int_value,
     get_text_value,
@@ -15,7 +15,7 @@ from ..utils.config_parser import (
 )
 
 # 时间格式化工具：把 ISO 时间转换为本地可读格式。
-from ..utils.time_formatter import format_time_text
+from .time_formatter import format_time_text
 from .app_descriptions import (
     APP_DESCRIPTIONS_LOWER,
     APP_PLACEHOLDER_VALUES,

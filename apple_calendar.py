@@ -6,13 +6,12 @@ import base64
 import html
 import re
 import time
-import urllib.error
-import urllib.request
 import uuid
 import xml.etree.ElementTree as ET
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urljoin, urlparse
+
+import aiohttp
 
 from astrbot.api import logger
 
@@ -51,7 +50,7 @@ class AppleCalendar:
         creds = f"{self.username}:{self.app_password}"
         return "Basic " + base64.b64encode(creds.encode()).decode()
 
-    def _request(
+    async def _aiohttp_request(
         self,
         url: str,
         method: str = "GET",
@@ -60,26 +59,31 @@ class AppleCalendar:
         timeout: int = 30,
         retries: int = 3,
     ) -> str | None:
+        """异步 HTTP 请求（aiohttp），带重试"""
         headers = dict(headers or {})
         headers.setdefault("User-Agent", "curl/7.88.1")
         last_error = None
         for attempt in range(retries):
             try:
-                req = urllib.request.Request(
-                    url, headers=headers, data=data, method=method
-                )
-                resp = urllib.request.urlopen(req, timeout=timeout)
-                return resp.read().decode("utf-8", errors="replace")
-            except urllib.error.HTTPError as e:
-                last_error = e
-                if e.code >= 500 and attempt < retries - 1:
-                    time.sleep(1 * (attempt + 1))
-                    continue
-                return None
-            except Exception as e:
+                async with aiohttp.ClientSession() as session:
+                    async with session.request(
+                        method,
+                        url,
+                        data=data,
+                        headers=headers,
+                        timeout=aiohttp.ClientTimeout(total=timeout),
+                    ) as resp:
+                        if resp.status >= 500 and attempt < retries - 1:
+                            await asyncio.sleep(1 * (attempt + 1))
+                            last_error = aiohttp.ClientResponseError(
+                                resp.request_info, resp.history, status=resp.status
+                            )
+                            continue
+                        return await resp.text(encoding="utf-8", errors="replace")
+            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
                 last_error = e
                 if attempt < retries - 1:
-                    time.sleep(1 * (attempt + 1))
+                    await asyncio.sleep(1 * (attempt + 1))
         logger.debug(
             f"[AppleCalendar] 请求异常 {url}: {type(last_error).__name__}: {last_error}"
         )
@@ -94,14 +98,14 @@ class AppleCalendar:
         timeout: int = 30,
         retries: int = 3,
     ) -> str | None:
-        """异步包装：将阻塞的 _request 放到线程池执行，避免阻塞事件循环"""
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(
-            None,
-            lambda: self._request(
-                url, method=method, data=data, headers=headers,
-                timeout=timeout, retries=retries,
-            ),
+        """向后兼容别名：直接委托给 _aiohttp_request"""
+        return await self._aiohttp_request(
+            url,
+            method=method,
+            data=data,
+            headers=headers,
+            timeout=timeout,
+            retries=retries,
         )
 
     @staticmethod
@@ -221,31 +225,58 @@ class AppleCalendar:
             )
             return True
 
-    def _propfind(self, url: str, depth: str = "1") -> str | None:
+    async def _caldav_fetch(self, cal_url: str, days: int = 30) -> list[dict]:
+        """纯异步 CalDAV 抓取：PROPFIND → 并发拉 .ics → 解析"""
         body = b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:"><D:prop><D:href/></D:prop></D:propfind>'  # noqa: E501
-        return self._request(
-            url,
+        resp = await self._async_request(
+            cal_url.rstrip("/") + "/",
             method="PROPFIND",
             data=body,
             headers={
                 "Authorization": self._auth_header(),
                 "Content-Type": "text/xml",
-                "Depth": depth,
+                "Depth": "1",
             },
         )
+        if not resp:
+            return []
+        ics_urls: list[str] = []
+        seen_urls: set[str] = set()
+        for m in re.findall(r"<(?:D:)?href[^>]*>([^<]+)</(?:D:)?href>", resp):
+            href = m.strip()
+            if href.endswith(".ics"):
+                if href.startswith("/"):
+                    ics_url = f"https://{self._caldav_base_domain}{href}"
+                elif href.startswith("https://"):
+                    ics_url = href
+                else:
+                    ics_url = f"{cal_url.rstrip('/')}/{href}"
+                if ics_url not in seen_urls:
+                    seen_urls.add(ics_url)
+                    ics_urls.append(ics_url)
+        if not ics_urls:
+            return []
+        now_ts = time.monotonic()
+        current_count = len(ics_urls)
+        if (
+            self._last_ics_discovery_count != current_count
+            or (now_ts - self._last_ics_discovery_log_ts) >= 300
+        ):
+            logger.debug(f"[AppleCalendar] 发现 {current_count} 个事件文件")
+            self._last_ics_discovery_count = current_count
+            self._last_ics_discovery_log_ts = now_ts
 
-    async def _async_propfind(self, url: str, depth: str = "1") -> str | None:
-        body = b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:"><D:prop><D:href/></D:prop></D:propfind>'  # noqa: E501
-        return await self._async_request(
-            url,
-            method="PROPFIND",
-            data=body,
-            headers={
-                "Authorization": self._auth_header(),
-                "Content-Type": "text/xml",
-                "Depth": depth,
-            },
-        )
+        async def _fetch_one(url: str) -> str | None:
+            return await self._aiohttp_request(
+                url, headers={"Authorization": self._auth_header()}, timeout=10
+            )
+
+        results = await asyncio.gather(*[_fetch_one(u) for u in ics_urls])
+        events: list[dict] = []
+        for ics_data in results:
+            if ics_data:
+                events.extend(self._parse_vevents(ics_data))
+        return events
 
     async def _list_calendars(self) -> list[dict]:
         """列出所有日历，带缓存"""
@@ -258,7 +289,16 @@ class AppleCalendar:
             return list(self._calendars_cache)
         if not await self._discover():
             return []
-        resp = await self._async_propfind(self._caldav_base_url + "/")
+        resp = await self._async_request(
+            self._caldav_base_url + "/",
+            method="PROPFIND",
+            data=b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:"><D:prop><D:href/></D:prop></D:propfind>',  # noqa: E501
+            headers={
+                "Authorization": self._auth_header(),
+                "Content-Type": "text/xml",
+                "Depth": "1",
+            },
+        )
         if not resp:
             return []
         calendars = []
@@ -291,54 +331,6 @@ class AppleCalendar:
         self._calendars_ts = time.monotonic()
         logger.debug(f"[AppleCalendar] 发现 {len(calendars)} 个日历")
         return calendars
-
-    def _fetch_ics_sync(self, ics_url: str) -> str | None:
-        return self._request(
-            ics_url, headers={"Authorization": self._auth_header()}, timeout=10
-        )
-
-    def _caldav_fetch_sync(self, cal_url: str) -> list[dict]:
-        resp = self._propfind(cal_url.rstrip("/") + "/")
-        if not resp:
-            return []
-        ics_urls = []
-        seen_urls = set()  # 去重
-        for m in re.findall(r"<(?:D:)?href[^>]*>([^<]+)</(?:D:)?href>", resp):
-            href = m.strip()
-            if href.endswith(".ics"):
-                if href.startswith("/"):
-                    ics_url = f"https://{self._caldav_base_domain}{href}"
-                elif href.startswith("https://"):
-                    ics_url = href
-                else:
-                    ics_url = f"{cal_url.rstrip('/')}/{href}"
-                if ics_url not in seen_urls:
-                    seen_urls.add(ics_url)
-                    ics_urls.append(ics_url)
-        if not ics_urls:
-            return []
-        now_ts = time.monotonic()
-        current_count = len(ics_urls)
-        if (
-            self._last_ics_discovery_count != current_count
-            or (now_ts - self._last_ics_discovery_log_ts) >= 300
-        ):
-            logger.debug(f"[AppleCalendar] 发现 {current_count} 个事件文件")
-            self._last_ics_discovery_count = current_count
-            self._last_ics_discovery_log_ts = now_ts
-        events = []
-        with ThreadPoolExecutor(max_workers=10) as pool:
-            futures = {pool.submit(self._fetch_ics_sync, url): url for url in ics_urls}
-            for future in as_completed(futures):
-                ics_data = future.result()
-                if ics_data:
-                    evts = self._parse_vevents(ics_data)
-                    events.extend(evts)
-        return events
-
-    async def _caldav_fetch(self, cal_url: str, days: int = 30) -> list[dict]:
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self._caldav_fetch_sync, cal_url)
 
     def _parse_vevents(self, ical_data: str) -> list[dict]:
         """解析 VEVENT，正确处理 UTC 和本地时区
@@ -455,8 +447,6 @@ class AppleCalendar:
         events = []
         try:
             http_url = url.replace("webcal://", "https://")
-            import aiohttp
-
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     http_url,
