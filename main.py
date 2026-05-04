@@ -887,7 +887,8 @@ class ScheduleAssistant(Star):
         if sender_name:
             await self.store.set_user_nickname(user_id, sender_name)
 
-        # 统一由 CommandHandler 处理命令
+        # 命令处理已禁用，所有交互通过 LLM 工具完成
+        # 保留此调用是为了记录对话历史等功能，但不再处理命令
         await self.command_handler.handle_message(event, user_id, msg_text)
 
     async def terminate(self):

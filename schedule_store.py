@@ -251,7 +251,9 @@ class ScheduleStore:
     async def sync_from_apple_calendar(
         self, user_id: str, apple_events: list[dict]
     ) -> dict[str, int]:
+        # 防御：API 返回空列表时（可能是失败），不执行删除，避免误删
         if not apple_events:
+            logger.debug(f"{LOG_PREFIX} Apple 日历返回空事件列表，跳过同步")
             return {"added": 0, "updated": 0, "deleted": 0}
         data = await self._get_user_data(user_id)
         schedules = data.get(SCHEDULES_KEY, [])
