@@ -20,9 +20,28 @@ class BriefingReminder:
         _nl = chr(10)  # newline char for f-string
         notion_lines = [ln.strip() for ln in notion_todos.split("\n") if ln.strip()] if notion_todos and notion_todos not in ("暂无", "获取失败") else []
 
-        prompt = f"""【任务】生成一份完整的早安播报。
+        # 清理 dashboard：无效状态时不显示
+        dashboard_clean = dashboard.strip() if dashboard else ""
+        if dashboard_clean in ("", "未知", "暂无", "未配置", "获取失败"):
+            dashboard_section = ""
+        else:
+            dashboard_section = f"\n设备状态: {dashboard_clean}"
 
-【系统人格】这部分是系统注入的人设约束，你的回复必须符合这个人设。如果这部分为空，则用你默认的对话风格。
+        late_night_section = ""
+        if late_night and late_night.strip():
+            late_night_section = f"\n熬夜检测: 昨晚有深夜日程（{late_night.strip()}），辛苦了"
+
+        prompt = f"""【任务】生成一份完整的早安播报，严格遵循以下格式。
+
+【格式要求】（必须逐行照搬，不要改顺序，不要删行，不要合并行）
+称呼语（开头，必须有）
+📅 日期 星期X
+🌤️ 天气描述
+📋 今日日程（如有）
+  ⏰ 时间 │ 日程名
+📌 待办提醒（如有）
+  🔥/📃 剩余天数 │ 待办名
+🦕 温馨建议（可选，一段以内）
 
 【今日信息】
 日期: {date} {weekday}
@@ -30,44 +49,28 @@ class BriefingReminder:
 日程:
 {_nl.join(agenda_lines) if agenda_lines else "暂无"}
 待办:
-{_nl.join(notion_lines) if notion_lines else "暂无"}
-设备状态: {dashboard if dashboard else "暂无"}
-熬夜检测: {"有深夜日程（" + late_night.strip() + "），昨晚辛苦了" if late_night and late_night.strip() else "无深夜日程"}
+{_nl.join(notion_lines) if notion_lines else "暂无"}{dashboard_section}{late_night_section}
 
-【播报要求】
-1. 开头用称呼语，自然融入用户名
-2. 语气和风格严格遵循上方系统人格设定
-3. 根据信息给出针对性建议（如熬夜 → 关心，DDL临近 → 提醒）
-4. 不要 markdown，纯文本输出
-5. 只输出播报消息本身
+【人格要求】
+必须严格遵循上方系统人格设定的语气和风格。
+称呼语中必须包含用户名 "{username}"。
+不要 markdown，不要 emoji 以外的表情符号。
+日程/待办如为"暂无"则整块省略不输出。
 
-【格式要求】
-（早安语，称呼+简短问候）
-日期
-天气（当前+预报）
-日程（如有）
-待办（如有）
-温馨建议（一段以内）
+【示例输出】（格式参考，禁止添加省略的内容）
+早安~{username}，新的一天开始啦♪
 
-【例子】
-早安~新的一天开始了♪
-
-📅 2026-04-01 周三 愚人节快乐~
-🌥 当前阴天 19°C，今日晴朗 9~24°C，降水概率0%
+📅 2026-04-01 周三
+🌤️ 当前晴 19°C，预报晴 9~24°C
 
 📋 今日日程
-─────────────
-⏰ 09:45 │ 学术英语听说
-⏰ 13:50 │ 习近平新时代中国特色社会主义思想概论
-⏰ 15:35 │ 马克思主义哲学史
-⏰ 19:00 │ 学术写作与沟通
+  ⏰ 09:45 │ 学术英语听说
+  ⏰ 13:50 │ 思政课
 
 📌 待办提醒
-─────────────
-🔥 还剩1天 │ 《资本论》读书报告
-📃 还剩3天 │ 学生会面试
+  🔥 还剩1天 │ 读书报告
 
-🫕 温馨提示
-今天阴天但气温还行，不用带伞~四门课连轴转辛苦了，中午记得吃点好的补充能量🥺读书报告只剩1天了，合理安排时间哦~"""
+🦕 温馨提醒
+四门课辛苦了，中午吃点好的补充能量~"""
 
         return await self.llm_service.generate(prompt, umo=user_id)

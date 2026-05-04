@@ -67,19 +67,19 @@ class LLMService:
         """获取人设 prompt，按优先级：配置指定 > 当前会话 > 全局默认"""
         umo = self._normalize_umo(umo)
         try:
-            # 1. 从插件配置中读取指定的人格ID
+            # 0. 优先使用插件配置中指定的 persona_id（用于播报场景，无活跃会话时）
             persona_id = self.config.get("persona_id", "")
             if persona_id:
-                logger.debug(f"{LOG_PREFIX} 使用插件配置的人格: {persona_id}")
+                logger.debug(f"{LOG_PREFIX} 使用配置指定的人格: {persona_id}")
                 persona = self.context.persona_manager.get_persona(persona_id)
                 if persona:
                     if isinstance(persona, dict):
                         return persona.get("prompt", "")
                     return getattr(persona, "prompt", "") if hasattr(persona, "prompt") else ""
                 else:
-                    logger.warning(f"{LOG_PREFIX} 配置的人格 '{persona_id}' 不存在，回退到会话人格")
-            
-            # 2. 尝试获取当前会话的人格（如果提供了umo）
+                    logger.warning(f"{LOG_PREFIX} 配置的人格 '{persona_id}' 不存在")
+
+            # 1. 尝试获取当前会话的人格（如果提供了umo）
             if umo:
                 logger.debug(f"{LOG_PREFIX} 尝试获取会话 {umo} 的当前人格")
                 persona = self.context.persona_manager.get_default_persona_v3(umo=umo)
