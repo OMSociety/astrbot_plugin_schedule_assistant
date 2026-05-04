@@ -1,8 +1,10 @@
 {
   "persona_id": {
     "type": "string",
-    "description": "播报使用的人格 ID",
-    "hint": "指定播报（早安/习惯提醒）使用的人格。留空则自动从会话中获取人格。填写格式为 AstrBot 中配置的人格标识符。"
+    "description": "播报使用的人格",
+    "hint": "选择播报（早安/习惯提醒）使用的人格。留空则自动从会话中获取人格。",
+    "_special": "select_persona",
+    "default": ""
   },
   "enable_schedule_reminder": {
     "type": "bool",
