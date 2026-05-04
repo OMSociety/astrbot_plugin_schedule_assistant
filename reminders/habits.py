@@ -35,7 +35,9 @@ class HabitReminder:
         "water_interval": DEFAULT_WATER_INTERVAL,
     }
 
-    def __init__(self, config: dict, default_user_id: str, llm_service, store, habit_type: str):
+    def __init__(
+        self, config: dict, default_user_id: str, llm_service, store, habit_type: str
+    ):
         """初始化习惯提醒
 
         Args:
@@ -68,7 +70,9 @@ class HabitReminder:
         """判断是否已过深夜（23点后或凌晨2点前）"""
         return now.hour >= 23 or now.hour < 2
 
-    def _get_prompt_context(self, username: str, dashboard: str, history_text: str, now: datetime) -> dict:
+    def _get_prompt_context(
+        self, username: str, dashboard: str, history_text: str, now: datetime
+    ) -> dict:
         """获取 prompt 上下文信息
 
         Args:
@@ -97,7 +101,9 @@ class HabitReminder:
         """构建 LLM prompt，子类可覆盖"""
         raise NotImplementedError
 
-    async def generate(self, username: str, dashboard: str, history_text: str, user_id: str = None) -> str | None:
+    async def generate(
+        self, username: str, dashboard: str, history_text: str, user_id: str = None
+    ) -> str | None:
         """生成提醒消息
 
         Args:
@@ -132,10 +138,10 @@ class BathReminder(HabitReminder):
 生成一条洗澡时间提醒：
 
 【用户信息】
-- 当前时间: {context['current_time']}
-- 设定的洗澡时间: {context['default_time']}
+- 当前时间: {context["current_time"]}
+- 设定的洗澡时间: {context["default_time"]}
 {dashboard_section}【近期对话】
-{context['history']}
+{context["history"]}
 
 【要求】
 1. 语气和风格严格遵循系统人格设定
@@ -151,7 +157,9 @@ class SleepReminder(HabitReminder):
     def __init__(self, config: dict, default_user_id: str, llm_service, store):
         super().__init__(config, default_user_id, llm_service, store, "sleep")
 
-    def _get_prompt_context(self, username: str, dashboard: str, history_text: str, now: datetime) -> dict:
+    def _get_prompt_context(
+        self, username: str, dashboard: str, history_text: str, now: datetime
+    ) -> dict:
         ctx = super()._get_prompt_context(username, dashboard, history_text, now)
         ctx["is_late"] = self._is_late_hour(now)
         return ctx
@@ -170,9 +178,9 @@ class SleepReminder(HabitReminder):
 生成一条睡觉时间提醒：
 
 【用户信息】
-- 当前时间: {context['current_time']}
-- 设定的睡觉时间: {context['default_time']}
-- 是否已超晚(23点后): {context.get('is_late', False)}
+- 当前时间: {context["current_time"]}
+- 设定的睡觉时间: {context["default_time"]}
+- 是否已超晚(23点后): {context.get("is_late", False)}
 {dashboard_section}【要求】
 1. 语气和风格严格遵循系统人格设定
 2. 如果超晚了可以带点小责备，但要符合人格
@@ -194,11 +202,11 @@ class WaterReminder(HabitReminder):
 生成一条喝水提醒：
 
 【用户信息】
-- 当前时间: {context['current_time']}
-- 用户当前状态: {context['dashboard']}
+- 当前时间: {context["current_time"]}
+- 用户当前状态: {context["dashboard"]}
 
 【近期对话】
-{context['history']}
+{context["history"]}
 
 【要求】
 1. 语气和风格严格遵循系统人格设定

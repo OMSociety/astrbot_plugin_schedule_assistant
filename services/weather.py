@@ -39,9 +39,9 @@ class WeatherService:
                         if results:
                             w = results[0].get("now", {})
                             weather_current = (
-                            f"{w.get('text', '未知')}, "
-                            f"{w.get('temperature', '?')}°C"
-                        )
+                                f"{w.get('text', '未知')}, "
+                                f"{w.get('temperature', '?')}°C"
+                            )
                 daily_params = {
                     "key": self.weather_api_key,
                     "location": self.weather_city,
@@ -61,11 +61,11 @@ class WeatherService:
                             if daily:
                                 t = daily[0]
                                 weather_forecast = (
-                                f"白天{t.get('text_day', '未知')} / "
-                                f"夜间{t.get('text_night', '未知')}, "
-                                f"{t.get('low', '?')}~{t.get('high', '?')}°C, "
-                                f"降水概率{t.get('precip', '0')}%"
-                            )
+                                    f"白天{t.get('text_day', '未知')} / "
+                                    f"夜间{t.get('text_night', '未知')}, "
+                                    f"{t.get('low', '?')}~{t.get('high', '?')}°C, "
+                                    f"降水概率{t.get('precip', '0')}%"
+                                )
         except asyncio.TimeoutError:
             weather_current = "获取超时"
         except Exception:

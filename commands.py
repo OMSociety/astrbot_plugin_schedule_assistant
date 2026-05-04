@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
         AiocqhttpMessageEvent,
     )
+
     from .messaging import MessagingService
     from .schedule_store import ScheduleStore
 

@@ -6,6 +6,15 @@ from typing import Any
 # 日志对象：用于记录渲染链路的调试信息（主要使用 DEBUG）。
 from astrbot.api import logger
 
+from .app_descriptions import (
+    APP_DESCRIPTIONS_LOWER,
+    APP_PLACEHOLDER_VALUES,
+    DEFAULT_DESCRIPTION,
+    DISPLAY_TITLE_PLACEHOLDER_VALUES,
+    MUSIC_APP_NAMES,
+    TITLE_TEMPLATES_LOWER,
+)
+
 # 配置读取工具：统一处理类型转换和默认值。
 from .config_parser import (
     get_bool_value,
@@ -16,14 +25,6 @@ from .config_parser import (
 
 # 时间格式化工具：把 ISO 时间转换为本地可读格式。
 from .time_formatter import format_time_text
-from .app_descriptions import (
-    APP_DESCRIPTIONS_LOWER,
-    APP_PLACEHOLDER_VALUES,
-    DEFAULT_DESCRIPTION,
-    DISPLAY_TITLE_PLACEHOLDER_VALUES,
-    MUSIC_APP_NAMES,
-    TITLE_TEMPLATES_LOWER,
-)
 
 
 def _is_online(device_item: dict[str, Any]) -> bool:

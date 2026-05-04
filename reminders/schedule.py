@@ -4,6 +4,7 @@
 只扫描 schedule 类型的日程，habit 类型（洗澡/睡觉/喝水）由独立定时任务处理，
 避免同一条目被多次提醒。
 """
+
 # ruff: noqa: E501
 from datetime import datetime
 from typing import Any
@@ -48,7 +49,11 @@ class ScheduleReminder:
                 val = dashboard_status.get(section)
                 if val:
                     dash_lines.append(f"  - {section}: {val}")
-            dash_block = "近期状态:\n" + "\n".join(dash_lines) if dash_lines else "近期状态:（暂无数据）"
+            dash_block = (
+                "近期状态:\n" + "\n".join(dash_lines)
+                if dash_lines
+                else "近期状态:（暂无数据）"
+            )
         elif dashboard_status.get("raw_text"):
             dash_block = f"近期状态:\n{dashboard_status.get('raw_text').strip()}"
         else:
@@ -93,7 +98,11 @@ class ScheduleReminder:
         try:
             if self.dashboard and hasattr(self.dashboard, "get_status"):
                 dashboard_text = await self.dashboard.get_status()
-                dashboard_status = {"raw_text": dashboard_text} if dashboard_text else {"has_dashboard": False}
+                dashboard_status = (
+                    {"raw_text": dashboard_text}
+                    if dashboard_text
+                    else {"has_dashboard": False}
+                )
             else:
                 dashboard_status = {"has_dashboard": False}
         except Exception:
@@ -204,13 +213,15 @@ async def check_and_trigger_schedule_reminder(
             )
             # prompt 已含 conv_history，不再额外传 history= 避免重复注入
 
-            triggered.append({
-                "item_id": item.id,
-                "title": item.title,
-                "reminder_text": reminder_text,
-                "minutes_until": int(minutes_until),
-                "type": item.type,
-            })
+            triggered.append(
+                {
+                    "item_id": item.id,
+                    "title": item.title,
+                    "reminder_text": reminder_text,
+                    "minutes_until": int(minutes_until),
+                    "type": item.type,
+                }
+            )
 
             item.last_triggered = now.isoformat()
             await schedule_store.update_item(user_id, item)

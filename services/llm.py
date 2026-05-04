@@ -75,7 +75,11 @@ class LLMService:
                 if persona:
                     if isinstance(persona, dict):
                         return persona.get("prompt", "")
-                    return getattr(persona, "prompt", "") if hasattr(persona, "prompt") else ""
+                    return (
+                        getattr(persona, "prompt", "")
+                        if hasattr(persona, "prompt")
+                        else ""
+                    )
                 else:
                     logger.warning(f"{LOG_PREFIX} 配置的人格 '{persona_id}' 不存在")
 
@@ -86,8 +90,12 @@ class LLMService:
                 if persona:
                     if isinstance(persona, dict):
                         return persona.get("prompt", "")
-                    return getattr(persona, "prompt", "") if hasattr(persona, "prompt") else ""
-            
+                    return (
+                        getattr(persona, "prompt", "")
+                        if hasattr(persona, "prompt")
+                        else ""
+                    )
+
             # 3. 回退到全局默认人格
             logger.debug(f"{LOG_PREFIX} 使用全局默认人格")
             persona = self.context.persona_manager.get_default_persona_v3()

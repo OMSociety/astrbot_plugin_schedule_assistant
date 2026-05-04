@@ -97,3 +97,37 @@ def get_int_value(
         number = min(max_value, number)
 
     return number
+
+
+def parse_time_config(
+    time_str: str, default_hour: int = 0, default_minute: int = 0
+) -> tuple[int, int]:
+    """解析HH:MM格式的时间配置。
+
+    Args:
+        time_str: 时间字符串，格式为 "HH:MM"
+        default_hour: 解析失败时的默认小时
+        default_minute: 解析失败时的默认分钟
+
+    Returns:
+        (hour, minute) 元组
+    """
+    if not time_str or not isinstance(time_str, str):
+        return default_hour, default_minute
+
+    try:
+        # 尝试解析时间
+        parts = time_str.strip().split(":")
+        if len(parts) != 2:
+            return default_hour, default_minute
+
+        hour = int(parts[0])
+        minute = int(parts[1])
+
+        # 验证范围
+        if not (0 <= hour <= 23) or not (0 <= minute <= 59):
+            return default_hour, default_minute
+
+        return hour, minute
+    except (ValueError, TypeError):
+        return default_hour, default_minute

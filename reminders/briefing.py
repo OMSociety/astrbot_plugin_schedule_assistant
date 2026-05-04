@@ -10,15 +10,28 @@ class BriefingReminder:
 
     async def generate_full_report(
         self,
-        username: str, date: str, weekday: str,
-        weather_current: str, weather_forecast: str,
-        agenda: str, notion_todos: str,
-        dashboard: str = "", late_night: str = "",
-        user_id: str = None
+        username: str,
+        date: str,
+        weekday: str,
+        weather_current: str,
+        weather_forecast: str,
+        agenda: str,
+        notion_todos: str,
+        dashboard: str = "",
+        late_night: str = "",
+        user_id: str = None,
     ) -> str:
-        agenda_lines = [ln.strip().replace("|", " ") for ln in agenda.split("\n") if ln.strip()] if agenda and agenda not in ("暂无", "获取失败") else []
+        agenda_lines = (
+            [ln.strip().replace("|", " ") for ln in agenda.split("\n") if ln.strip()]
+            if agenda and agenda not in ("暂无", "获取失败")
+            else []
+        )
         _nl = chr(10)  # newline char for f-string
-        notion_lines = [ln.strip() for ln in notion_todos.split("\n") if ln.strip()] if notion_todos and notion_todos not in ("暂无", "获取失败") else []
+        notion_lines = (
+            [ln.strip() for ln in notion_todos.split("\n") if ln.strip()]
+            if notion_todos and notion_todos not in ("暂无", "获取失败")
+            else []
+        )
 
         # 清理 dashboard：无效状态时不显示
         dashboard_clean = dashboard.strip() if dashboard else ""
@@ -29,7 +42,9 @@ class BriefingReminder:
 
         late_night_section = ""
         if late_night and late_night.strip():
-            late_night_section = f"\n熬夜检测: 昨晚有深夜日程（{late_night.strip()}），辛苦了"
+            late_night_section = (
+                f"\n熬夜检测: 昨晚有深夜日程（{late_night.strip()}），辛苦了"
+            )
 
         prompt = f"""【任务】生成一份完整的早安播报，严格遵循以下格式。
 
