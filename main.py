@@ -2,7 +2,7 @@
 日程助手插件
 
 提供日程管理、习惯提醒、早安播报、Apple日历同步、Notion待办等功能。
-采用 MessagingService 封装发送逻辑，CommandHandler 处理命令，
+采用 MessagingService 封装发送逻辑，
 主类只保留插件生命周期管理和定时任务调度。
 """
 
@@ -22,7 +22,6 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
 )
 
 from .apple_calendar import AppleCalendar
-from .commands import CommandHandler
 from .constants import (
     DEFAULT_BATH_TIME,
     DEFAULT_SLEEP_TIME,
@@ -49,21 +48,12 @@ SCHEDULE_REMINDER_LOG_THROTTLE_SECONDS = 300  # seconds (5 minutes)
 
 
 class ScheduleAssistant(LiveDashboardMixin, Star):
-    # Single-process active-instance guard to prevent duplicate jobs after hot reload.
-    _instance_seq: int = 0
-    _active_generation: int = 0
-    _active_instance: "ScheduleAssistant | None" = None
 
     def __init__(self, context: Context, config: dict[str, Any]):
         super().__init__(context)
-        cls = type(self)
-        cls._instance_seq += 1
-        self._instance_generation = cls._instance_seq
-
         self.config = config
-        self.store = ScheduleStore(context)
+        self.store = ScheduleStore(self)
         self.messaging = MessagingService(context, config)
-        self.command_handler = CommandHandler(self.store, self.messaging)
         self.scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
         self.weather_service: WeatherService | None = None
         self.notion_service: NotionService | None = None
@@ -74,66 +64,48 @@ class ScheduleAssistant(LiveDashboardMixin, Star):
         self.notion: NotionClient | None = None
         self._services_ready = False
         self._tasks_registered = False
-        self._init_task: asyncio.Task | None = None
         self._tools_registered = False
+        self._schedule_reminder_scan_lock = asyncio.Lock()
+        self._apple_calendar_sync_lock = asyncio.Lock()
+        self._schedule_reminder_last_log_ts = 0.0
+
+        self._init_task: asyncio.Task | None = None
         self._runtime_cleaned = False
         self._cleanup_lock: asyncio.Lock | None = None
-        self._schedule_reminder_scan_lock: asyncio.Lock | None = None
-        self._apple_calendar_sync_lock: asyncio.Lock | None = None
-        self._schedule_reminder_last_log_ts = 0.0
 
         self.default_user_id: str | None = None
         whitelist = self.config.get("whitelist_qq_ids", [])
         if whitelist:
             self.default_user_id = str(whitelist[0])
 
-        self._init_task = self._schedule_task(self._initialize(), "initialize")
+        # 启动后台初始化（兼容热重载：__init__ 在热重载时立即执行）
+        self._init_task = asyncio.create_task(self._initialize())
+        self._init_task.add_done_callback(self._on_init_done)
 
-    def _schedule_task(self, coro, task_name: str) -> asyncio.Task | None:
-        try:
-            task = asyncio.create_task(coro)
-            task.add_done_callback(lambda t: self._on_task_done(task_name, t))
-            return task
-        except RuntimeError as e:
-            logger.error(f"{LOG_PREFIX} 无法启动后台任务 {task_name}: {e}")
-            return None
-
-    def _on_task_done(self, task_name: str, task: asyncio.Task):
+    def _on_init_done(self, task: asyncio.Task):
         try:
             exc = task.exception()
             if exc:
-                logger.error(f"{LOG_PREFIX} 后台任务 {task_name} 异常: {exc}")
+                logger.error(f"{LOG_PREFIX} 初始化任务异常: {exc}")
         except asyncio.CancelledError:
             pass
 
     async def _initialize(self):
-        self._ensure_runtime_locks()
-        await self._claim_active_instance()
-        if not self._is_active_instance():
-            return
-        logger.info(f"{LOG_PREFIX} 正在初始化...")
+        """AstrBot 初始化或热重载后启动插件定时任务"""
+        logger.info(f"{LOG_PREFIX} 开始初始化...")
         await self._ensure_services()
         await self._register_tasks()
         logger.info(f"{LOG_PREFIX} 初始化完成")
 
-    def _is_active_instance(self) -> bool:
-        cls = type(self)
-        return (
-            not self._runtime_cleaned
-            and cls._active_instance is self
-            and cls._active_generation == self._instance_generation
-        )
-
-    async def _claim_active_instance(self):
-        cls = type(self)
-        old_instance = cls._active_instance
-        if old_instance and old_instance is not self:
-            logger.warning(
-                f"{LOG_PREFIX} 检测到旧实例仍在运行，准备清理旧实例 generation={old_instance._instance_generation}"  # noqa: E501
-            )
-            await old_instance._cleanup_runtime(reason="replaced_by_new_instance")
-        cls._active_instance = self
-        cls._active_generation = self._instance_generation
+    @filter.on_astrbot_loaded()
+    async def on_loaded(self):
+        """AstrBot 冷启动时的初始化兜底（热重载时不触发此钩子）"""
+        # 如果 __init__ 中的任务已在运行，无需重复初始化
+        if self._init_task and not self._init_task.done():
+            logger.debug(f"{LOG_PREFIX} 冷启动初始化已在 __init__ 中启动，跳过")
+            return
+        # 如果是某种边界情况导致 __init__ 没启动，兜底执行
+        await self._initialize()
 
     def _add_or_replace_job(self, func, trigger, *, job_id: str, **kwargs):
         options = {
@@ -142,14 +114,6 @@ class ScheduleAssistant(LiveDashboardMixin, Star):
         }
         options.update(kwargs)
         self.scheduler.add_job(func, trigger, **options)
-
-    def _ensure_runtime_locks(self):
-        if self._cleanup_lock is None:
-            self._cleanup_lock = asyncio.Lock()
-        if self._schedule_reminder_scan_lock is None:
-            self._schedule_reminder_scan_lock = asyncio.Lock()
-        if self._apple_calendar_sync_lock is None:
-            self._apple_calendar_sync_lock = asyncio.Lock()
 
     def _schedule_next_water_reminder(self, run_date: datetime):
         try:
@@ -165,59 +129,6 @@ class ScheduleAssistant(LiveDashboardMixin, Star):
             coalesce=True,
             misfire_grace_time=60,
         )
-
-    async def _close_external_clients(self):
-        if self.notion:
-            try:
-                await self.notion.close()
-            except Exception as e:
-                logger.warning(f"{LOG_PREFIX} 关闭 NotionClient 失败: {e}")
-        if self.apple_calendar:
-            try:
-                await self.apple_calendar.close()
-            except Exception as e:
-                logger.warning(f"{LOG_PREFIX} 关闭 AppleCalendar 失败: {e}")
-
-    async def _cleanup_runtime(self, reason: str = "terminate"):
-        self._ensure_runtime_locks()
-        if self._runtime_cleaned:
-            return
-        async with self._cleanup_lock:
-            if self._runtime_cleaned:
-                return
-            self._runtime_cleaned = True
-
-            init_task = self._init_task
-            current_task = asyncio.current_task()
-            if init_task and init_task is not current_task and not init_task.done():
-                init_task.cancel()
-                try:
-                    await init_task
-                except asyncio.CancelledError:
-                    pass
-                except Exception as e:
-                    logger.warning(f"{LOG_PREFIX} 等待初始化任务结束时出错: {e}")
-
-            try:
-                if hasattr(self.scheduler, "get_jobs"):
-                    for job in list(self.scheduler.get_jobs()):
-                        try:
-                            self.scheduler.remove_job(job.id)
-                            logger.debug(f"{LOG_PREFIX} 已移除任务: {job.id}")
-                        except Exception:
-                            pass
-                if self.scheduler.running:
-                    self.scheduler.shutdown(wait=False)
-            except Exception as e:
-                logger.warning(f"{LOG_PREFIX} 关闭调度器时出错: {e}")
-
-            await self._close_external_clients()
-
-            cls = type(self)
-            if cls._active_instance is self:
-                cls._active_instance = None
-                cls._active_generation = 0
-            logger.info(f"{LOG_PREFIX} 插件运行时资源已清理 reason={reason}")
 
     async def _ensure_services(self):
         if self._services_ready:
@@ -454,12 +365,10 @@ class ScheduleAssistant(LiveDashboardMixin, Star):
                 return name.strip()
 
         sender = getattr(event, "sender", None)
-        if isinstance(sender, str) and sender.strip():
-            return sender.strip()
         if isinstance(sender, dict):
-            for key in ("nickname", "name"):
+            for key in ("nickname", "name", "card", "group_card"):
                 val = sender.get(key)
-                if isinstance(val, str) and val.strip():
+                if isinstance(val, str) and val.strip() and val != str(event.get_sender_id()):
                     return val.strip()
 
         return ""
@@ -608,19 +517,22 @@ class ScheduleAssistant(LiveDashboardMixin, Star):
             return "获取失败"
 
     async def _get_user_nickname(self, user_id: str) -> str:
-        """获取用户昵称，优先读取存储，再用配置兜底"""
+        """获取用户昵称，优先读取存储，再用配置兜底（避免返回纯数字QQ号）"""
         try:
             cached = await self.store.get_user_nickname(user_id)
             cached = (cached or "").strip()
-            if cached:
+            # 过滤：有效昵称不能是纯数字（QQ号）
+            if cached and not cached.isdigit():
                 return cached
         except Exception:
             pass
-        return str(self.config.get("user_nickname", "") or "").strip() or "你"
+        fallback = str(self.config.get("user_nickname", "") or "").strip()
+        if fallback and not fallback.isdigit():
+            return fallback
+        # 实在没有昵称，返回通用称呼
+        return "你"
 
     async def _morning_briefing(self, target_user_id: str | None = None):
-        if not self._is_active_instance():
-            return
         try:
             await self._ensure_services()
             target_user_ids = (
@@ -682,8 +594,6 @@ class ScheduleAssistant(LiveDashboardMixin, Star):
         self, reminder_obj, label: str, target_user_id: str | None = None
     ) -> list[str]:
         """通用习惯提醒执行逻辑，返回目标用户列表（调用方可追加后续操作）。"""
-        if not self._is_active_instance():
-            return []
         try:
             await self._ensure_services()
             target_user_ids = (
@@ -738,7 +648,7 @@ class ScheduleAssistant(LiveDashboardMixin, Star):
         water_end = self.config.get("water_end_time", DEFAULT_WATER_END)
 
         next_trigger = self._get_water_next_trigger(
-            datetime.now() + timedelta(minutes=water_interval),
+            datetime.now(),
             water_start,
             water_end,
             water_interval,
@@ -748,9 +658,6 @@ class ScheduleAssistant(LiveDashboardMixin, Star):
         self._schedule_next_water_reminder(datetime.now() + timedelta(seconds=delay))
 
     async def _schedule_reminder_scan(self):
-        self._ensure_runtime_locks()
-        if not self._is_active_instance():
-            return
         lock = self._schedule_reminder_scan_lock
         try:
             await asyncio.wait_for(lock.acquire(), timeout=0)
@@ -807,9 +714,6 @@ class ScheduleAssistant(LiveDashboardMixin, Star):
             lock.release()
 
     async def _apple_calendar_sync(self):
-        self._ensure_runtime_locks()
-        if not self._is_active_instance():
-            return
         lock = self._apple_calendar_sync_lock
         try:
             await asyncio.wait_for(lock.acquire(), timeout=0)
@@ -842,10 +746,7 @@ class ScheduleAssistant(LiveDashboardMixin, Star):
 
                 # 如果新增了近期事件，触发一次即时扫描（30秒后）
                 if recent_events_added and self.config.get("enable_schedule_reminder"):
-                    self._schedule_task(
-                        self._delayed_schedule_reminder_scan(),
-                        "delayed_schedule_reminder_scan",
-                    )
+                    asyncio.create_task(self._delayed_schedule_reminder_scan())
             except Exception as e:
                 logger.error(f"{LOG_PREFIX} Apple Calendar 同步失败: {e}")
         finally:
@@ -860,8 +761,6 @@ class ScheduleAssistant(LiveDashboardMixin, Star):
             logger.warning(f"{LOG_PREFIX} 即时扫描失败: {e}")
 
     async def _clear_expired_overrides(self):
-        if not self._is_active_instance():
-            return
         for user_id in await self._get_target_user_ids(include_known_users=True):
             await self.store.clear_expired_overrides(user_id)
         logger.debug(f"{LOG_PREFIX} 已清理过期临时修改")
@@ -886,16 +785,29 @@ class ScheduleAssistant(LiveDashboardMixin, Star):
         if sender_name:
             await self.store.set_user_nickname(user_id, sender_name)
 
-        # 命令处理已禁用，所有交互通过 LLM 工具完成
-        # 保留此调用是为了记录对话历史等功能，但不再处理命令
-        await self.command_handler.handle_message(event, user_id, msg_text)
-
     async def terminate(self):
         """插件卸载时清理定时任务"""
-        await self._cleanup_runtime(reason="terminate")
-
-    async def on_unload(self):
-        await self._cleanup_runtime(reason="on_unload")
+        try:
+            if hasattr(self.scheduler, "get_jobs"):
+                for job in list(self.scheduler.get_jobs()):
+                    try:
+                        self.scheduler.remove_job(job.id)
+                    except Exception:
+                        pass
+            if self.scheduler.running:
+                self.scheduler.shutdown(wait=False)
+        except Exception as e:
+            logger.warning(f"{LOG_PREFIX} 关闭调度器时出错: {e}")
+        if self.notion:
+            try:
+                await self.notion.close()
+            except Exception as e:
+                logger.warning(f"{LOG_PREFIX} 关闭 NotionClient 失败: {e}")
+        if self.apple_calendar:
+            try:
+                await self.apple_calendar.close()
+            except Exception as e:
+                logger.warning(f"{LOG_PREFIX} 关闭 AppleCalendar 失败: {e}")
 
 
 async def __initialize(context: Context) -> ScheduleAssistant:

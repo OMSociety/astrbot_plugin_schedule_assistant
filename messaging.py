@@ -7,8 +7,8 @@
 """
 
 from astrbot.api import logger
-from astrbot.core.message.components import Plain
-from astrbot.core.message.message_event_result import MessageChain
+import astrbot.api.message_components as Comp
+from astrbot.api.event import MessageChain
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
 )
@@ -176,7 +176,7 @@ class MessagingService:
             bool: 是否发送成功
         """
         try:
-            chain = MessageChain([Plain(message)])
+            chain = MessageChain([Comp.Plain(message)])
             available = set(self._get_available_platform_ids())
             sessions_tried = []
 
@@ -232,7 +232,7 @@ class MessagingService:
             session_id = getattr(event, "session_id", "")
             if isinstance(session_id, str) and session_id.strip():
                 await self.context.send_message(
-                    session_id, MessageChain([Plain(message)])
+                    session_id, MessageChain([Comp.Plain(message)])
                 )
                 return
         except Exception:
