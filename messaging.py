@@ -6,8 +6,8 @@
 由 main.py 的内联发送逻辑迁移而来，整合了最健壮的回复兜底机制。
 """
 
-from astrbot.api import logger
 import astrbot.api.message_components as Comp
+from astrbot.api import logger
 from astrbot.api.event import MessageChain
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,

@@ -48,7 +48,6 @@ SCHEDULE_REMINDER_LOG_THROTTLE_SECONDS = 300  # seconds (5 minutes)
 
 
 class ScheduleAssistant(LiveDashboardMixin, Star):
-
     def __init__(self, context: Context, config: dict[str, Any]):
         super().__init__(context)
         self.config = config
@@ -368,7 +367,11 @@ class ScheduleAssistant(LiveDashboardMixin, Star):
         if isinstance(sender, dict):
             for key in ("nickname", "name", "card", "group_card"):
                 val = sender.get(key)
-                if isinstance(val, str) and val.strip() and val != str(event.get_sender_id()):
+                if (
+                    isinstance(val, str)
+                    and val.strip()
+                    and val != str(event.get_sender_id())
+                ):
                     return val.strip()
 
         return ""
@@ -530,7 +533,7 @@ class ScheduleAssistant(LiveDashboardMixin, Star):
         if fallback and not fallback.isdigit():
             return fallback
         # 实在没有昵称，返回通用称呼
-        return "你"
+        return "主人"
 
     async def _morning_briefing(self, target_user_id: str | None = None):
         try:

@@ -13,13 +13,11 @@ from typing import Any
 from astrbot.api import logger
 
 from .constants import (
-    CONVERSATION_KEY,
     CONVERSATION_MAX_AGE_HOURS,
     CONVERSATION_MAX_MESSAGES,
     HABITS_KEY,
     LOG_PREFIX,
     SCHEDULES_KEY,
-    USER_NICKNAME_KEY,
     WATER_LAST_KEY,
 )
 
@@ -292,16 +290,46 @@ class ScheduleStore:
         uid_map = {s["apple_uid"]: s for s in schedules if s.get("apple_uid")}
         apple_uids = set()
         stats = {"added": 0, "updated": 0, "deleted": 0}
+
+        # 只同步未来 7 天内的日程
+        now = datetime.now()
+        future_cutoff = now + timedelta(days=7)
+
+        # 防止重复添加：记录本次同步中已处理的 UID（解决 Apple 返回重复事件的问题）
+        processed_uids_this_sync: set[str] = set()
+
         for evt in apple_events:
             uid = evt.get("uid")
             if not uid:
                 continue
+
+            # 防止同一个 UID 被添加两次（Apple 有时会返回重复的 RRULE 实例）
+            if uid in processed_uids_this_sync:
+                logger.debug(
+                    f"{LOG_PREFIX} 跳过重复 UID: {uid[:16]}... (事件: {evt.get('summary', '无标题')})"
+                )
+                apple_uids.add(uid)
+                continue
+
             apple_uids.add(uid)
             start_str = evt.get("start", "")
             if not start_str:
                 continue
             try:
                 start_dt = datetime.fromisoformat(start_str)
+                # 过滤：只保留未来 7 天内的日程
+                if start_dt < now - timedelta(days=1):  # 1天前的也保留（刚结束的）
+                    logger.debug(
+                        f"{LOG_PREFIX} 跳过过期日程: {evt.get('summary', '无标题')} ({start_str})"
+                    )
+                    apple_uids.discard(uid)  # 不保留在 apple_uids 中，允许后续删除
+                    continue
+                if start_dt > future_cutoff:
+                    logger.debug(
+                        f"{LOG_PREFIX} 跳过远期日程: {evt.get('summary', '无标题')} ({start_str})"
+                    )
+                    apple_uids.discard(uid)  # 不保留在 apple_uids 中，允许后续删除
+                    continue
                 schedule_time = start_dt.strftime("%Y-%m-%d %H:%M")
             except (ValueError, TypeError):
                 schedule_time = start_str
@@ -331,6 +359,7 @@ class ScheduleStore:
                     }
                 )
                 stats["added"] += 1
+                processed_uids_this_sync.add(uid)
         before_count = len(schedules)
         schedules = [
             s

@@ -108,7 +108,7 @@ LLM 工具：`query_live_dashboard_status` — 对话中自动调用查询
 | `enable_bath_reminder` | bool | `true` | 洗澡提醒开关 |
 | `enable_sleep_reminder` | bool | `true` | 睡觉提醒开关 |
 | `enable_water_reminder` | bool | `true` | 喝水提醒开关 |
-| `enable_schedule_reminder` | bool | `false` | 日程 LLM 智能提醒开关 |
+| `enable_schedule_reminder` | bool | `false` | 日程 LLM 智能提醒开关（默认关闭） |
 | `enable_apple_calendar_sync` | bool | `false` | Apple 日历双向同步开关 |
 
 ### 时间配置
@@ -138,6 +138,7 @@ LLM 工具：`query_live_dashboard_status` — 对话中自动调用查询
 
 | 配置项 | 类型 | 说明 |
 |--------|------|------|
+| `user_nickname` | string | 用户昵称，留空则播报称呼为「主人」 |
 | `whitelist_qq_ids` | list | 白名单 QQ 号，只有这些账号能收到提醒 |
 | `target_user_ids` | list | 额外提醒目标用户 ID |
 | `broadcast_to_all_known_users` | bool | 是否把历史活跃用户纳入自动提醒 |

@@ -9,7 +9,8 @@
   "enable_schedule_reminder": {
     "type": "bool",
     "description": "开启日程 LLM 智能提醒",
-    "hint": "开启后，AI 会在日程快到时生成自然语言提醒，结合对话上下文"
+    "hint": "开启后，AI 会在日程快到时生成自然语言提醒，结合对话上下文",
+    "default": false
   },
   "schedule_reminder_minutes": {
     "type": "int",
@@ -137,6 +138,12 @@
     "type": "string",
     "description": "天气查询城市",
     "hint": "填写城市名称，如 北京、杭州、上海"
+  },
+  "user_nickname": {
+    "type": "string",
+    "description": "用户昵称",
+    "hint": "用于播报时的称呼，留空则使用「主人」。建议填写真实昵称让 AI 更自然地称呼你。",
+    "default": ""
   },
   "whitelist_qq_ids": {
     "type": "list",
