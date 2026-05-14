@@ -79,7 +79,7 @@ LLM 工具：`query_live_dashboard_status` — 对话中自动调用查询
 
 日程助手通过 Maton Gateway 读写 Notion，需要先配置：
 
-1. 在 [Maton](https://www.mat on.ai/) 上接入 Notion（OAuth2 方式），生成 **Maton API Key**
+1. 在 [Maton](https://www.maton.ai/) 上接入 Notion（OAuth2 方式），生成 **Maton API Key**
 2. 下载 [api-gateway-skill](https://github.com/maton-ai/api-gateway-skill)，在配置中填入你的 Maton API Key
 3. AstrBot 管理面板 → **Skills** → 上传 api-gateway-skill 并启用
 
