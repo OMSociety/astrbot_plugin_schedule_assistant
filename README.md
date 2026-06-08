@@ -104,8 +104,8 @@ LLM 工具：`query_live_dashboard_status` — 对话中自动调用查询
 
 | 配置项 | 类型 | 默认 | 说明 |
 |--------|------|------|------|
-| `persona_id` | string | `FlanAi` | LLM 人设 ID（对应配置文件中的 `persona_id`） |
-| `user_nickname` | string | - | 用户昵称，留空则播报称呼为「主人」 |
+| `persona_id` | string | `""` | LLM 人设 ID（对应配置文件中的 `persona_id`），留空自动从会话获取 |
+| `user_nickname` | string | `""` | 用户昵称，留空则播报称呼为「主人」 |
 
 ### 日程提醒设置
 
