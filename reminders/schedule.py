@@ -152,17 +152,39 @@ def _parse_time(time_str: str) -> datetime | None:
     return None
 
 
+def _is_all_day_event(item) -> bool:
+    """判断是否为全天事件"""
+    # 优先检查 all_day 标记
+    if getattr(item, "all_day", False):
+        return True
+    # 检查时间格式：YYYY-MM-DD 表示全天
+    t = (item.time or "").strip()
+    if len(t) == 10 and t.count("-") == 2:
+        try:
+            datetime.strptime(t, "%Y-%m-%d")
+            return True
+        except ValueError:
+            pass
+    return False
+
+
 async def check_and_trigger_schedule_reminder(
     schedule_store,
     llm_service,
     dashboard_service,
     user_id: str,
     minutes_window: int = 30,
+    minutes_before: int = 15,
 ) -> list[dict[str, Any]]:
     """
     扫描即将到来的日程（仅 schedule 类型）并生成提醒。
 
     habit 类型（洗澡/睡觉/喝水）由独立定时任务处理，不在此扫描，避免重复提醒。
+
+    提醒时机：
+    - 提前提醒：在日程开始前 minutes_before ±2 分钟时触发（可配置，0 表示关闭）
+    - 即将开始兜底：前 5 分钟内也会触发
+    - 全天事件不触发提前提醒
     """
     reminder = ScheduleReminder(llm_service, dashboard_service)
     triggered = []
@@ -176,6 +198,10 @@ async def check_and_trigger_schedule_reminder(
 
         # 跳过习惯类型：洗澡/睡觉/喝水已有独立定时任务，避免重复提醒
         if item.type == "habit":
+            continue
+
+        # 跳过全天事件（提前提醒不适用）
+        if _is_all_day_event(item):
             continue
 
         item_dt = _parse_time(item.time)
@@ -194,36 +220,51 @@ async def check_and_trigger_schedule_reminder(
             except (ValueError, TypeError):
                 pass
 
-        # 仅在窗口期内且未被触发时发送
-        if 0 <= minutes_until <= minutes_window:
-            if item.last_triggered:
-                continue
+        if item.last_triggered:
+            continue
 
-            conv_history = schedule_store.format_history_for_prompt(
-                await schedule_store.get_conversation_history(user_id)
-            )
+        # 判断是否需要触发提醒
+        should_trigger = False
+        trigger_minutes = 0
 
-            reminder_text = await reminder.generate_reminder_text(
-                item_title=item.title,
-                item_time=item.time,
-                item_context=item.context,
-                minutes_ahead=int(minutes_until),
-                conv_history=conv_history,
-                user_id=user_id,
-            )
-            # prompt 已含 conv_history，不再额外传 history= 避免重复注入
+        # 1. 提前提醒：日程开始前 minutes_before ±2 分钟
+        if minutes_before > 0 and abs(minutes_until - minutes_before) <= 2:
+            should_trigger = True
+            trigger_minutes = int(minutes_until)
 
-            triggered.append(
-                {
-                    "item_id": item.id,
-                    "title": item.title,
-                    "reminder_text": reminder_text,
-                    "minutes_until": int(minutes_until),
-                    "type": item.type,
-                }
-            )
+        # 2. 即将开始兜底：前 5 分钟内
+        if not should_trigger and 0 <= minutes_until <= 5:
+            should_trigger = True
+            trigger_minutes = int(minutes_until)
 
-            item.last_triggered = now.isoformat()
-            await schedule_store.update_item(user_id, item)
+        if not should_trigger:
+            continue
+
+        conv_history = schedule_store.format_history_for_prompt(
+            await schedule_store.get_conversation_history(user_id)
+        )
+
+        reminder_text = await reminder.generate_reminder_text(
+            item_title=item.title,
+            item_time=item.time,
+            item_context=item.context,
+            minutes_ahead=trigger_minutes,
+            conv_history=conv_history,
+            user_id=user_id,
+        )
+        # prompt 已含 conv_history，不再额外传 history= 避免重复注入
+
+        triggered.append(
+            {
+                "item_id": item.id,
+                "title": item.title,
+                "reminder_text": reminder_text,
+                "minutes_until": trigger_minutes,
+                "type": item.type,
+            }
+        )
+
+        item.last_triggered = now.isoformat()
+        await schedule_store.update_item(user_id, item)
 
     return triggered

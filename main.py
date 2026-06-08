@@ -48,9 +48,20 @@ SCHEDULE_REMINDER_LOG_THROTTLE_SECONDS = 300  # seconds (5 minutes)
 
 
 class ScheduleAssistant(LiveDashboardMixin, Star):
+
+    def _flatten_config(self, nested: dict) -> dict:
+        """将嵌套配置展平为单层结构，保持与旧代码兼容"""
+        result = {}
+        for k, v in nested.items():
+            if isinstance(v, dict):
+                result.update(self._flatten_config(v))
+            else:
+                result[k] = v
+        return result
+
     def __init__(self, context: Context, config: dict[str, Any]):
         super().__init__(context)
-        self.config = config
+        self.config = self._flatten_config(config)  # 自动展平嵌套配置，保持与旧代码兼容
         self.store = ScheduleStore(self)
         self.messaging = MessagingService(context, config)
         self.scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
@@ -705,6 +716,7 @@ class ScheduleAssistant(LiveDashboardMixin, Star):
                         dashboard_service=self.dashboard_service,
                         user_id=user_id,
                         minutes_window=minutes_ahead,
+                        minutes_before=minutes_ahead,
                     )
                     for item in triggered:
                         if item.get("reminder_text"):

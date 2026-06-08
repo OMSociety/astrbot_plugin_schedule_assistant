@@ -134,12 +134,11 @@ class CreateScheduleTool(FunctionTool[AstrAgentContext]):
 
             await self.store.add_item(user_id, item)
 
-            # Apple 日历写入（需 enable_sync 开启且已配置 Apple Calendar）
+            # Apple 日历写入（需 enable_apple_calendar_sync 开启且已配置 Apple Calendar）
             apple_msg = ""
             if self._plugin is not None:
                 try:
-                    apple_conf = self._plugin.config.get("apple_calendar", {}) or {}
-                    if apple_conf.get("enable_sync") and self._plugin.apple_calendar:
+                    if self._plugin.config.get("enable_apple_calendar_sync") and self._plugin.apple_calendar:
                         await self._plugin.apple_calendar.create_event(
                             summary=title,
                             start=dt,
@@ -200,8 +199,7 @@ class DeleteScheduleTool(FunctionTool[AstrAgentContext]):
         if self._plugin is None:
             return
         try:
-            apple_conf = self._plugin.config.get("apple_calendar", {}) or {}
-            if not apple_conf.get("enable_sync") or not self._plugin.apple_calendar:
+            if not self._plugin.config.get("enable_apple_calendar_sync") or not self._plugin.apple_calendar:
                 return
             calendars = await self._plugin.apple_calendar._list_calendars()
             for cal in calendars:

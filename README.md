@@ -100,57 +100,92 @@ LLM 工具：`query_live_dashboard_status` — 对话中自动调用查询
 
 ## ⚙️ 配置项说明
 
-### 开关配置
+### 基础设置
+
+| 配置项 | 类型 | 默认 | 说明 |
+|--------|------|------|------|
+| `persona_id` | string | `FlanAi` | LLM 人设 ID（对应配置文件中的 `persona_id`） |
+| `user_nickname` | string | - | 用户昵称，留空则播报称呼为「主人」 |
+
+### 日程提醒设置
+
+| 配置项 | 类型 | 默认 | 说明 |
+|--------|------|------|------|
+| `enable_schedule_reminder` | bool | `false` | 日程 LLM 智能提醒开关（默认关闭） |
+| `schedule_reminder_minutes` | int | `10` | 日程提前提醒分钟数（日程开始前多少分钟提醒，全天日程不提醒） |
+| `schedule_reminder_check_interval` | int | `5` | 日程提醒扫描间隔（分钟），建议设为提前量的 1/3~1/2（如提前10分钟则间隔3-5分钟），最小值2分钟 |
+
+### 习惯提醒设置
 
 | 配置项 | 类型 | 默认 | 说明 |
 |--------|------|------|------|
 | `enable_morning_report` | bool | `true` | 早安播报开关 |
-| `enable_bath_reminder` | bool | `true` | 洗澡提醒开关 |
-| `enable_sleep_reminder` | bool | `true` | 睡觉提醒开关 |
-| `enable_water_reminder` | bool | `true` | 喝水提醒开关 |
-| `enable_schedule_reminder` | bool | `false` | 日程 LLM 智能提醒开关（默认关闭） |
-| `enable_apple_calendar_sync` | bool | `false` | Apple 日历双向同步开关 |
-
-### 时间配置
-
-| 配置项 | 类型 | 默认 | 说明 |
-|--------|------|------|------|
 | `morning_report_time` | string | `09:00` | 早报推送时间（HH:MM） |
+| `enable_bath_reminder` | bool | `true` | 洗澡提醒开关 |
 | `bath_time` | string | `22:00` | 洗澡提醒时间 |
+| `enable_sleep_reminder` | bool | `true` | 睡觉提醒开关 |
 | `sleep_time` | string | `23:00` | 睡觉提醒时间 |
+| `enable_water_reminder` | bool | `true` | 喝水提醒开关 |
 | `water_interval` | int | `90` | 喝水间隔（分钟） |
 | `water_start_time` | string | `09:30` | 喝水开始时间 |
 | `water_end_time` | string | `21:30` | 喝水结束时间 |
-| `schedule_reminder_minutes` | int | `10` | 日程提前提醒分钟数 |
-| `schedule_reminder_check_interval` | int | `5` | 日程提醒扫描间隔（分钟），建议设为提前量的 1/3~1/2 |
-| `apple_calendar_sync_interval` | int | `30` | Apple 日历同步间隔（分钟） |
 
-### API 与外部服务
+### 日历同步设置
+
+| 配置项 | 类型 | 默认 | 说明 |
+|--------|------|------|------|
+| `enable_apple_calendar_sync` | bool | `false` | Apple 日历双向同步开关 |
+| `apple_calendar_sync_interval` | int | `30` | Apple 日历同步间隔（分钟） |
+| `apple_calendar.username` | string | - | Apple ID 邮箱 |
+| `apple_calendar.app_password` | string | - | **App 专用密码**（非登录密码） |
+| `apple_calendar.calendar_id` | string | - | 目标日历 UUID 或名称，留空默认第一个 |
+| `webcal_urls` | list | `[]` | WebCal 共享日历链接 |
+
+> 写入开关统一使用顶层的 `enable_apple_calendar_sync`，开启后本地创建/删除的日程会自动同步到 Apple 日历。
+
+### 外部服务设置
 
 | 配置项 | 类型 | 说明 |
 |--------|------|------|
-| `weather_api_key` | string | 心知天气 API Key（[seniverse.com](https://seniverse.com)） |
-| `weather_city` | string | 天气查询城市（默认：杭州） |
 | `maton_api_key` | string | Maton API Key（Notion 功能必需） |
 | `notion_db_ids` | list | Notion 数据库 ID 列表，格式：`["事务:xxx", "阅读:yyy"]` |
+| `weather_api_key` | string | 心知天气 API Key（[seniverse.com](https://seniverse.com)） |
+| `weather_city` | string | 天气查询城市（默认：杭州） |
 
-### 推送与权限
+### 消息推送设置
 
 | 配置项 | 类型 | 说明 |
 |--------|------|------|
-| `user_nickname` | string | 用户昵称，留空则播报称呼为「主人」 |
 | `whitelist_qq_ids` | list | 白名单 QQ 号，只有这些账号能收到提醒 |
 | `target_user_ids` | list | 额外提醒目标用户 ID |
 | `broadcast_to_all_known_users` | bool | 是否把历史活跃用户纳入自动提醒 |
+| `default_session_type` | string | 默认会话类型 |
+| `send_platform_id` | string | 默认发送平台 ID |
+| `user_platform_bindings` | list | 用户平台绑定列表 |
 
-### Apple 日历
+### Live Dashboard 设置
 
-| 配置项 | 类型 | 说明 |
-|--------|------|------|
-| `enable_sync` | bool | 启用写入（本地新建 → Apple 日历） |
-| `username` | string | Apple ID 邮箱 |
-| `app_password` | string | **App 专用密码**（非登录密码） |
-| `calendar_id` | string | 目标日历 UUID 或名称，留空默认第一个 |
+| 配置项 | 类型 | 默认 | 说明 |
+|--------|------|------|------|
+| `live_dashboard_base_url` | string | - | Dashboard 服务地址 |
+| `live_dashboard_auth_token` | string | - | Dashboard 认证 Token |
+| `live_dashboard_request_timeout_sec` | int | `30` | 请求超时时间（秒） |
+| `live_dashboard_include_offline_devices` | bool | `false` | 是否包含离线设备 |
+| `live_dashboard_max_devices` | int | `10` | 最大设备数量 |
+| `live_dashboard_device_whitelist_keywords` | string | - | 设备白名单关键词（逗号分隔） |
+| `live_dashboard_device_blacklist_keywords` | string | - | 设备黑名单关键词（逗号分隔） |
+| `live_dashboard_group_blacklist_sessions` | string | - | 群组黑名单会话（逗号分隔） |
+| `live_dashboard_user_blacklist_senders` | string | - | 用户黑名单发送者（逗号分隔） |
+| `live_dashboard_info_blacklist_keywords` | string | - | 信息黑名单关键词（逗号分隔） |
+| `live_dashboard_info_blacklist_replacement` | string | - | 黑名单信息替换文本 |
+| `live_dashboard_show_platform` | bool | `true` | 显示平台信息 |
+| `live_dashboard_show_app_name` | bool | `true` | 显示应用名称 |
+| `live_dashboard_show_display_title` | bool | `true` | 显示窗口标题 |
+| `live_dashboard_show_battery` | bool | `true` | 显示电量信息 |
+| `live_dashboard_show_music` | bool | `true` | 显示音乐播放 |
+| `live_dashboard_show_last_seen` | bool | `true` | 显示最后上线时间 |
+| `live_dashboard_show_viewer_count` | bool | `false` | 显示浏览次数 |
+| `live_dashboard_show_server_time` | bool | `false` | 显示服务器时间 |
 
 ---
 

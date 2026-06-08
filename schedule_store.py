@@ -63,6 +63,7 @@ class ScheduleItem:
     last_triggered: str | None = None
     temp_override: str | None = None
     apple_uid: str | None = None
+    all_day: bool = False
 
     def to_dict(self) -> dict:
         """序列化为字典"""
@@ -83,6 +84,7 @@ class ScheduleItem:
             "last_triggered",
             "temp_override",
             "apple_uid",
+            "all_day",
         }
         filtered = {k: v for k, v in data.items() if k in valid_fields}
         if not filtered.get("id"):
@@ -356,6 +358,7 @@ class ScheduleStore:
                         "last_triggered": None,
                         "temp_override": None,
                         "apple_uid": uid,
+                        "all_day": evt.get("all_day", False),
                     }
                 )
                 stats["added"] += 1
