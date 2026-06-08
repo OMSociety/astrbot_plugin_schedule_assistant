@@ -48,7 +48,6 @@ SCHEDULE_REMINDER_LOG_THROTTLE_SECONDS = 300  # seconds (5 minutes)
 
 
 class ScheduleAssistant(LiveDashboardMixin, Star):
-
     def _flatten_config(self, nested: dict) -> dict:
         """将嵌套配置展平为单层结构，保持与旧代码兼容"""
         result = {}

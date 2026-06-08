@@ -138,7 +138,10 @@ class CreateScheduleTool(FunctionTool[AstrAgentContext]):
             apple_msg = ""
             if self._plugin is not None:
                 try:
-                    if self._plugin.config.get("enable_apple_calendar_sync") and self._plugin.apple_calendar:
+                    if (
+                        self._plugin.config.get("enable_apple_calendar_sync")
+                        and self._plugin.apple_calendar
+                    ):
                         await self._plugin.apple_calendar.create_event(
                             summary=title,
                             start=dt,
@@ -199,7 +202,10 @@ class DeleteScheduleTool(FunctionTool[AstrAgentContext]):
         if self._plugin is None:
             return
         try:
-            if not self._plugin.config.get("enable_apple_calendar_sync") or not self._plugin.apple_calendar:
+            if (
+                not self._plugin.config.get("enable_apple_calendar_sync")
+                or not self._plugin.apple_calendar
+            ):
                 return
             calendars = await self._plugin.apple_calendar._list_calendars()
             for cal in calendars:
