@@ -20,14 +20,12 @@ class ScheduleReminder:
 
     注入信息：
     - 日程名称、时间、备注/描述
-    - Dashboard 状态
     - 提前分钟数
     - 近期对话上下文
     """
 
-    def __init__(self, llm_service, dashboard_service):
+    def __init__(self, llm_service):
         self.llm = llm_service
-        self.dashboard = dashboard_service
 
     def _build_prompt(
         self,
@@ -35,29 +33,9 @@ class ScheduleReminder:
         item_time: str,
         item_context: str,
         minutes_ahead: int,
-        dashboard_status: dict[str, Any],
         conv_history: str,
     ) -> str:
         """构建 LLM 提醒 prompt"""
-
-        if not isinstance(dashboard_status, dict):
-            dashboard_status = {}
-
-        if dashboard_status.get("has_dashboard"):
-            dash_lines = []
-            for section in ["mood", "energy", "health", "weather", "tasks"]:
-                val = dashboard_status.get(section)
-                if val:
-                    dash_lines.append(f"  - {section}: {val}")
-            dash_block = (
-                "近期状态:\n" + "\n".join(dash_lines)
-                if dash_lines
-                else "近期状态:（暂无数据）"
-            )
-        elif dashboard_status.get("raw_text"):
-            dash_block = f"近期状态:\n{dashboard_status.get('raw_text').strip()}"
-        else:
-            dash_block = "近期状态:（未开启 Dashboard）"
 
         prompt = f"""【重要】你的所有回复必须严格遵循系统人格设定。如果系统人格部分为空，则用你默认的对话风格。。
 
@@ -68,7 +46,6 @@ class ScheduleReminder:
   - 时间：{item_time}
   - 备注：{item_context or "（无）"}
 
-{dash_block}
 
 提前提醒时间：{minutes_ahead} 分钟
 
@@ -77,7 +54,7 @@ class ScheduleReminder:
 
 【要求】
 1. 语气和风格严格遵循系统人格设定
-2. 可以根据 Dashboard 状态适当关心
+2. 自然关心用户，语气温柔
 3. 如果备注有具体内容，融入提醒中
 4. 30~80 字以内，不要太长
 5. 不要出现括号或 markdown 格式
@@ -95,19 +72,6 @@ class ScheduleReminder:
     ) -> str:
         """生成提醒文本（带 LLM fallback）"""
 
-        try:
-            if self.dashboard and hasattr(self.dashboard, "get_status"):
-                dashboard_text = await self.dashboard.get_status()
-                dashboard_status = (
-                    {"raw_text": dashboard_text}
-                    if dashboard_text
-                    else {"has_dashboard": False}
-                )
-            else:
-                dashboard_status = {"has_dashboard": False}
-        except Exception:
-            dashboard_status = {"has_dashboard": False}
-
         conv_str = conv_history or "（无近期对话历史）"
 
         prompt = self._build_prompt(
@@ -115,7 +79,6 @@ class ScheduleReminder:
             item_time=item_time,
             item_context=item_context,
             minutes_ahead=minutes_ahead,
-            dashboard_status=dashboard_status,
             conv_history=conv_str,
         )
 
@@ -171,7 +134,6 @@ def _is_all_day_event(item) -> bool:
 async def check_and_trigger_schedule_reminder(
     schedule_store,
     llm_service,
-    dashboard_service,
     user_id: str,
     minutes_window: int = 30,
     minutes_before: int = 15,
@@ -186,7 +148,7 @@ async def check_and_trigger_schedule_reminder(
     - 即将开始兜底：前 5 分钟内也会触发
     - 全天事件不触发提前提醒
     """
-    reminder = ScheduleReminder(llm_service, dashboard_service)
+    reminder = ScheduleReminder(llm_service)
     triggered = []
     now = datetime.now()
 

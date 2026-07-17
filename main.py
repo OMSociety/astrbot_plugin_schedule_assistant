@@ -31,14 +31,12 @@ from .constants import (
     LOG_PREFIX,
     SCHEDULES_KEY,
 )
-from .live_dashboard import LiveDashboardMixin
 from .messaging import MessagingService
 from .notion_client import NotionClient
 from .reminders.briefing import BriefingReminder
 from .reminders.habits import BathReminder, SleepReminder, WaterReminder
 from .reminders.schedule import ScheduleReminder, check_and_trigger_schedule_reminder
 from .schedule_store import ScheduleItem, ScheduleStore
-from .services.dashboard import BasicDashboardService, get_dashboard_status
 from .services.llm import LLMService
 from .services.notion import NotionService
 from .services.weather import WeatherService
@@ -47,7 +45,7 @@ from .tools.schedule_tools import register_schedule_tools
 SCHEDULE_REMINDER_LOG_THROTTLE_SECONDS = 300  # seconds (5 minutes)
 
 
-class ScheduleAssistant(LiveDashboardMixin, Star):
+class ScheduleAssistant(Star):
     def _flatten_config(self, nested: dict) -> dict:
         """将一层嵌套配置展平：把顶层 group 的键值提升到根层级，但保留更深层的嵌套对象（如 apple_calendar）。"""
         result = {}
@@ -68,8 +66,6 @@ class ScheduleAssistant(LiveDashboardMixin, Star):
         self.weather_service: WeatherService | None = None
         self.notion_service: NotionService | None = None
         self.llm_service: LLMService | None = None
-        self.dashboard_service: BasicDashboardService | None = None
-        self.live_dashboard_service = None
         self.apple_calendar: AppleCalendar | None = None
         self.notion: NotionClient | None = None
         self._services_ready = False
@@ -158,7 +154,6 @@ class ScheduleAssistant(LiveDashboardMixin, Star):
             )
 
         self.llm_service = LLMService(self.context, self.config)
-        self.dashboard_service = BasicDashboardService()
 
         notion_db_ids = self.config.get("notion_db_ids", [])
         maton_key = self.config.get("maton_api_key")
@@ -217,9 +212,7 @@ class ScheduleAssistant(LiveDashboardMixin, Star):
         self.water_reminder = WaterReminder(
             self.config, self.default_user_id, self.llm_service, self.store
         )
-        self.schedule_reminder = ScheduleReminder(
-            self.llm_service, self.dashboard_service
-        )
+        self.schedule_reminder = ScheduleReminder(self.llm_service)
 
         conf = self.config
         if conf.get("enable_apple_calendar_sync"):
@@ -567,9 +560,6 @@ class ScheduleAssistant(LiveDashboardMixin, Star):
                 now.weekday()
             ]
 
-            dashboard_status = (
-                await get_dashboard_status() if self.dashboard_service else "暂无"
-            )
             late_night_text = ""
             if self.apple_calendar:
                 try:
@@ -595,7 +585,6 @@ class ScheduleAssistant(LiveDashboardMixin, Star):
                     weather_forecast=weather_forecast,
                     agenda=agenda_text,
                     notion_todos=notion_text,
-                    dashboard=dashboard_status,
                     late_night=late_night_text,
                     user_id=user_id,
                 )
@@ -618,11 +607,6 @@ class ScheduleAssistant(LiveDashboardMixin, Star):
             if not target_user_ids:
                 return []
 
-            dashboard = (
-                await self.dashboard_service.get_status()
-                if self.dashboard_service
-                else ""
-            )
             for user_id in target_user_ids:
                 history = await self.store.get_conversation_history(user_id)
                 history_text = (
@@ -632,7 +616,6 @@ class ScheduleAssistant(LiveDashboardMixin, Star):
                 )
                 message = await reminder_obj.generate(
                     await self._get_user_nickname(user_id),
-                    dashboard,
                     history_text,
                     user_id=user_id,
                 )
@@ -713,7 +696,6 @@ class ScheduleAssistant(LiveDashboardMixin, Star):
                     triggered = await check_and_trigger_schedule_reminder(
                         schedule_store=self.store,
                         llm_service=self.llm_service,
-                        dashboard_service=self.dashboard_service,
                         user_id=user_id,
                         minutes_window=minutes_ahead,
                         minutes_before=minutes_ahead,

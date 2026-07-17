@@ -4,7 +4,7 @@
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 
-你的贴心日程管家，支持早安播报、习惯提醒、LLM 智能日程管理、Apple 日历双向同步、Notion 待办同步、Live Dashboard 视奸面板。
+你的贴心日程管家，支持早安播报、习惯提醒、LLM 智能日程管理、Apple 日历双向同步、Notion 待办同步。
 
 > 本项目由AI编写
 > 
@@ -21,7 +21,7 @@
 - 🌤️ **天气情况** — 当前温度、预报、温差、降水概率
 - 📅 **今日日程** — Apple 日历已排期的事件一览
 - 📝 **Notion 待办** — DDL 倒计时（还剩N天 / 今天截止 / 已逾期）
-- 💡 **贴心建议** — 结合熬夜检测和 Live Dashboard 状态智能生成
+- 💡 **贴心建议** — 结合熬夜检测智能生成
 
 ### 习惯提醒
 | 习惯 | 默认时间 | 说明 |
@@ -41,17 +41,6 @@
 ```
 
 注册 4 个 LLM 工具：`create_schedule` / `delete_schedule` / `list_schedules` / `update_schedule`，支持时间解析与标题关键词匹配。
-
-### Live Dashboard 视奸面板
-实时查询设备状态，合并在日程助手中无需额外插件：
-- 当前设备在线情况（平台 + 应用 + 窗口标题）
-- 电量与充电状态
-- 音乐播放信息
-- **黑名单机制** — 用户 / 群组 / 关键词黑名单
-
-LLM 工具：`query_live_dashboard_status` — 对话中自动调用查询
-
-> Live Dashboard 功能由 [astrbot_plugin_live_dashboard](https://github.com/DBJD-CR/astrbot_plugin_live_dashboard) 合并而来，感谢原作者 DBJD-CR 的贡献！
 
 ### Apple iCloud 日历双向同步
 
@@ -162,30 +151,6 @@ LLM 工具：`query_live_dashboard_status` — 对话中自动调用查询
 | `default_session_type` | string | 默认会话类型 |
 | `send_platform_id` | string | 默认发送平台 ID |
 | `user_platform_bindings` | list | 用户平台绑定列表 |
-
-### Live Dashboard 设置
-
-| 配置项 | 类型 | 默认 | 说明 |
-|--------|------|------|------|
-| `live_dashboard_base_url` | string | - | Dashboard 服务地址 |
-| `live_dashboard_auth_token` | string | - | Dashboard 认证 Token |
-| `live_dashboard_request_timeout_sec` | int | `30` | 请求超时时间（秒） |
-| `live_dashboard_include_offline_devices` | bool | `false` | 是否包含离线设备 |
-| `live_dashboard_max_devices` | int | `10` | 最大设备数量 |
-| `live_dashboard_device_whitelist_keywords` | string | - | 设备白名单关键词（逗号分隔） |
-| `live_dashboard_device_blacklist_keywords` | string | - | 设备黑名单关键词（逗号分隔） |
-| `live_dashboard_group_blacklist_sessions` | string | - | 群组黑名单会话（逗号分隔） |
-| `live_dashboard_user_blacklist_senders` | string | - | 用户黑名单发送者（逗号分隔） |
-| `live_dashboard_info_blacklist_keywords` | string | - | 信息黑名单关键词（逗号分隔） |
-| `live_dashboard_info_blacklist_replacement` | string | - | 黑名单信息替换文本 |
-| `live_dashboard_show_platform` | bool | `true` | 显示平台信息 |
-| `live_dashboard_show_app_name` | bool | `true` | 显示应用名称 |
-| `live_dashboard_show_display_title` | bool | `true` | 显示窗口标题 |
-| `live_dashboard_show_battery` | bool | `true` | 显示电量信息 |
-| `live_dashboard_show_music` | bool | `true` | 显示音乐播放 |
-| `live_dashboard_show_last_seen` | bool | `true` | 显示最后上线时间 |
-| `live_dashboard_show_viewer_count` | bool | `false` | 显示浏览次数 |
-| `live_dashboard_show_server_time` | bool | `false` | 显示服务器时间 |
 
 ---
 

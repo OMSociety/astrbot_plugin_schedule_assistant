@@ -71,29 +71,22 @@ class HabitReminder:
         return now.hour >= 23 or now.hour < 2
 
     def _get_prompt_context(
-        self, username: str, dashboard: str, history_text: str, now: datetime
+        self, username: str, history_text: str, now: datetime
     ) -> dict:
         """获取 prompt 上下文信息
 
         Args:
             username: 用户名
-            dashboard: 仪表盘状态描述
             history_text: 对话历史
             now: 当前时间
 
         Returns:
             包含上下文信息的字典
         """
-        # 清理 dashboard 状态：如果为空/未知/默认值，标记为空避免 LLM 乱回复
-        cleaned_dashboard = dashboard.strip() if dashboard else ""
-        if cleaned_dashboard in ("未知", "暂无", "未配置", "", "获取失败"):
-            cleaned_dashboard = ""
         return {
             "username": username,
             "current_time": now.strftime("%H:%M"),
             "default_time": self._get_default_time(),
-            "dashboard": cleaned_dashboard,
-            "has_dashboard": bool(cleaned_dashboard),
             "history": history_text or "（无近期对话）",
         }
 
@@ -102,13 +95,12 @@ class HabitReminder:
         raise NotImplementedError
 
     async def generate(
-        self, username: str, dashboard: str, history_text: str, user_id: str = None
+        self, username: str, history_text: str, user_id: str = None
     ) -> str | None:
         """生成提醒消息
 
         Args:
             username: 用户名
-            dashboard: 仪表盘状态描述
             history_text: 近期对话历史
             user_id: 用户ID，用于获取当前会话的人格
 
@@ -116,7 +108,7 @@ class HabitReminder:
             生成的提醒消息文本
         """
         now = datetime.now()
-        context = self._get_prompt_context(username, dashboard, history_text, now)
+        context = self._get_prompt_context(username, history_text, now)
         prompt = self._build_prompt(context)
         # prompt 中已含【近期对话】上下文，不再额外传 history= 避免重复注入
         return await self.llm_service.generate(prompt, umo=user_id)
@@ -129,10 +121,6 @@ class BathReminder(HabitReminder):
         super().__init__(config, default_user_id, llm_service, store, "bath")
 
     def _build_prompt(self, context: dict) -> str:
-        # 根据是否有设备状态动态构建提示
-        dashboard_section = ""
-        if context.get("has_dashboard"):
-            dashboard_section = f"- 用户当前状态: {context['dashboard']}\n"
         return f"""【重要】你的所有回复必须严格遵循系统人格设定。如果系统人格部分为空，则用你默认的对话风格。
 
 生成一条洗澡时间提醒：
@@ -140,15 +128,15 @@ class BathReminder(HabitReminder):
 【用户信息】
 - 当前时间: {context["current_time"]}
 - 设定的洗澡时间: {context["default_time"]}
-{dashboard_section}【近期对话】
+
+【近期对话】
 {context["history"]}
 
 【要求】
 1. 语气和风格严格遵循系统人格设定
-2. 有状态时可以根据状态适当调侃，无状态时就不要提
-3. 40字以内，带1-2个emoji
-4. 不要 markdown，纯文本输出
-5. 只输出提醒消息本身"""
+2. 40字以内，带1-2个emoji
+3. 不要 markdown，纯文本输出
+4. 只输出提醒消息本身"""
 
 
 class SleepReminder(HabitReminder):
@@ -158,9 +146,9 @@ class SleepReminder(HabitReminder):
         super().__init__(config, default_user_id, llm_service, store, "sleep")
 
     def _get_prompt_context(
-        self, username: str, dashboard: str, history_text: str, now: datetime
+        self, username: str, history_text: str, now: datetime
     ) -> dict:
-        ctx = super()._get_prompt_context(username, dashboard, history_text, now)
+        ctx = super()._get_prompt_context(username, history_text, now)
         ctx["is_late"] = self._is_late_hour(now)
         return ctx
 
@@ -169,10 +157,6 @@ class SleepReminder(HabitReminder):
         self.llm_service.set_fallback_template(
             self.FALLBACKS["sleep_late"] if is_late else self.FALLBACKS["sleep"]
         )
-        # 根据是否有设备状态动态构建提示
-        dashboard_section = ""
-        if context.get("has_dashboard"):
-            dashboard_section = f"- 用户当前状态: {context['dashboard']}\n"
         return f"""【重要】你的所有回复必须严格遵循系统人格设定。如果系统人格部分为空，则用你默认的对话风格。
 
 生成一条睡觉时间提醒：
@@ -181,13 +165,13 @@ class SleepReminder(HabitReminder):
 - 当前时间: {context["current_time"]}
 - 设定的睡觉时间: {context["default_time"]}
 - 是否已超晚(23点后): {context.get("is_late", False)}
-{dashboard_section}【要求】
+
+【要求】
 1. 语气和风格严格遵循系统人格设定
 2. 如果超晚了可以带点小责备，但要符合人格
-3. 有状态时可以结合状态提醒，无状态时就不要提
-4. 40字以内，带1-2个emoji
-5. 不要 markdown，纯文本输出
-6. 只输出提醒消息本身"""
+3. 40字以内，带1-2个emoji
+4. 不要 markdown，纯文本输出
+5. 只输出提醒消息本身"""
 
 
 class WaterReminder(HabitReminder):
@@ -203,14 +187,13 @@ class WaterReminder(HabitReminder):
 
 【用户信息】
 - 当前时间: {context["current_time"]}
-- 用户当前状态: {context["dashboard"]}
 
 【近期对话】
 {context["history"]}
 
 【要求】
 1. 语气和风格严格遵循系统人格设定
-2. 结合当前时间、状态、对话上下文
+2. 结合当前时间和对话上下文
 3. 30字以内，带1-2个emoji
 4. 不要 markdown，纯文本输出
 5. 只输出提醒消息本身"""

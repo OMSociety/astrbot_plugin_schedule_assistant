@@ -17,7 +17,6 @@ class BriefingReminder:
         weather_forecast: str,
         agenda: str,
         notion_todos: str,
-        dashboard: str = "",
         late_night: str = "",
         user_id: str = None,
     ) -> str:
@@ -32,13 +31,6 @@ class BriefingReminder:
             if notion_todos and notion_todos not in ("暂无", "获取失败")
             else []
         )
-
-        # 清理 dashboard：无效状态时不显示
-        dashboard_clean = dashboard.strip() if dashboard else ""
-        if dashboard_clean in ("", "未知", "暂无", "未配置", "获取失败"):
-            dashboard_section = ""
-        else:
-            dashboard_section = f"\n设备状态: {dashboard_clean}"
 
         late_night_section = ""
         if late_night and late_night.strip():
@@ -62,7 +54,7 @@ class BriefingReminder:
 日程:
 {_nl.join(agenda_lines) if agenda_lines else "暂无"}
 待办:
-{_nl.join(notion_lines) if notion_lines else "暂无"}{dashboard_section}{late_night_section}
+{_nl.join(notion_lines) if notion_lines else "暂无"}{late_night_section}
 
 【人格要求】
 必须严格遵循上方系统人格设定的语气和风格。

@@ -38,7 +38,7 @@ def _build_url(config: dict[str, Any]) -> str:
 async def fetch_current_payload(
     config: dict[str, Any], *, client: httpx.AsyncClient | None = None
 ) -> dict[str, Any]:
-    """获取 Live Dashboard 当前状态数据。
+    """获取当前状态数据。
 
     返回值：
     - 成功时返回 JSON dict。
