@@ -135,8 +135,7 @@ class BathReminder(HabitReminder):
 【要求】
 1. 语气和风格严格遵循系统人格设定
 2. 40字以内，带1-2个emoji
-3. 不要 markdown，纯文本输出
-4. 只输出提醒消息本身"""
+3. 只输出提醒消息本身"""
 
 
 class SleepReminder(HabitReminder):
@@ -170,8 +169,7 @@ class SleepReminder(HabitReminder):
 1. 语气和风格严格遵循系统人格设定
 2. 如果超晚了可以带点小责备，但要符合人格
 3. 40字以内，带1-2个emoji
-4. 不要 markdown，纯文本输出
-5. 只输出提醒消息本身"""
+4. 只输出提醒消息本身"""
 
 
 class WaterReminder(HabitReminder):
@@ -195,5 +193,4 @@ class WaterReminder(HabitReminder):
 1. 语气和风格严格遵循系统人格设定
 2. 结合当前时间和对话上下文
 3. 30字以内，带1-2个emoji
-4. 不要 markdown，纯文本输出
-5. 只输出提醒消息本身"""
+4. 只输出提醒消息本身"""

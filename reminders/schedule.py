@@ -57,7 +57,6 @@ class ScheduleReminder:
 2. 自然关心用户，语气温柔
 3. 如果备注有具体内容，融入提醒中
 4. 30~80 字以内，不要太长
-5. 不要出现括号或 markdown 格式
 """
         return prompt.strip()
 

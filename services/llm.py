@@ -49,16 +49,21 @@ class LLMService:
         """
         if not umo or ":" in umo:
             return umo
-        # 获取主平台 ID
-        platform = "aiocqhttp"
-        try:
-            for p in self.context.platform_manager.platform_insts:
-                pid = p.meta().id
-                if pid:
-                    platform = str(pid)
-                    break
-        except Exception:
-            pass
+        # 获取主平台 ID：优先配置 send_platform_id（显式配置时不再被覆盖），
+        # 未配置时从平台管理器动态获取
+        platform = str(self.config.get("send_platform_id", "") or "").strip()
+        if not platform:
+            try:
+                for p in self.context.platform_manager.platform_insts:
+                    pid = p.meta().id
+                    if pid:
+                        platform = str(pid)
+                        break
+            except Exception:
+                pass
+        if not platform:
+            # 最后兜底：平台无关默认值（避免硬编码具体平台名）
+            platform = "default"
         normalized = f"{platform}:FriendMessage:{umo}"
         logger.debug(f"{LOG_PREFIX} 规范化 umo: {umo} → {normalized}")
         return normalized

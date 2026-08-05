@@ -2,18 +2,74 @@
 统一消息发送模块
 
 封装平台无关的消息发送和事件回复逻辑。
-支持多平台候选、会话记忆、优雅降级。
+支持多平台候选、会话记忆、优雅降级、MessageTarget 统一路由。
 由 main.py 的内联发送逻辑迁移而来，整合了最健壮的回复兜底机制。
 """
+
+from dataclasses import dataclass
+from typing import Any
 
 import astrbot.api.message_components as Comp
 from astrbot.api import logger
 from astrbot.api.event import MessageChain
-from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
-    AiocqhttpMessageEvent,
-)
 
 from .constants import LOG_PREFIX
+from .markdown import MarkdownRenderer
+
+# 常见会话类型，用于识别 UMO 格式（platform:session_type:session_id）
+COMMON_SESSION_TYPES = (
+    "FriendMessage",
+    "GroupMessage",
+    "TempMessage",
+    "ChannelMessage",
+)
+
+
+@dataclass
+class MessageTarget:
+    """
+    平台无关的消息目标
+
+    统一承载 platform_id / session_type / session_id 三元组，
+    所有发送路由（send_to_user / reply_to_event / UMO 解析）统一走它。
+    """
+
+    platform_id: str
+    session_type: str = "FriendMessage"
+    session_id: str = ""
+
+    @classmethod
+    def from_umo(
+        cls, umo: str, session_types: set[str] | None = None
+    ) -> "MessageTarget | None":
+        """从 UMO 字符串（platform:session_type:session_id）解析目标
+
+        Args:
+            umo: 统一消息来源字符串
+            session_types: 可选，校验第二段是否为已知会话类型；None 表示不校验
+
+        Returns:
+            Optional[MessageTarget]：解析成功返回目标，失败返回 None
+        """
+        if not umo or not isinstance(umo, str):
+            return None
+        parts = umo.strip().split(":")
+        if len(parts) < 3:
+            return None
+        if session_types and parts[1] not in session_types:
+            return None
+        return cls(
+            platform_id=parts[0].strip(),
+            session_type=parts[1].strip(),
+            session_id=":".join(parts[2:]).strip(),
+        )
+
+    def to_session(self) -> str:
+        """转为 AstrBot 会话字符串（platform:session_type:session_id）"""
+        return f"{self.platform_id}:{self.session_type}:{self.session_id}"
+
+    def __str__(self) -> str:
+        return self.to_session()
 
 
 class MessagingService:
@@ -23,51 +79,160 @@ class MessagingService:
     封装消息发送逻辑，支持：
     - 多平台候选和自动回退
     - 发送历史记忆（记住用户上次成功接收的平台）
-    - 全局平台兜底
+    - 用户平台绑定（支持 UMO 格式路由，不硬编码平台）
+    - 持久化平台恢复（进程重启后仍能精确推送）
     - 事件回复（兼容无 reply 方法的事件对象）
     """
 
-    def __init__(self, context, config: dict):
+    def __init__(
+        self,
+        context,
+        config: dict,
+        platform_lookup=None,
+        users_lookup=None,
+        default_user_id: str | None = None,
+    ):
         """
         初始化消息服务
 
         Args:
             context: AstrBot 上下文
             config: 插件配置，包含以下键：
-                - send_platform_id: 全局发送平台ID
+                - send_platform_id: 全局发送平台ID（配置项，不写死平台）
                 - default_session_type: 默认会话类型，默认 FriendMessage
-                - user_platform_bindings: 用户平台绑定映射
+                - user_platform_bindings: 用户平台绑定，支持：
+                    - UMO 映射 dict: {"Flandre:FriendMessage:xxx": "Flandre"}
+                    - UMO 字符串列表: ["Flandre:FriendMessage:xxx"]
+                    - 旧格式列表: ["user_id:platform_id"] 或 [{"user_id":..,"platform_id":..}]
+            platform_lookup: 可选异步回调 user_id -> platform_id，用于从持久化存储恢复平台
+            users_lookup: 可选异步回调 () -> list[str]，返回所有已知用户ID（用于目标用户解析）
+            default_user_id: 可选默认目标用户ID（白名单首个用户）
         """
         self.context = context
         self.config = config
+        self._platform_lookup = platform_lookup
+        self._users_lookup = users_lookup
+        self._default_user_id = str(default_user_id) if default_user_id else None
         self._session_type = str(
             config.get("default_session_type", "FriendMessage") or "FriendMessage"
         )
         self._global_platform_id = str(config.get("send_platform_id", "") or "").strip()
+        self._session_types = set(COMMON_SESSION_TYPES)
+        if self._session_type:
+            self._session_types.add(self._session_type)
         self._user_platform_bindings = self._parse_user_platform_bindings()
         self._recent_user_platforms: dict = {}
+        self._md_renderer: MarkdownRenderer | None = None
+
+    def _get_md_renderer(self) -> MarkdownRenderer:
+        """惰性获取 markdown 渲染器"""
+        if self._md_renderer is None:
+            self._md_renderer = MarkdownRenderer(self.config)
+        return self._md_renderer
+
+    def _build_markdown_chain(self, message: str, platform_id: str) -> MessageChain:
+        """按平台渲染 markdown，返回消息链
+
+        两级策略：原生平台直发 md 原文，其余 strip 后纯文本直发。
+        """
+        renderer = self._get_md_renderer()
+        content, kind = renderer.render(message, platform_id)
+        if kind == "native":
+            return MessageChain([Comp.Plain(content)], use_markdown_=True)
+        return MessageChain([Comp.Plain(content)])
+
+    def _split_umo(self, umo: str):
+        """
+        尝试解析 UMO 字符串（platform:session_type:session_id）
+
+        Args:
+            umo: 统一消息来源字符串
+
+        Returns:
+            Optional[tuple]: (platform_id, session_type, session_id)，无法解析返回 None
+        """
+        target = MessageTarget.from_umo(umo, session_types=self._session_types)
+        if target is None:
+            return None
+        return target.platform_id, target.session_type, target.session_id
+
+    def register_umo_binding(self, umo: str, platform_id: str = "") -> str | None:
+        """
+        注册一条 UMO 平台绑定（动态添加，无需改配置）
+
+        Args:
+            umo: UMO 字符串，如 "Flandre:FriendMessage:8F3F9FB8..."
+            platform_id: 可选发送平台，为空时取 UMO 第一段
+
+        Returns:
+            Optional[str]: 绑定的用户ID（session_id），失败返回 None
+        """
+        parsed = self._split_umo(umo)
+        if not parsed:
+            return None
+        platform, session_type, session_id = parsed
+        self._user_platform_bindings[session_id] = {
+            "platform": (platform_id or platform).strip(),
+            "session_type": session_type,
+        }
+        return session_id
 
     def _parse_user_platform_bindings(self) -> dict:
         """
         解析用户平台绑定配置
 
+        支持三种格式：
+        1. UMO 映射 dict: {"Flandre:FriendMessage:xxx": "Flandre"}
+        2. UMO 字符串列表: ["Flandre:FriendMessage:xxx"]
+        3. 旧格式: ["user_id:platform_id"] 或 [{"user_id":..,"platform_id":..}]
+
         Returns:
-            dict: {user_id: platform_id} 映射
+            dict: {user_id: {"platform": platform_id, "session_type": session_type}}
         """
         bindings: dict = {}
         raw_bindings = self.config.get("user_platform_bindings", []) or []
-        for item in raw_bindings:
-            user_id = ""
-            platform_id = ""
-            if isinstance(item, dict):
-                user_id = str(item.get("user_id", "")).strip()
-                platform_id = str(item.get("platform_id", "")).strip()
-            elif isinstance(item, str) and ":" in item:
-                user_id, platform_id = item.split(":", 1)
+        items: list = []
+        if isinstance(raw_bindings, dict):
+            items = [(str(k), str(v)) for k, v in raw_bindings.items()]
+        elif isinstance(raw_bindings, (list, tuple)):
+            for item in raw_bindings:
+                if isinstance(item, dict):
+                    key = item.get("umo") or item.get("user_id") or ""
+                    value = item.get("platform_id") or item.get("platform") or ""
+                    items.append((str(key), str(value)))
+                elif isinstance(item, str):
+                    items.append((item, ""))
+                else:
+                    items.append((str(item), ""))
+        else:
+            items = [(str(raw_bindings), "")]
+
+        for key, value_platform in items:
+            key = key.strip()
+            if not key:
+                continue
+            parsed = self._split_umo(key)
+            if parsed:
+                platform, session_type, session_id = parsed
+                bindings[session_id] = {
+                    "platform": (value_platform or platform).strip(),
+                    "session_type": session_type,
+                }
+                continue
+            # 旧格式：user_id:platform_id 或纯 user_id
+            if ":" in key:
+                user_id, platform_id = key.split(":", 1)
                 user_id = user_id.strip()
                 platform_id = platform_id.strip()
-            if user_id and platform_id:
-                bindings[user_id] = platform_id
+            else:
+                user_id, platform_id = key, ""
+            if user_id:
+                bindings[user_id] = {
+                    "platform": (
+                        platform_id or value_platform or self._global_platform_id
+                    ).strip(),
+                    "session_type": self._session_type,
+                }
         return bindings
 
     def _get_available_platform_ids(self) -> list[str]:
@@ -75,7 +240,7 @@ class MessagingService:
         获取当前已注册的所有平台ID
 
         Returns:
-            List[str]: 可用平台ID列表
+            List[str]: 可用平台ID列表（未发现平台时回退到配置的 send_platform_id）
         """
         ids: list[str] = []
         try:
@@ -85,20 +250,28 @@ class MessagingService:
                     ids.append(str(pid))
         except Exception:
             pass
-        if not ids:
-            fallback = self._global_platform_id or "aiocqhttp"
-            logger.warning(f"{LOG_PREFIX} 未发现已注册平台，使用回退: {fallback}")
-            ids = [fallback]
+        if not ids and self._global_platform_id:
+            logger.warning(
+                f"{LOG_PREFIX} 未发现已注册平台，回退到配置的 send_platform_id: "
+                f"{self._global_platform_id}"
+            )
+            ids = [self._global_platform_id]
+        elif not ids:
+            logger.warning(
+                f"{LOG_PREFIX} 未发现已注册平台且未配置 send_platform_id，发送将不可用"
+            )
         return ids
 
-    def _extract_platform_id_from_event(
-        self, event: AiocqhttpMessageEvent
-    ) -> str | None:
+    def _extract_platform_id_from_event(self, event: Any) -> str | None:
         """
-        从事件对象中提取平台ID
+        从事件对象中提取平台ID（duck typing，平台无关）
+
+        通过通用属性探测，不依赖任何具体平台事件类：
+        1. 优先读 platform_id / platform / platform_name 属性
+        2. 次选从 session_id / session / unified_msg_origin（UMO 格式）取首段
 
         Args:
-            event: 消息事件对象
+            event: 任意平台的消息事件对象
 
         Returns:
             Optional[str]: 平台ID，未知则返回 None
@@ -111,8 +284,6 @@ class MessagingService:
             value = getattr(event, attr, None)
             if isinstance(value, str) and ":" in value:
                 return value.split(":", 1)[0].strip()
-        if isinstance(event, AiocqhttpMessageEvent):
-            return "aiocqhttp"
         return None
 
     def _build_platform_candidates(
@@ -136,9 +307,9 @@ class MessagingService:
         recent = self._recent_user_platforms.get(str(user_id))
         if recent:
             candidates.append(recent)
-        bound = self._user_platform_bindings.get(str(user_id))
-        if bound:
-            candidates.append(bound)
+        binding = self._user_platform_bindings.get(str(user_id))
+        if binding and binding.get("platform"):
+            candidates.append(binding["platform"])
         if self._global_platform_id:
             candidates.append(self._global_platform_id)
         candidates.extend(self._get_available_platform_ids())
@@ -162,7 +333,11 @@ class MessagingService:
         self._recent_user_platforms[str(user_id)] = platform_id
 
     async def send_to_user(
-        self, user_id: str, message: str, platform_id: str | None = None
+        self,
+        user_id: str,
+        message: str,
+        platform_id: str | None = None,
+        markdown: bool | None = None,
     ) -> bool:
         """
         向指定用户发送私聊消息
@@ -170,15 +345,39 @@ class MessagingService:
         Args:
             user_id: 目标用户ID
             message: 要发送的消息文本
-            platform_id: 优先使用的平台ID（可选）
+            platform_id: 优先使用的平台ID（可选，不写死，按配置/记忆/绑定路由）
+            markdown: 是否启用 markdown 渲染，None 时跟随配置 markdown_enabled
 
         Returns:
             bool: 是否发送成功
         """
+        md_enabled = (
+            markdown
+            if markdown is not None
+            else bool(self.config.get("markdown_enabled", False))
+        )
         try:
-            chain = MessageChain([Comp.Plain(message)])
             available = set(self._get_available_platform_ids())
             sessions_tried = []
+
+            binding = self._user_platform_bindings.get(str(user_id))
+            session_type = (
+                binding["session_type"]
+                if binding and binding.get("session_type")
+                else self._session_type
+            )
+            # 持久化平台恢复：进程重启后内存记忆丢失，从存储补回
+            if not platform_id and binding and binding.get("platform"):
+                platform_id = binding["platform"]
+            if not platform_id and self._platform_lookup:
+                try:
+                    persisted = await self._platform_lookup(str(user_id))
+                    if persisted:
+                        platform_id = str(persisted).strip()
+                except Exception as lookup_err:
+                    logger.warning(
+                        f"{LOG_PREFIX} 读取持久化平台失败 user={user_id} err={lookup_err}"
+                    )
 
             for platform in self._build_platform_candidates(user_id, platform_id):
                 if platform not in available:
@@ -188,10 +387,19 @@ class MessagingService:
                     )
                     continue
 
-                session = f"{platform}:{self._session_type}:{user_id}"
+                target = MessageTarget(
+                    platform_id=platform,
+                    session_type=session_type,
+                    session_id=str(user_id),
+                )
+                session = target.to_session()
                 sessions_tried.append(session)
 
                 try:
+                    if md_enabled:
+                        chain = self._build_markdown_chain(message, platform)
+                    else:
+                        chain = MessageChain([Comp.Plain(message)])
                     await self.context.send_message(session, chain)
                     self.remember_user_platform(user_id, platform)
                     logger.info(
@@ -214,7 +422,48 @@ class MessagingService:
             logger.error(f"{LOG_PREFIX} 发送消息异常: user={user_id} err={e}")
             return False
 
-    async def reply_to_event(self, event: AiocqhttpMessageEvent, message: str) -> None:
+    async def resolve_target_users(
+        self, include_known_users: bool = False
+    ) -> list[str]:
+        """解析目标用户ID列表（白名单支持 UID 或 UMO 格式，UMO 自动注册路由绑定）
+
+        目标用户解析统一收敛到消息服务路由：
+        白名单（UMO 自动注册绑定） > 默认用户 > target_user_ids > 全部已知用户（可选）
+
+        Args:
+            include_known_users: 是否包含存储中的全部已知用户
+
+        Returns:
+            List[str]: 去重排序后的目标用户ID列表
+        """
+        user_ids: set[str] = set()
+        for uid in self.config.get("whitelist_qq_ids", []) or []:
+            if not uid:
+                continue
+            uid = str(uid)
+            registered = self.register_umo_binding(uid)
+            if registered:
+                user_ids.add(registered)
+            else:
+                user_ids.add(uid)
+        if self._default_user_id:
+            user_ids.add(str(self._default_user_id))
+        for uid in self.config.get("target_user_ids", []) or []:
+            if uid:
+                user_ids.add(str(uid))
+        if include_known_users or self.config.get(
+            "broadcast_to_all_known_users", False
+        ):
+            if self._users_lookup:
+                try:
+                    for uid in await self._users_lookup():
+                        if uid:
+                            user_ids.add(str(uid))
+                except Exception as lookup_err:
+                    logger.warning(f"{LOG_PREFIX} 读取已知用户失败: err={lookup_err}")
+        return sorted(user_ids)
+
+    async def reply_to_event(self, event: Any, message: str) -> None:
         """
         回复消息事件，兼容不同版本的事件对象
 

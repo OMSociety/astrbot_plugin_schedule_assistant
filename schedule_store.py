@@ -437,3 +437,11 @@ class ScheduleStore:
             lines.append(line)
         lines.reverse()
         return "\n".join(lines) if lines else "（无近期对话历史）"
+
+    async def set_user_platform(self, user_id: str, platform_id: str) -> None:
+        """持久化用户所属平台（用户真实所在的平台，用于定时消息精确推送）"""
+        await self._set_kv(f"user_platform_{user_id}", str(platform_id or "").strip())
+
+    async def get_user_platform(self, user_id: str) -> str:
+        """读取用户所属平台，未记录时返回空字符串"""
+        return str((await self._get_kv(f"user_platform_{user_id}", "")).strip())

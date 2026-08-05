@@ -17,9 +17,6 @@ from apscheduler.triggers.cron import CronTrigger
 from astrbot.api import logger
 from astrbot.api.event import filter
 from astrbot.api.star import Context, Star
-from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
-    AiocqhttpMessageEvent,
-)
 
 from .apple_calendar import AppleCalendar
 from .constants import (
@@ -31,6 +28,7 @@ from .constants import (
     LOG_PREFIX,
     SCHEDULES_KEY,
 )
+from .engine import TimedMessageEngine
 from .messaging import MessagingService
 from .notion_client import NotionClient
 from .reminders.briefing import BriefingReminder
@@ -61,14 +59,29 @@ class ScheduleAssistant(Star):
         super().__init__(context)
         self.config = self._flatten_config(config)  # 自动展平嵌套配置，保持与旧代码兼容
         self.store = ScheduleStore(self)
-        self.messaging = MessagingService(context, self.config)
+        self.default_user_id: str | None = None
+        whitelist = self.config.get("whitelist_qq_ids", [])
+        if whitelist:
+            self.default_user_id = str(whitelist[0])
+        self.messaging = MessagingService(
+            context,
+            self.config,
+            platform_lookup=self.store.get_user_platform,
+            users_lookup=self.store.get_all_users,
+            default_user_id=self.default_user_id,
+        )
         self.scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
+        # 通用定时消息引擎：业务注册为 job，内容生成与发送解耦
+        self.timed_engine = TimedMessageEngine(
+            context, self.config, self.messaging, self.scheduler
+        )
         self.weather_service: WeatherService | None = None
         self.notion_service: NotionService | None = None
         self.llm_service: LLMService | None = None
         self.apple_calendar: AppleCalendar | None = None
         self.notion: NotionClient | None = None
         self._services_ready = False
+        self._services_init_lock = asyncio.Lock()
         self._tasks_registered = False
         self._tools_registered = False
         self._schedule_reminder_scan_lock = asyncio.Lock()
@@ -79,10 +92,9 @@ class ScheduleAssistant(Star):
         self._runtime_cleaned = False
         self._cleanup_lock: asyncio.Lock | None = None
 
-        self.default_user_id: str | None = None
-        whitelist = self.config.get("whitelist_qq_ids", [])
-        if whitelist:
-            self.default_user_id = str(whitelist[0])
+        # 早安播报共享上下文缓存（天气/Apple 深夜事件，避免每个用户重复请求）
+        self._morning_ctx_cache: dict | None = None
+        self._morning_ctx_ts = 0.0
 
         # 启动后台初始化（兼容热重载：__init__ 在热重载时立即执行）
         self._init_task = asyncio.create_task(self._initialize())
@@ -114,22 +126,14 @@ class ScheduleAssistant(Star):
         await self._initialize()
 
     def _add_or_replace_job(self, func, trigger, *, job_id: str, **kwargs):
-        options = {
-            "id": job_id,
-            "replace_existing": True,
-        }
-        options.update(kwargs)
-        self.scheduler.add_job(func, trigger, **options)
+        """兼容旧内部调用：统一收敛到定时引擎（raw job 模式）"""
+        self.timed_engine.register_raw_job(job_id, trigger, func, **kwargs)
 
     def _schedule_next_water_reminder(self, run_date: datetime):
-        try:
-            self.scheduler.remove_job("water_reminder")
-        except Exception:
-            pass
-        self._add_or_replace_job(
-            self._water_reminder,
+        self.timed_engine.register_raw_job(
+            "water_reminder",
             "date",
-            job_id="water_reminder",
+            self._water_reminder,
             run_date=run_date,
             max_instances=1,
             coalesce=True,
@@ -139,12 +143,14 @@ class ScheduleAssistant(Star):
     async def _ensure_services(self):
         if self._services_ready:
             return
-        self._services_ready = True
+        async with self._services_init_lock:
+            if self._services_ready:
+                return
 
-        # 注册 LLM 日程管理工具（需要等服务初始化完成后）
-        if not self._tools_registered:
-            register_schedule_tools(self)
-            self._tools_registered = True
+            # 注册 LLM 日程管理工具（需要等服务初始化完成后）
+            if not self._tools_registered:
+                register_schedule_tools(self)
+                self._tools_registered = True
 
         api_key = self.config.get("weather_api_key")
         city = self.config.get("weather_city", "杭州")
@@ -225,6 +231,7 @@ class ScheduleAssistant(Star):
                     username=username,
                     app_password=app_password,
                     calendar_id=cal_id,
+                    webcal_urls=conf.get("webcal_urls", []) or [],
                 )
                 logger.info(
                     f"{LOG_PREFIX} Apple Calendar 已配置: {username[:3]}***, calendar_id={cal_id}"  # noqa: E501
@@ -234,6 +241,9 @@ class ScheduleAssistant(Star):
                     f"{LOG_PREFIX} Apple Calendar 未配置凭据（username 或 app_password 缺失）"  # noqa: E501
                 )
 
+        # 全部服务初始化成功后才标记就绪；中途异常时保持 False，
+        # 下次调用会重新尝试初始化（_services_ready 只在成功路径置位）
+        self._services_ready = True
         logger.info(f"{LOG_PREFIX} 外部服务初始化完成")
 
     async def _register_tasks(self):
@@ -241,43 +251,45 @@ class ScheduleAssistant(Star):
             return
         self._tasks_registered = True
         conf = self.config
+        engine = self.timed_engine
 
         if conf.get("enable_morning_report", True):
             morning_time = conf.get("morning_report_time", "09:00")
-            morning_hour, morning_minute = map(int, morning_time.split(":"))
-            self._add_or_replace_job(
-                self._morning_briefing,
-                CronTrigger(hour=morning_hour, minute=morning_minute),
-                job_id="morning_briefing",
+            ok = engine.register_job(
+                "morning_briefing",
+                morning_time,
+                self._morning_briefing_content,
+                prepare=self._prepare_morning_context,
             )
-            logger.info(f"{LOG_PREFIX} 早安播报已注册: {morning_time}")
+            if ok:
+                logger.info(f"{LOG_PREFIX} 早安播报已注册: {morning_time}")
 
         if conf.get("enable_bath_reminder", True):
             bath_time = conf.get("bath_time", DEFAULT_BATH_TIME)
-            bath_hour, bath_minute = map(int, bath_time.split(":"))
-            self._add_or_replace_job(
-                self._bath_reminder,
-                CronTrigger(hour=bath_hour, minute=bath_minute),
-                job_id="bath_reminder",
+            ok = engine.register_job(
+                "bath_reminder",
+                bath_time,
+                self._make_habit_content_provider(self.bath_reminder, "洗澡"),
             )
-            logger.info(f"{LOG_PREFIX} 洗澡提醒已注册: {bath_time}")
+            if ok:
+                logger.info(f"{LOG_PREFIX} 洗澡提醒已注册: {bath_time}")
 
         if conf.get("enable_sleep_reminder", True):
             sleep_time = conf.get("sleep_time", DEFAULT_SLEEP_TIME)
-            sleep_hour, sleep_minute = map(int, sleep_time.split(":"))
-            self._add_or_replace_job(
-                self._sleep_reminder,
-                CronTrigger(hour=sleep_hour, minute=sleep_minute),
-                job_id="sleep_reminder",
+            ok = engine.register_job(
+                "sleep_reminder",
+                sleep_time,
+                self._make_habit_content_provider(self.sleep_reminder, "睡觉"),
             )
-            logger.info(f"{LOG_PREFIX} 睡觉提醒已注册: {sleep_time}")
+            if ok:
+                logger.info(f"{LOG_PREFIX} 睡觉提醒已注册: {sleep_time}")
 
         if conf.get("enable_apple_calendar_sync"):
             sync_interval = conf.get("apple_calendar_sync_interval", 30)
-            self._add_or_replace_job(
-                self._apple_calendar_sync,
+            engine.register_raw_job(
+                "apple_calendar_sync",
                 "interval",
-                job_id="apple_calendar_sync",
+                self._apple_calendar_sync,
                 minutes=sync_interval,
                 # 防重入/堆积：上次未完成时不并行，错过窗口时合并为一次执行。
                 max_instances=1,
@@ -294,10 +306,10 @@ class ScheduleAssistant(Star):
                 check_interval = max(2, int(check_interval))
             except (ValueError, TypeError):
                 check_interval = 5
-            self._add_or_replace_job(
-                self._schedule_reminder_scan,
+            engine.register_raw_job(
+                "schedule_reminder_scan",
                 "interval",
-                job_id="schedule_reminder_scan",
+                self._schedule_reminder_scan,
                 minutes=check_interval,
                 # 防重入/堆积：单实例执行，misfire 时合并。
                 max_instances=1,
@@ -324,36 +336,46 @@ class ScheduleAssistant(Star):
                 f"{LOG_PREFIX} 喝水提醒首次触发: {next_trigger.strftime('%H:%M')} ({initial_delay / 60:.1f}分钟后)"  # noqa: E501
             )
 
-        self._add_or_replace_job(
-            self._clear_expired_overrides,
+        engine.register_raw_job(
+            "clear_expired_overrides",
             CronTrigger(hour=0, minute=5),
-            job_id="clear_expired_overrides",
+            self._clear_expired_overrides,
         )
-        if not self.scheduler.running:
-            self.scheduler.start()
+        engine.start()
 
         logger.info(f"{LOG_PREFIX} 所有定时任务已注册，调度器已启动")
 
     def _get_water_next_trigger(
         self, now: datetime, water_start: str, water_end: str, water_interval: int
     ) -> datetime:
-        start_h, start_m = map(int, water_start.split(":"))
-        end_h, end_m = map(int, water_end.split(":"))
+        try:
+            start_h, start_m = map(int, water_start.split(":"))
+            end_h, end_m = map(int, water_end.split(":"))
+        except (ValueError, TypeError, AttributeError):
+            logger.warning(
+                f"{LOG_PREFIX} 喝水时段配置非法: start={water_start!r} end={water_end!r}，使用默认 09:00-21:00"  # noqa: E501
+            )
+            start_h, start_m, end_h, end_m = 9, 0, 21, 0
+        try:
+            interval_min = max(1, int(water_interval))
+        except (ValueError, TypeError):
+            interval_min = DEFAULT_WATER_INTERVAL
         today_start = now.replace(hour=start_h, minute=start_m, second=0, microsecond=0)
         today_end = now.replace(hour=end_h, minute=end_m, second=0, microsecond=0)
         if now < today_start:
             return today_start
         if now >= today_end:
             return today_start + timedelta(days=1)
-        interval_min = timedelta(minutes=water_interval)
         elapsed = now - today_start
-        next_time = today_start + (elapsed // interval_min + 1) * interval_min
+        next_time = today_start + (
+            elapsed // timedelta(minutes=interval_min) + 1
+        ) * timedelta(minutes=interval_min)
         if next_time > today_end:
             return today_start + timedelta(days=1)
         return next_time
 
-    def _extract_sender_name(self, event: AiocqhttpMessageEvent) -> str:
-        """从事件对象中提取发送者昵称"""
+    def _extract_sender_name(self, event: Any) -> str:
+        """从事件对象中提取发送者昵称（duck typing，平台无关）"""
         try:
             if hasattr(event, "get_sender_name"):
                 name = event.get_sender_name()
@@ -380,26 +402,24 @@ class ScheduleAssistant(Star):
 
         return ""
 
+    def _is_admin(self, user_id: str) -> bool:
+        """判断用户是否为管理员（admin_uids 配置项，UID 格式）"""
+        if not user_id:
+            return False
+        user_id = str(user_id)
+        admin_uids = self.config.get("admin_uids", []) or []
+        return user_id in {str(uid) for uid in admin_uids if uid}
+
     async def _get_target_user_ids(
         self, include_known_users: bool = False
     ) -> list[str]:
-        """获取目标用户ID列表"""
-        user_ids = set()
-        if self.default_user_id:
-            user_ids.add(str(self.default_user_id))
-        for uid in self.config.get("whitelist_qq_ids", []) or []:
-            if uid:
-                user_ids.add(str(uid))
-        for uid in self.config.get("target_user_ids", []) or []:
-            if uid:
-                user_ids.add(str(uid))
-        if include_known_users or self.config.get(
-            "broadcast_to_all_known_users", False
-        ):
-            for uid in await self.store.get_all_users():
-                if uid:
-                    user_ids.add(str(uid))
-        return sorted(user_ids)
+        """获取目标用户ID列表
+
+        目标用户解析已统一收敛到 messaging 路由
+        （白名单 UMO 绑定 + 记忆 + 持久化恢复，见 MessagingService.resolve_target_users）。
+        此处保留薄封装，兼容既有调用方。
+        """
+        return await self.messaging.resolve_target_users(include_known_users)
 
     def _extract_block_lines(self, block: str) -> list[str]:
         """提取并清洗文本块中的行"""
@@ -539,9 +559,79 @@ class ScheduleAssistant(Star):
         # 实在没有昵称，返回通用称呼
         return "主人"
 
+    async def _prepare_morning_context(self) -> dict:
+        """一次性准备早安播报共享数据（天气/Apple 深夜事件），带 5 分钟缓存
+
+        内容生成与发送解耦后，所有目标用户共享同一份外部数据，
+        避免每个用户重复请求天气/日历 API。
+        """
+        now = time.monotonic()
+        if self._morning_ctx_cache and now - self._morning_ctx_ts < 300:
+            return self._morning_ctx_cache
+
+        await self._ensure_services()
+        weather_current, weather_forecast = "", ""
+        if self.weather_service:
+            try:
+                weather_current, weather_forecast = await self.weather_service.fetch()
+            except Exception:
+                weather_current, weather_forecast = "", ""
+
+        late_night_text = ""
+        if self.apple_calendar:
+            try:
+                late_night = await self.apple_calendar.get_late_night_events()
+                late_night_text = "、".join(
+                    [e.get("summary", "无标题") for e in late_night[:3]]
+                )
+            except Exception:
+                late_night_text = ""
+
+        self._morning_ctx_cache = {
+            "weather_current": weather_current,
+            "weather_forecast": weather_forecast,
+            "late_night": late_night_text,
+        }
+        self._morning_ctx_ts = now
+        return self._morning_ctx_cache
+
+    async def _morning_briefing_content(
+        self, user_id: str, shared: dict | None = None
+    ) -> str | None:
+        """早安播报内容生成（定时引擎调用，只生成不发送）"""
+        await self._ensure_services()
+        shared = shared or await self._prepare_morning_context()
+
+        now = datetime.now()
+        date_str = now.strftime("%Y-%m-%d")
+        weekday_str = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][
+            now.weekday()
+        ]
+
+        nickname = await self._get_user_nickname(user_id)
+        local_text = await self._get_today_local_schedules_text(user_id)
+        apple_text = await self._get_today_apple_calendar_text()
+        agenda_text = self._merge_today_schedule_blocks(local_text, apple_text)
+        notion_text = await self._get_notion_pending_text()
+
+        briefing = await self.briefing_reminder.generate_full_report(
+            username=nickname,
+            date=date_str,
+            weekday=weekday_str,
+            weather_current=shared.get("weather_current", ""),
+            weather_forecast=shared.get("weather_forecast", ""),
+            agenda=agenda_text,
+            notion_todos=notion_text,
+            late_night=shared.get("late_night", ""),
+            user_id=user_id,
+        )
+        return briefing or None
+
     async def _morning_briefing(self, target_user_id: str | None = None):
+        """兼容入口：手动触发早安播报（定时任务由引擎注册 provider）"""
         try:
             await self._ensure_services()
+            shared = await self._prepare_morning_context()
             target_user_ids = (
                 [str(target_user_id)]
                 if target_user_id
@@ -549,49 +639,39 @@ class ScheduleAssistant(Star):
             )
             if not target_user_ids:
                 return
-
-            weather_current, weather_forecast = "", ""
-            if self.weather_service:
-                weather_current, weather_forecast = await self.weather_service.fetch()
-
-            now = datetime.now()
-            date_str = now.strftime("%Y-%m-%d")
-            weekday_str = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][
-                now.weekday()
-            ]
-
-            late_night_text = ""
-            if self.apple_calendar:
-                try:
-                    late_night = await self.apple_calendar.get_late_night_events()
-                    late_night_text = "、".join(
-                        [e.get("summary", "无标题") for e in late_night[:3]]
-                    )
-                except Exception:
-                    late_night_text = ""
-
             for user_id in target_user_ids:
-                nickname = await self._get_user_nickname(user_id)
-                local_text = await self._get_today_local_schedules_text(user_id)
-                apple_text = await self._get_today_apple_calendar_text()
-                agenda_text = self._merge_today_schedule_blocks(local_text, apple_text)
-                notion_text = await self._get_notion_pending_text()
-
-                briefing = await self.briefing_reminder.generate_full_report(
-                    username=nickname,
-                    date=date_str,
-                    weekday=weekday_str,
-                    weather_current=weather_current,
-                    weather_forecast=weather_forecast,
-                    agenda=agenda_text,
-                    notion_todos=notion_text,
-                    late_night=late_night_text,
-                    user_id=user_id,
-                )
-                await self.messaging.send_to_user(user_id, briefing)
+                content = await self._morning_briefing_content(user_id, shared)
+                if content:
+                    await self.messaging.send_to_user(user_id, content)
             logger.info(f"{LOG_PREFIX} 早安播报已发送 users={target_user_ids}")
         except Exception as e:
             logger.error(f"{LOG_PREFIX} 早安播报失败: {e}")
+
+    def _make_habit_content_provider(self, reminder_obj, label: str):
+        """构造习惯提醒内容生成器（定时引擎调用，只生成不发送）"""
+
+        async def provider(user_id: str, shared: Any = None) -> str | None:
+            try:
+                await self._ensure_services()
+                history = await self.store.get_conversation_history(user_id)
+                history_text = (
+                    self.store.format_history_for_prompt(history[-5:])
+                    if history
+                    else ""
+                )
+                message = await reminder_obj.generate(
+                    await self._get_user_nickname(user_id),
+                    history_text,
+                    user_id=user_id,
+                )
+                return message or None
+            except Exception as e:
+                logger.error(
+                    f"{LOG_PREFIX} {label}提醒内容生成失败 user={user_id} err={e}"
+                )
+                return None
+
+        return provider
 
     async def _run_habit_reminder(
         self, reminder_obj, label: str, target_user_id: str | None = None
@@ -607,18 +687,9 @@ class ScheduleAssistant(Star):
             if not target_user_ids:
                 return []
 
+            provider = self._make_habit_content_provider(reminder_obj, label)
             for user_id in target_user_ids:
-                history = await self.store.get_conversation_history(user_id)
-                history_text = (
-                    self.store.format_history_for_prompt(history[-5:])
-                    if history
-                    else ""
-                )
-                message = await reminder_obj.generate(
-                    await self._get_user_nickname(user_id),
-                    history_text,
-                    user_id=user_id,
-                )
+                message = await provider(user_id, None)
                 if message:
                     await self.messaging.send_to_user(user_id, message)
             logger.info(f"{LOG_PREFIX} {label}提醒已发送 users={target_user_ids}")
@@ -634,11 +705,7 @@ class ScheduleAssistant(Star):
         await self._run_habit_reminder(self.sleep_reminder, "睡觉", target_user_id)
 
     async def _water_reminder(self, target_user_id: str | None = None):
-        sent_users = await self._run_habit_reminder(
-            self.water_reminder, "喝水", target_user_id
-        )
-        if not sent_users:
-            return
+        await self._run_habit_reminder(self.water_reminder, "喝水", target_user_id)
 
         water_interval = self.config.get("water_interval", DEFAULT_WATER_INTERVAL)
         water_start = self.config.get("water_start_time", DEFAULT_WATER_START)
@@ -765,14 +832,20 @@ class ScheduleAssistant(Star):
     # ============ 消息处理入口 ============
 
     @filter.event_message_type(filter.EventMessageType.PRIVATE_MESSAGE)
-    async def handle_private_message(self, event: AiocqhttpMessageEvent):
+    async def handle_private_message(self, event: Any):
         user_id = str(event.get_sender_id())
         msg_text = event.message_str.strip()
 
-        # 记录平台用于后续发送
+        # 记录平台用于后续发送（内存 + 持久化，重启后仍能精确推送）
         platform_id = self.messaging._extract_platform_id_from_event(event)
         if platform_id:
             self.messaging.remember_user_platform(user_id, platform_id)
+            try:
+                await self.store.set_user_platform(user_id, platform_id)
+            except Exception as store_err:
+                logger.warning(
+                    f"{LOG_PREFIX} 持久化用户平台失败 user={user_id} err={store_err}"
+                )
 
         if msg_text:
             await self.store.add_conversation_message(user_id, "user", msg_text)
@@ -784,17 +857,7 @@ class ScheduleAssistant(Star):
 
     async def terminate(self):
         """插件卸载时清理定时任务"""
-        try:
-            if hasattr(self.scheduler, "get_jobs"):
-                for job in list(self.scheduler.get_jobs()):
-                    try:
-                        self.scheduler.remove_job(job.id)
-                    except Exception:
-                        pass
-            if self.scheduler.running:
-                self.scheduler.shutdown(wait=False)
-        except Exception as e:
-            logger.warning(f"{LOG_PREFIX} 关闭调度器时出错: {e}")
+        self.timed_engine.shutdown()
         if self.notion:
             try:
                 await self.notion.close()
