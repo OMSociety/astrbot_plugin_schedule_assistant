@@ -99,7 +99,12 @@ class LLMService:
         return ""
 
     async def generate(
-        self, prompt: str, use_persona: bool = True, history: str = "", umo: str = None
+        self,
+        prompt: str,
+        use_persona: bool = True,
+        history: str = "",
+        umo: str = None,
+        extra_system: str = "",
     ) -> str:
         """生成 LLM 回复
 
@@ -108,6 +113,8 @@ class LLMService:
             use_persona: 是否使用人设 prompt
             history: 近期对话历史，会拼接到 system_prompt 末尾
             umo: 统一会话标识，用于获取当前会话的人格
+            extra_system: 追加到 system_prompt 末尾的补充指令，
+                用于覆盖聊天人格中的场景约束（如定时播报需输出完整 markdown）
 
         Returns:
             LLM 生成的文本
@@ -117,6 +124,9 @@ class LLMService:
         if history:
             history_section = "\n\n【近期对话】\n" + history
             system_prompt = (system_prompt or "") + history_section
+        # 场景特例指令放在最后，覆盖人格中的聊天类约束（字数/分段等）
+        if extra_system:
+            system_prompt = (system_prompt or "") + "\n\n" + extra_system
         return await self.generate_llm_message(
             prompt=prompt,
             system_prompt=system_prompt if system_prompt else None,

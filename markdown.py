@@ -120,12 +120,60 @@ def strip_markdown(text: str) -> str:
         return _strip_md_regex(text)
 
 
-class MarkdownRenderer:
-    """Markdown 渲染器（native / plain 两级）"""
+def render_qq_active(text: str) -> str:
+    """QQ 官方主动消息专用：md → QQ 展示友好的纯文本排版
 
-    def __init__(self, config: dict):
+    QQ 官方平台的主动推送（定时播报等，无 msg_id）不支持原生 markdown
+    渲染（群主动被拒、私聊主动静默显示原文），因此对 QQ 主动消息
+    将 md 排版为近似观感的纯文本：标题转【】、列表转 ·、表格转 键：值。
+    """
+    if not text:
+        return ""
+    lines: list[str] = []
+    for raw in text.splitlines():
+        line = raw.rstrip()
+        s = line.strip()
+        if not s:
+            continue
+        m = re.match(r"^#{1,6}\s+(.*)$", s)
+        if m:
+            lines.append("【" + m.group(1).strip() + "】")
+            continue
+        m = re.match(r"^[-*+]\s+(.*)$", s)
+        if m:
+            lines.append("· " + m.group(1).strip())
+            continue
+        m = re.match(r"^\d+[.)]\s+(.*)$", s)
+        if m:
+            lines.append(s)
+            continue
+        # 表格行：| a | b | → 两列转「a：b」，多列转「a｜b｜c」；分隔行丢弃
+        if s.startswith("|") and s.endswith("|") and s.count("|") >= 3:
+            cells = [c.strip() for c in s.split("|")[1:-1]]
+            if cells and not any(re.fullmatch(r":?-{2,}:?", c) for c in cells):
+                if len(cells) == 2:
+                    lines.append(f"{cells[0]}：{cells[1]}")
+                else:
+                    lines.append("｜".join(cells))
+                continue
+            continue
+        # 内联语法清理：粗体 / 行内代码 / 链接
+        line = re.sub(r"\*\*([^*]+)\*\*", r"\1", line)
+        line = re.sub(r"`([^`]+)`", r"\1", line)
+        line = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", line)
+        lines.append(line.strip())
+    return _squeeze_blank_lines("\n".join(lines))
+
+
+class MarkdownRenderer:
+    """Markdown 渲染器（native / plain / qq_active 三级）"""
+
+    def __init__(self, config: dict, platform_types: dict[str, str] | None = None):
         self.config = config or {}
         self.enabled = bool(self.config.get("markdown_enabled", False))
+        # 实例ID → 平台类型名 映射（如 {"Flandre": "qq_official"}），
+        # 由调用方从 platform_manager 动态构建，杜绝硬编码平台实例ID。
+        self.platform_types = dict(platform_types or {})
         native_extra = self.config.get("markdown_native_platforms", []) or []
         self.native_platforms = set(DEFAULT_NATIVE_PLATFORMS)
         for pid in native_extra:
@@ -136,10 +184,17 @@ class MarkdownRenderer:
 
     # ---------- 平台判定 ----------
 
+    def _resolve_platform_type(self, platform_id: str) -> str:
+        """实例ID → 平台类型名（meta().name）；未注册/无法解析时原样返回"""
+        if not platform_id:
+            return ""
+        return self.platform_types.get(platform_id, platform_id)
+
     def _is_native(self, platform_id: str) -> bool:
-        if platform_id == "qq_official" and self.qq_md_enabled is False:
+        platform_type = self._resolve_platform_type(platform_id)
+        if platform_type == "qq_official" and self.qq_md_enabled is False:
             return False
-        return platform_id in self.native_platforms
+        return platform_type in self.native_platforms
 
     # ---------- 对外主入口 ----------
 
@@ -154,7 +209,14 @@ class MarkdownRenderer:
         if not _has_markdown_syntax(text):
             return text, "plain"  # 无 md 语法 → 直发，行为零变化
 
-        # 原生平台 → 保留 md 原文（QQ 现已全面开放原生 md，表格同样直发）
+        # QQ 官方主动消息（定时播报等）不支持原生 markdown 渲染
+        # （群主动被拒、私聊主动静默显示原文），一律转 QQ 排版纯文本。
+        # 被动回复场景由 AstrBot 事件链路处理，不经过本 renderer，不受影响。
+        platform_type = self._resolve_platform_type(platform_id)
+        if platform_type == "qq_official":
+            return render_qq_active(text), "plain"
+
+        # 原生平台 → 保留 md 原文（discord / telegram 等）
         if self._is_native(platform_id):
             return text, "native"
 

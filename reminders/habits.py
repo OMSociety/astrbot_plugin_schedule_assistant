@@ -2,6 +2,16 @@
 通用习惯提醒模块
 BathReminder, SleepReminder, WaterReminder 都基于此类
 """
+
+# 播报任务特例：追加在人格 system_prompt 末尾，覆盖聊天场景中的字数/分段约束，
+# 确保 LLM 输出完整 markdown（否则人格的"极简回复"会压制表格渲染）。
+BROADCAST_MD_OVERRIDE = (
+    "【播报任务特例】本条消息是定时播报，不是即时聊天回复。"
+    "请忽略聊天场景中关于字数限制、段落数量、回复极简的要求，"
+    "完整输出全部播报内容，必须使用 markdown 排版"
+    "（#### 小标题、**粗体**、表格等），语气保持原有风格。"
+)
+
 # ruff: noqa: E501
 
 from datetime import datetime
@@ -111,7 +121,9 @@ class HabitReminder:
         context = self._get_prompt_context(username, history_text, now)
         prompt = self._build_prompt(context)
         # prompt 中已含【近期对话】上下文，不再额外传 history= 避免重复注入
-        return await self.llm_service.generate(prompt, umo=user_id)
+        return await self.llm_service.generate(
+            prompt, umo=user_id, extra_system=BROADCAST_MD_OVERRIDE
+        )
 
 
 class BathReminder(HabitReminder):

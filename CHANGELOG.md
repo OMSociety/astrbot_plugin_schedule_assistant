@@ -4,6 +4,29 @@
 
 ---
 
+## [2.4.0] - 2026-08-06
+
+### ✨ 新增功能
+- **通用定时消息引擎**：新增 `engine.py`，将定时触发与内容生成/发送解耦，支持 CronTrigger / HH:MM / interval:N 多种触发方式
+- **Markdown 渲染管线**：新增 `markdown.py`，两级降级策略（平台原生直发 / strip 纯文本），QQ 原生表格自动渲染
+- **多平台适配**：QQ 全面开放 markdown 后移除纯文本输出约束，表格在 QQ 上原生渲染
+
+### ⚙️ 新增配置项
+- `admin_uids`：管理员用户 ID 列表
+- `markdown_enabled`：全局 Markdown 渲染开关
+- `markdown_native_platforms`：追加原生解析 md 的平台 ID
+- `qq_markdown_enabled`：QQ 平台 md 开关（留空跟随全局，false 强制关闭）
+
+### 🐛 Bug 修复
+- **插件加载失败修复**：恢复 `_conf_schema.json` 中 `apple_calendar` 缺失的嵌套 `items` 结构，解决 AstrBot 启动时 `KeyError: 'items'` 导致的插件无法加载
+
+### 🔧 代码质量提升
+- 早安播报 / 日程 / 习惯提醒统一走渲染链路，6 场景全量测试通过
+- 清理 habits / schedule 中的过时纯文本约束，修正 `_conf_schema.json` 过时 hint
+- 清理配置 hint 与文档中的硬编码用户 ID 示例（`admin_uids` / `user_platform_bindings`），README 配置说明对齐 schema
+
+---
+
 ## [2.3.0] - 2026-04-27
 
 ### 🐛 Bug 修复

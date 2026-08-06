@@ -124,10 +124,30 @@ class MessagingService:
         self._recent_user_platforms: dict = {}
         self._md_renderer: MarkdownRenderer | None = None
 
+    def _get_platform_type_map(self) -> dict[str, str]:
+        """构建 实例ID → 平台类型名 映射（meta().name）
+
+        从 platform_manager 动态读取，避免在配置或代码里硬编码平台实例ID。
+        """
+        mapping: dict[str, str] = {}
+        try:
+            for platform in self.context.platform_manager.platform_insts:
+                try:
+                    meta = platform.meta()
+                    if meta and meta.id and meta.name:
+                        mapping[str(meta.id)] = str(meta.name)
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        return mapping
+
     def _get_md_renderer(self) -> MarkdownRenderer:
         """惰性获取 markdown 渲染器"""
         if self._md_renderer is None:
-            self._md_renderer = MarkdownRenderer(self.config)
+            self._md_renderer = MarkdownRenderer(
+                self.config, platform_types=self._get_platform_type_map()
+            )
         return self._md_renderer
 
     def _build_markdown_chain(self, message: str, platform_id: str) -> MessageChain:
@@ -161,7 +181,7 @@ class MessagingService:
         注册一条 UMO 平台绑定（动态添加，无需改配置）
 
         Args:
-            umo: UMO 字符串，如 "Flandre:FriendMessage:8F3F9FB8..."
+            umo: UMO 字符串，如 "Flandre:FriendMessage:xxx"
             platform_id: 可选发送平台，为空时取 UMO 第一段
 
         Returns:

@@ -1,6 +1,6 @@
 # Schedule Assistant 日程助手
 
-[![Version](https://img.shields.io/badge/version-v2.3.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
+[![Version](https://img.shields.io/badge/version-v2.4.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 
@@ -60,6 +60,13 @@
 ### Notion 待办同步
 每小时检查一次 Notion 事务库，DDL 临近（24小时内）时私信提醒。需要先配置 Maton Gateway 作为中间层接入。
 
+### Markdown 渲染
+所有定时播报（早安 / 习惯 / 日程提醒）走统一渲染管线，按平台自动降级：
+- **native** — 平台原生解析 md（qq_official、discord、telegram 等），原文直发
+- **plain** — 不支持原生 md 的平台自动 strip 降级为纯文本
+
+QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中关闭或强制切换。
+
 ---
 
 ## 🚀 快速开始
@@ -95,6 +102,7 @@
 |--------|------|------|------|
 | `persona_id` | string | `""` | LLM 人设 ID（对应配置文件中的 `persona_id`），留空自动从会话获取 |
 | `user_nickname` | string | `""` | 用户昵称，留空则播报称呼为「主人」 |
+| `admin_uids` | list | `[]` | 管理员用户 ID 列表（QQ 号或平台用户 ID，用于权限校验） |
 
 ### 日程提醒设置
 
@@ -150,7 +158,31 @@
 | `broadcast_to_all_known_users` | bool | 是否把历史活跃用户纳入自动提醒 |
 | `default_session_type` | string | 默认会话类型 |
 | `send_platform_id` | string | 默认发送平台 ID |
-| `user_platform_bindings` | list | 用户平台绑定列表 |
+| `user_platform_bindings` | list | 用户平台绑定列表，格式 `用户ID:会话类型:平台实例ID`（如 `12345:FriendMessage:qq_official`） |
+
+### 消息渲染设置
+
+| 配置项 | 类型 | 默认 | 说明 |
+|--------|------|------|------|
+| `markdown_enabled` | bool | `true` | 全局 Markdown 渲染开关，关闭后降级为纯文本 |
+| `markdown_native_platforms` | list | `[]` | 额外追加原生解析 Markdown 的平台 ID |
+| `qq_markdown_enabled` | bool | 留空 | QQ 平台开关：留空跟随全局；`false` 强制 QQ 不走原生 md |
+
+---
+
+## 🧩 架构
+
+### 定时消息引擎（engine.py）
+「定时触发」与「内容生成/发送」解耦：
+- 业务通过 `register_job` 注册，`content_provider` 只负责生成内容，发送统一走 MessagingService
+- 特殊任务（喝水重排、Apple 同步等）用 `register_raw_job` 注册自定义 handler
+- 触发方式：`CronTrigger` 实例 / `"HH:MM"` 每日定时 / `"interval:N"` 每 N 分钟
+
+### Markdown 渲染管线（markdown.py）
+两级降级策略，`render` 返回 `(content, kind)`：
+- `native`：平台原生解析 md，原文直发（qq_official / discord / telegram / slack / kook 等，可用 `markdown_native_platforms` 追加）
+- `plain`：strip 降级为纯文本
+- 依赖均为惰性导入，未启用时零开销
 
 ---
 

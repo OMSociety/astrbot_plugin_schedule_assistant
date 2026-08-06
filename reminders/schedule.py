@@ -6,6 +6,16 @@
 """
 
 # ruff: noqa: E501
+
+# 播报任务特例：追加在人格 system_prompt 末尾，覆盖聊天场景中的字数/分段约束，
+# 确保 LLM 输出完整 markdown（否则人格的"极简回复"会压制表格渲染）。
+BROADCAST_MD_OVERRIDE = (
+    "【播报任务特例】本条消息是定时播报，不是即时聊天回复。"
+    "请忽略聊天场景中关于字数限制、段落数量、回复极简的要求，"
+    "完整输出全部播报内容，必须使用 markdown 排版"
+    "（#### 小标题、**粗体**、表格等），语气保持原有风格。"
+)
+
 from datetime import datetime
 from typing import Any
 
@@ -83,7 +93,9 @@ class ScheduleReminder:
 
         try:
             # prompt 已含 conv_history，不再额外传 history= 避免重复注入
-            resp = await self.llm.generate(prompt, umo=user_id)
+            resp = await self.llm.generate(
+                prompt, umo=user_id, extra_system=BROADCAST_MD_OVERRIDE
+            )
             text = resp.strip() if resp else None
             if text and len(text) > 5:
                 logger.debug(f"{LOG_PREFIX} LLM 提醒生成成功: {text[:30]}...")
