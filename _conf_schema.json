@@ -203,23 +203,11 @@
   "type": "object",
   "hint": "自动提醒的接收对象与会话路由。",
   "items": {
-   "whitelist_qq_ids": {
+   "user_ids": {
     "type": "list",
-    "description": "白名单 QQ 号",
-    "hint": "每行一个，只有这些 QQ 能收到自动提醒。",
+    "description": "用户名单 ID 列表",
+    "hint": "每行一个，接收自动提醒的用户 ID（QQ 号或平台 UID，支持 UMO 格式）。",
     "default": []
-   },
-   "target_user_ids": {
-    "type": "list",
-    "description": "额外提醒目标用户",
-    "hint": "每行一个，补充白名单之外的提醒对象（可与白名单并用）。",
-    "default": []
-   },
-   "broadcast_to_all_known_users": {
-    "type": "bool",
-    "description": "自动提醒覆盖历史活跃用户",
-    "hint": "开启后，历史会话中出现过的用户也会纳入自动提醒。",
-    "default": false
    },
    "default_session_type": {
     "type": "string",

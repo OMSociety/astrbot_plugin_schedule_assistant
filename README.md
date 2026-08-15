@@ -1,6 +1,6 @@
 # Schedule Assistant 日程助手
 
-[![Version](https://img.shields.io/badge/version-v2.5.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
+[![Version](https://img.shields.io/badge/version-v2.0.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 
@@ -153,9 +153,7 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 
 | 配置项 | 类型 | 说明 |
 |--------|------|------|
-| `whitelist_qq_ids` | list | 白名单 QQ 号，只有这些账号能收到提醒 |
-| `target_user_ids` | list | 额外提醒目标用户 ID |
-| `broadcast_to_all_known_users` | bool | 是否把历史活跃用户纳入自动提醒 |
+| `user_ids` | list | 用户名单 ID 列表，每行一个接收自动提醒的用户 ID（QQ 号或平台 UID，支持 UMO 格式） |
 | `default_session_type` | string | 默认会话类型 |
 | `send_platform_id` | string | 默认发送平台 ID |
 | `user_platform_bindings` | list | 用户平台绑定列表，格式 `用户ID:会话类型:平台实例ID`（如 `12345:FriendMessage:qq_official`） |

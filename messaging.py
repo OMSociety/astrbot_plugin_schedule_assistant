@@ -106,7 +106,7 @@ class MessagingService:
                     - 旧格式列表: ["user_id:platform_id"] 或 [{"user_id":..,"platform_id":..}]
             platform_lookup: 可选异步回调 user_id -> platform_id，用于从持久化存储恢复平台
             users_lookup: 可选异步回调 () -> list[str]，返回所有已知用户ID（用于目标用户解析）
-            default_user_id: 可选默认目标用户ID（白名单首个用户）
+            default_user_id: 可选默认目标用户ID（用户名单首个用户）
         """
         self.context = context
         self.config = config
@@ -442,25 +442,29 @@ class MessagingService:
             logger.error(f"{LOG_PREFIX} 发送消息异常: user={user_id} err={e}")
             return False
 
+    @staticmethod
+    def _collect_config_target_ids(config: dict) -> list[str]:
+        """读取目标用户名单配置（user_ids 列表）"""
+        raw = config.get("user_ids", []) or []
+        return [str(uid) for uid in raw if uid]
+
     async def resolve_target_users(
         self, include_known_users: bool = False
     ) -> list[str]:
-        """解析目标用户ID列表（白名单支持 UID 或 UMO 格式，UMO 自动注册路由绑定）
+        """解析目标用户ID列表（支持 UID 或 UMO 格式，UMO 自动注册路由绑定）
 
         目标用户解析统一收敛到消息服务路由：
-        白名单（UMO 自动注册绑定） > 默认用户 > target_user_ids > 全部已知用户（可选）
+        用户名单（UMO 自动注册绑定） > 默认用户 > 全部已知用户（可选）
 
         Args:
             include_known_users: 是否包含存储中的全部已知用户
+                （定时任务如日程扫描/Apple 同步固定传 True）
 
         Returns:
             List[str]: 去重排序后的目标用户ID列表
         """
         user_ids: set[str] = set()
-        for uid in self.config.get("whitelist_qq_ids", []) or []:
-            if not uid:
-                continue
-            uid = str(uid)
+        for uid in self._collect_config_target_ids(self.config):
             registered = self.register_umo_binding(uid)
             if registered:
                 user_ids.add(registered)
@@ -468,12 +472,7 @@ class MessagingService:
                 user_ids.add(uid)
         if self._default_user_id:
             user_ids.add(str(self._default_user_id))
-        for uid in self.config.get("target_user_ids", []) or []:
-            if uid:
-                user_ids.add(str(uid))
-        if include_known_users or self.config.get(
-            "broadcast_to_all_known_users", False
-        ):
+        if include_known_users:
             if self._users_lookup:
                 try:
                     for uid in await self._users_lookup():

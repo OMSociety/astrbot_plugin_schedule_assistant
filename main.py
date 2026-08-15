@@ -60,9 +60,9 @@ class ScheduleAssistant(Star):
         self.config = self._flatten_config(config)  # 自动展平嵌套配置，保持与旧代码兼容
         self.store = ScheduleStore(self)
         self.default_user_id: str | None = None
-        whitelist = self.config.get("whitelist_qq_ids", [])
-        if whitelist:
-            self.default_user_id = str(whitelist[0])
+        target_ids = MessagingService._collect_config_target_ids(self.config)
+        if target_ids:
+            self.default_user_id = str(target_ids[0])
         self.messaging = MessagingService(
             context,
             self.config,
@@ -421,7 +421,7 @@ class ScheduleAssistant(Star):
         """获取目标用户ID列表
 
         目标用户解析已统一收敛到 messaging 路由
-        （白名单 UMO 绑定 + 记忆 + 持久化恢复，见 MessagingService.resolve_target_users）。
+        （用户名单 UMO 绑定 + 记忆 + 持久化恢复，见 MessagingService.resolve_target_users）。
         此处保留薄封装，兼容既有调用方。
         """
         return await self.messaging.resolve_target_users(include_known_users)
