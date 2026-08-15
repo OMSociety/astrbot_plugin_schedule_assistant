@@ -201,25 +201,13 @@
  "push_settings": {
   "description": "消息推送",
   "type": "object",
-  "hint": "自动提醒的接收对象与会话路由。",
+  "hint": "自动提醒的接收对象。",
   "items": {
    "user_ids": {
     "type": "list",
     "description": "用户名单 ID 列表",
     "hint": "每行一个，接收自动提醒的用户 ID（QQ 号或平台 UID，支持 UMO 格式）。",
     "default": []
-   },
-   "default_session_type": {
-    "type": "string",
-    "description": "发送会话类型",
-    "hint": "默认 FriendMessage，可按平台调整（GroupMessage 等）。",
-    "default": "FriendMessage"
-   },
-   "send_platform_id": {
-    "type": "string",
-    "description": "默认发送平台 ID",
-    "hint": "留空则自动按最近会话/平台可用性选择。",
-    "default": ""
    }
   }
  },

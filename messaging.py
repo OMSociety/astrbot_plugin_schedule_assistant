@@ -97,28 +97,24 @@ class MessagingService:
 
         Args:
             context: AstrBot 上下文
-            config: 插件配置，包含以下键：
-                - send_platform_id: 全局发送平台ID（配置项，不写死平台）
-                - default_session_type: 默认会话类型，默认 FriendMessage
+            config: 插件配置
             platform_lookup: 可选异步回调 user_id -> platform_id，用于从持久化存储恢复平台
             users_lookup: 可选异步回调 () -> list[str]，返回所有已知用户ID（用于目标用户解析）
             default_user_id: 可选默认目标用户ID（用户名单首个用户）
 
         平台路由说明：user_ids 中的 UMO 条目（platform:session_type:session_id）
-        会在名单解析时自动注册平台绑定（register_umo_binding），无需单独配置。
+        会在名单解析时自动注册平台绑定（register_umo_binding），无需单独配置；
+        纯 ID 用户按私聊（FriendMessage）+ 可用平台自动路由。
         """
         self.context = context
         self.config = config
         self._platform_lookup = platform_lookup
         self._users_lookup = users_lookup
         self._default_user_id = str(default_user_id) if default_user_id else None
-        self._session_type = str(
-            config.get("default_session_type", "FriendMessage") or "FriendMessage"
-        )
-        self._global_platform_id = str(config.get("send_platform_id", "") or "").strip()
+        # 会话类型固定私聊：UMO 条目可自带 session_type，纯 ID 用户按 FriendMessage 发送
+        self._session_type = "FriendMessage"
         self._session_types = set(COMMON_SESSION_TYPES)
-        if self._session_type:
-            self._session_types.add(self._session_type)
+        self._session_types.add(self._session_type)
         # 平台绑定由 user_ids 中的 UMO 条目在名单解析时自动注册（register_umo_binding）
         self._user_platform_bindings: dict = {}
         self._recent_user_platforms: dict = {}
@@ -202,7 +198,7 @@ class MessagingService:
         获取当前已注册的所有平台ID
 
         Returns:
-            List[str]: 可用平台ID列表（未发现平台时回退到配置的 send_platform_id）
+            List[str]: 可用平台ID列表
         """
         ids: list[str] = []
         try:
@@ -212,16 +208,8 @@ class MessagingService:
                     ids.append(str(pid))
         except Exception:
             pass
-        if not ids and self._global_platform_id:
-            logger.warning(
-                f"{LOG_PREFIX} 未发现已注册平台，回退到配置的 send_platform_id: "
-                f"{self._global_platform_id}"
-            )
-            ids = [self._global_platform_id]
-        elif not ids:
-            logger.warning(
-                f"{LOG_PREFIX} 未发现已注册平台且未配置 send_platform_id，发送将不可用"
-            )
+        if not ids:
+            logger.warning(f"{LOG_PREFIX} 未发现已注册平台，发送将不可用")
         return ids
 
     def _extract_platform_id_from_event(self, event: Any) -> str | None:
@@ -254,7 +242,7 @@ class MessagingService:
         """
         构建平台候选列表（按优先级排序）
 
-        优先级：指定平台 > 最近成功平台 > 用户绑定 > 全局平台 > 可用平台
+        优先级：指定平台 > 最近成功平台 > 用户绑定（UMO 条目） > 可用平台
 
         Args:
             user_id: 目标用户ID
@@ -272,8 +260,6 @@ class MessagingService:
         binding = self._user_platform_bindings.get(str(user_id))
         if binding and binding.get("platform"):
             candidates.append(binding["platform"])
-        if self._global_platform_id:
-            candidates.append(self._global_platform_id)
         candidates.extend(self._get_available_platform_ids())
         # 去重，保持顺序
         seen = set()
