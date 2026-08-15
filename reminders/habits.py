@@ -3,20 +3,12 @@
 BathReminder, SleepReminder, WaterReminder 都基于此类
 """
 
-# 播报任务特例：追加在人格 system_prompt 末尾，覆盖聊天场景中的字数/分段约束，
-# 确保 LLM 输出完整 markdown（否则人格的"极简回复"会压制表格渲染）。
-BROADCAST_MD_OVERRIDE = (
-    "【播报任务特例】本条消息是定时播报，不是即时聊天回复。"
-    "请忽略聊天场景中关于字数限制、段落数量、回复极简的要求，"
-    "完整输出全部播报内容，必须使用 markdown 排版"
-    "（#### 小标题、**粗体**、表格等），语气保持原有风格。"
-)
-
 # ruff: noqa: E501
 
 from datetime import datetime
 
 from ..constants import (
+    BROADCAST_MD_OVERRIDE,
     DEFAULT_BATH_TIME,
     DEFAULT_SLEEP_TIME,
     DEFAULT_WATER_END,
@@ -62,11 +54,14 @@ class HabitReminder:
         self.llm_service = llm_service
         self.store = store
         self.habit_type = habit_type
-        self._setup_llm_template()
 
-    def _setup_llm_template(self):
-        """根据习惯类型设置 LLM fallback 模板"""
-        self.llm_service.set_fallback_template(self.FALLBACKS.get(self.habit_type, ""))
+    def _get_fallback(self) -> str:
+        """获取本提醒类型的 fallback 模板。
+
+        在 generate() 生成前调用并设置到 LLM 服务，
+        避免多个提醒共享同一 LLM 服务实例时互相覆盖 fallback 文案。
+        """
+        return self.FALLBACKS.get(self.habit_type, "")
 
     def _get_default_time(self) -> str:
         """获取默认提醒时间"""
@@ -120,6 +115,9 @@ class HabitReminder:
         now = datetime.now()
         context = self._get_prompt_context(username, history_text, now)
         prompt = self._build_prompt(context)
+        # 生成前设置本提醒的 fallback（生成后不再恢复：
+        # 每次生成都会重新设置，互不干扰）
+        self.llm_service.set_fallback_template(self._get_fallback())
         # prompt 中已含【近期对话】上下文，不再额外传 history= 避免重复注入
         return await self.llm_service.generate(
             prompt, umo=user_id, extra_system=BROADCAST_MD_OVERRIDE
@@ -156,6 +154,12 @@ class SleepReminder(HabitReminder):
     def __init__(self, config: dict, default_user_id: str, llm_service, store):
         super().__init__(config, default_user_id, llm_service, store, "sleep")
 
+    def _get_fallback(self) -> str:
+        """超晚时段使用带责备语气的 fallback"""
+        if self._is_late_hour(datetime.now()):
+            return self.FALLBACKS["sleep_late"]
+        return self.FALLBACKS["sleep"]
+
     def _get_prompt_context(
         self, username: str, history_text: str, now: datetime
     ) -> dict:
@@ -165,9 +169,6 @@ class SleepReminder(HabitReminder):
 
     def _build_prompt(self, context: dict) -> str:
         is_late = context.get("is_late", False)
-        self.llm_service.set_fallback_template(
-            self.FALLBACKS["sleep_late"] if is_late else self.FALLBACKS["sleep"]
-        )
         return f"""【重要】你的所有回复必须严格遵循系统人格设定。如果系统人格部分为空，则用你默认的对话风格。
 
 生成一条睡觉时间提醒：

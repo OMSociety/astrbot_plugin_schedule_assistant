@@ -346,20 +346,14 @@ class ScheduleStore:
                     stats["updated"] += 1
             else:
                 schedules.append(
-                    {
-                        "id": str(uuid.uuid4())[:8],
-                        "type": "schedule",
-                        "title": evt.get("summary", "无标题"),
-                        "time": schedule_time,
-                        "recur": None,
-                        "context": evt.get("description", ""),
-                        "enabled": True,
-                        "snoozed_until": None,
-                        "last_triggered": None,
-                        "temp_override": None,
-                        "apple_uid": uid,
-                        "all_day": evt.get("all_day", False),
-                    }
+                    ScheduleItem(
+                        type="schedule",
+                        title=evt.get("summary", "无标题"),
+                        time=schedule_time,
+                        context=evt.get("description", ""),
+                        apple_uid=uid,
+                        all_day=evt.get("all_day", False),
+                    ).to_dict()
                 )
                 stats["added"] += 1
                 processed_uids_this_sync.add(uid)

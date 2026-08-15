@@ -147,104 +147,105 @@ class ScheduleAssistant(Star):
             if self._services_ready:
                 return
 
-            # 注册 LLM 日程管理工具（需要等服务初始化完成后）
+            # 注册 LLM 日程管理工具（先置位再注册：即使注册抛异常，
+            # 也不再重复注册，避免热重载后工具重复挂载）
             if not self._tools_registered:
-                register_schedule_tools(self)
                 self._tools_registered = True
+                register_schedule_tools(self)
 
-        api_key = self.config.get("weather_api_key")
-        city = self.config.get("weather_city", "杭州")
-        if api_key:
-            self.weather_service = WeatherService(
-                {"weather_api_key": api_key, "weather_city": city}
-            )
+            api_key = self.config.get("weather_api_key")
+            city = self.config.get("weather_city", "杭州")
+            if api_key:
+                self.weather_service = WeatherService(
+                    {"weather_api_key": api_key, "weather_city": city}
+                )
 
-        self.llm_service = LLMService(self.context, self.config)
+            self.llm_service = LLMService(self.context, self.config)
 
-        notion_db_ids = self.config.get("notion_db_ids", [])
-        maton_key = self.config.get("maton_api_key")
-        if notion_db_ids and maton_key:
-            try:
-                transaction_db = ""
-                reading_db = ""
-                for item in notion_db_ids:
-                    if isinstance(item, dict):
-                        name = item.get("name", "")
-                        db_id = item.get("id", "")
-                        if name == "事务" or name == "transaction":
-                            transaction_db = db_id
-                        elif name == "阅读" or name == "reading":
-                            reading_db = db_id
-                    elif isinstance(item, str):
-                        raw = item.strip()
-                        if ":" in raw:
-                            name, db_id = raw.split(":", 1)
-                            name = name.strip().lower()
-                            db_id = db_id.strip()
-                            if name in ("事务", "transaction"):
+            notion_db_ids = self.config.get("notion_db_ids", [])
+            maton_key = self.config.get("maton_api_key")
+            if notion_db_ids and maton_key:
+                try:
+                    transaction_db = ""
+                    reading_db = ""
+                    for item in notion_db_ids:
+                        if isinstance(item, dict):
+                            name = item.get("name", "")
+                            db_id = item.get("id", "")
+                            if name == "事务" or name == "transaction":
                                 transaction_db = db_id
-                            elif name in ("阅读", "reading"):
+                            elif name == "阅读" or name == "reading":
                                 reading_db = db_id
-                        elif not transaction_db:
-                            transaction_db = raw
-                            logger.warning(
-                                f"{LOG_PREFIX} notion_db_ids 使用无前缀字符串，已按顺序第1个映射为「事务库」"  # noqa: E501
-                            )
-                        elif not reading_db:
-                            reading_db = raw
-                            logger.warning(
-                                f"{LOG_PREFIX} notion_db_ids 使用无前缀字符串，已按顺序第2个映射为「阅读库」"  # noqa: E501
-                            )
-                        elif raw:
-                            logger.warning(
-                                f"{LOG_PREFIX} notion_db_ids 额外无前缀字符串未使用: {raw[:12]}..."  # noqa: E501
-                            )
-                self.notion = NotionClient(maton_key, transaction_db, reading_db)
-                self.notion_service = NotionService(self.notion)
-            except Exception as e:
-                logger.warning(f"{LOG_PREFIX} Notion 初始化失败: {e}")
-                self.notion = None
-                self.notion_service = None
+                        elif isinstance(item, str):
+                            raw = item.strip()
+                            if ":" in raw:
+                                name, db_id = raw.split(":", 1)
+                                name = name.strip().lower()
+                                db_id = db_id.strip()
+                                if name in ("事务", "transaction"):
+                                    transaction_db = db_id
+                                elif name in ("阅读", "reading"):
+                                    reading_db = db_id
+                            elif not transaction_db:
+                                transaction_db = raw
+                                logger.warning(
+                                    f"{LOG_PREFIX} notion_db_ids 使用无前缀字符串，已按顺序第1个映射为「事务库」"  # noqa: E501
+                                )
+                            elif not reading_db:
+                                reading_db = raw
+                                logger.warning(
+                                    f"{LOG_PREFIX} notion_db_ids 使用无前缀字符串，已按顺序第2个映射为「阅读库」"  # noqa: E501
+                                )
+                            elif raw:
+                                logger.warning(
+                                    f"{LOG_PREFIX} notion_db_ids 额外无前缀字符串未使用: {raw[:12]}..."  # noqa: E501
+                                )
+                    self.notion = NotionClient(maton_key, transaction_db, reading_db)
+                    self.notion_service = NotionService(self.notion)
+                except Exception as e:
+                    logger.warning(f"{LOG_PREFIX} Notion 初始化失败: {e}")
+                    self.notion = None
+                    self.notion_service = None
 
-        self.briefing_reminder = BriefingReminder(
-            self.config, self.context, self.llm_service
-        )
-        self.bath_reminder = BathReminder(
-            self.config, self.default_user_id, self.llm_service, self.store
-        )
-        self.sleep_reminder = SleepReminder(
-            self.config, self.default_user_id, self.llm_service, self.store
-        )
-        self.water_reminder = WaterReminder(
-            self.config, self.default_user_id, self.llm_service, self.store
-        )
-        self.schedule_reminder = ScheduleReminder(self.llm_service)
+            self.briefing_reminder = BriefingReminder(
+                self.config, self.context, self.llm_service
+            )
+            self.bath_reminder = BathReminder(
+                self.config, self.default_user_id, self.llm_service, self.store
+            )
+            self.sleep_reminder = SleepReminder(
+                self.config, self.default_user_id, self.llm_service, self.store
+            )
+            self.water_reminder = WaterReminder(
+                self.config, self.default_user_id, self.llm_service, self.store
+            )
+            self.schedule_reminder = ScheduleReminder(self.llm_service)
 
-        conf = self.config
-        if conf.get("enable_apple_calendar_sync"):
-            apple_conf = conf.get("apple_calendar", {})
-            username = apple_conf.get("username") if apple_conf else None
-            app_password = apple_conf.get("app_password") if apple_conf else None
-            if username and app_password:
-                cal_id = apple_conf.get("calendar_id", "").strip() or None
-                self.apple_calendar = AppleCalendar(
-                    username=username,
-                    app_password=app_password,
-                    calendar_id=cal_id,
-                    webcal_urls=conf.get("webcal_urls", []) or [],
-                )
-                logger.info(
-                    f"{LOG_PREFIX} Apple Calendar 已配置: {username[:3]}***, calendar_id={cal_id}"  # noqa: E501
-                )
-            else:
-                logger.warning(
-                    f"{LOG_PREFIX} Apple Calendar 未配置凭据（username 或 app_password 缺失）"  # noqa: E501
-                )
+            conf = self.config
+            if conf.get("enable_apple_calendar_sync"):
+                apple_conf = conf.get("apple_calendar", {})
+                username = apple_conf.get("username") if apple_conf else None
+                app_password = apple_conf.get("app_password") if apple_conf else None
+                if username and app_password:
+                    cal_id = apple_conf.get("calendar_id", "").strip() or None
+                    self.apple_calendar = AppleCalendar(
+                        username=username,
+                        app_password=app_password,
+                        calendar_id=cal_id,
+                        webcal_urls=conf.get("webcal_urls", []) or [],
+                    )
+                    logger.info(
+                        f"{LOG_PREFIX} Apple Calendar 已配置: {username[:3]}***, calendar_id={cal_id}"  # noqa: E501
+                    )
+                else:
+                    logger.warning(
+                        f"{LOG_PREFIX} Apple Calendar 未配置凭据（username 或 app_password 缺失）"  # noqa: E501
+                    )
 
-        # 全部服务初始化成功后才标记就绪；中途异常时保持 False，
-        # 下次调用会重新尝试初始化（_services_ready 只在成功路径置位）
-        self._services_ready = True
-        logger.info(f"{LOG_PREFIX} 外部服务初始化完成")
+            # 全部服务初始化成功后才标记就绪；中途异常时保持 False，
+            # 下次调用会重新尝试初始化（_services_ready 只在成功路径置位）
+            self._services_ready = True
+            logger.info(f"{LOG_PREFIX} 外部服务初始化完成")
 
     async def _register_tasks(self):
         if self._tasks_registered:
@@ -391,12 +392,16 @@ class ScheduleAssistant(Star):
 
         sender = getattr(event, "sender", None)
         if isinstance(sender, dict):
+            try:
+                sender_id = str(event.get_sender_id())
+            except Exception:
+                sender_id = ""
             for key in ("nickname", "name", "card", "group_card"):
                 val = sender.get(key)
                 if (
                     isinstance(val, str)
                     and val.strip()
-                    and val != str(event.get_sender_id())
+                    and val != sender_id
                 ):
                     return val.strip()
 
@@ -766,6 +771,7 @@ class ScheduleAssistant(Star):
                         user_id=user_id,
                         minutes_window=minutes_ahead,
                         minutes_before=minutes_ahead,
+                        reminder=self.schedule_reminder,
                     )
                     for item in triggered:
                         if item.get("reminder_text"):

@@ -92,7 +92,8 @@ class NotionClient:
                 .astimezone()
                 .replace(tzinfo=None)
             )
-            return due <= datetime.now() or due <= datetime.now() + timedelta(days=7)
+            # 已过期或 7 天内到期都视为相关（前一个条件蕴含于后者，合并即可）
+            return due <= datetime.now() + timedelta(days=7)
         except Exception:
             return True
 

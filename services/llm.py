@@ -7,8 +7,6 @@ from astrbot.core.provider.entities import ProviderType
 
 from ..constants import LOG_PREFIX
 
-# 全局断路器：记录 LLM 最近失败时间，5分钟内不回退到模板
-_llm_failure_time = 0.0
 _LLM_CIRCUIT_BREAKER_TTL = 300  # 5分钟
 
 
@@ -20,6 +18,9 @@ class LLMService:
         self.config = config or {}
         self._provider_id = None
         self._fallback_template = ""
+        # 实例级断路器：记录最近一次失败时间，熔断期内直接返回 fallback，
+        # 避免 LLM 接口持续故障时反复打失败的请求。
+        self._llm_failure_time = 0.0
 
     def set_fallback_template(self, template: str):
         """设置 LLM 失败时的 fallback 模板文案"""
@@ -145,8 +146,17 @@ class LLMService:
         Returns:
             LLM 生成的文本
         """
-        global _llm_failure_time
         if not self.context:
+            return self._fallback_template if self._fallback_template else ""
+        # 熔断检查：最近一次失败在 TTL 内则跳过调用，直接回退模板，
+        # 防止上游 LLM 接口持续故障时反复发起失败请求。
+        if self._llm_failure_time and (
+            time.time() - self._llm_failure_time < _LLM_CIRCUIT_BREAKER_TTL
+        ):
+            logger.warning(
+                f"{LOG_PREFIX} LLM 处于熔断期（上次失败于 "
+                f"{time.time() - self._llm_failure_time:.0f} 秒前），跳过调用"
+            )
             return self._fallback_template if self._fallback_template else ""
         provider_id = self._get_provider_id()
         if not provider_id:
@@ -158,11 +168,11 @@ class LLMService:
                 prompt=prompt,
                 system_prompt=system_prompt,
             )
-            _llm_failure_time = 0.0  # 成功，重置断路器
+            self._llm_failure_time = 0.0  # 成功，重置断路器
             return resp.completion_text.strip()
         except Exception as e:
             logger.error(f"{LOG_PREFIX} LLM 生成失败: {e}")
-            _llm_failure_time = time.time()
+            self._llm_failure_time = time.time()
             if self._fallback_template:
                 logger.warning(f"{LOG_PREFIX} LLM 失败，使用 fallback 模板")
                 return self._fallback_template

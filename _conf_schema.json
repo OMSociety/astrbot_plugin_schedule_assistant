@@ -107,13 +107,13 @@
     "type": "string",
     "description": "喝水提醒开始时间",
     "hint": "格式 HH:MM，此时间前不提醒。",
-    "default": "09:00"
+    "default": "09:30"
    },
    "water_end_time": {
     "type": "string",
     "description": "喝水提醒结束时间",
     "hint": "格式 HH:MM，此时间后不提醒。",
-    "default": "22:00"
+    "default": "21:30"
    }
   }
  },
@@ -194,7 +194,7 @@
     "type": "string",
     "description": "天气查询城市",
     "hint": "填写城市名，如 北京、杭州、上海。",
-    "default": ""
+    "default": "杭州"
    }
   }
  },

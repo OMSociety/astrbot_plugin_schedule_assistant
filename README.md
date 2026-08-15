@@ -1,6 +1,6 @@
 # Schedule Assistant 日程助手
 
-[![Version](https://img.shields.io/badge/version-v2.4.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
+[![Version](https://img.shields.io/badge/version-v2.5.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 
@@ -245,4 +245,4 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 
 ## 👤 作者
 
-**Slandre & Flandre** — [@OMSociety](https://github.com/OMSociety)
+**OMSociety** — [@OMSociety](https://github.com/OMSociety)

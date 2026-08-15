@@ -7,21 +7,12 @@
 
 # ruff: noqa: E501
 
-# 播报任务特例：追加在人格 system_prompt 末尾，覆盖聊天场景中的字数/分段约束，
-# 确保 LLM 输出完整 markdown（否则人格的"极简回复"会压制表格渲染）。
-BROADCAST_MD_OVERRIDE = (
-    "【播报任务特例】本条消息是定时播报，不是即时聊天回复。"
-    "请忽略聊天场景中关于字数限制、段落数量、回复极简的要求，"
-    "完整输出全部播报内容，必须使用 markdown 排版"
-    "（#### 小标题、**粗体**、表格等），语气保持原有风格。"
-)
-
 from datetime import datetime
 from typing import Any
 
 from astrbot.api import logger
 
-from ..constants import LOG_PREFIX
+from ..constants import BROADCAST_MD_OVERRIDE, LOG_PREFIX
 
 
 class ScheduleReminder:
@@ -148,6 +139,7 @@ async def check_and_trigger_schedule_reminder(
     user_id: str,
     minutes_window: int = 30,
     minutes_before: int = 15,
+    reminder: "ScheduleReminder | None" = None,
 ) -> list[dict[str, Any]]:
     """
     扫描即将到来的日程（仅 schedule 类型）并生成提醒。
@@ -159,7 +151,8 @@ async def check_and_trigger_schedule_reminder(
     - 即将开始兜底：前 5 分钟内也会触发
     - 全天事件不触发提前提醒
     """
-    reminder = ScheduleReminder(llm_service)
+    # 复用调用方已创建的实例，避免每轮扫描重复构造
+    reminder = reminder or ScheduleReminder(llm_service)
     triggered = []
     now = datetime.now()
 
