@@ -1,16 +1,35 @@
-# Schedule Assistant 日程助手
+<div align="center">
+
+<img src="logo.png" width="120" alt="Schedule Assistant Logo" />
+
+# 🗓️ Schedule Assistant 日程助手
+
+**你的贴心日程管家** —— 早安播报 · 习惯提醒 · LLM 日程管理 · Apple 日历双向同步 · Notion 待办同步
 
 [![Version](https://img.shields.io/badge/version-v2.0.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/OMSociety/astrbot_plugin_schedule_assistant)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/stargazers)
+[![Issues](https://img.shields.io/github/issues/OMSociety/astrbot_plugin_schedule_assistant)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/issues)
 
-你的贴心日程管家，支持早安播报、习惯提醒、LLM 智能日程管理、Apple 日历双向同步、Notion 待办同步。
+[✨ 核心特性](#-核心特性) • [📖 功能概览](#-功能概览) • [🚀 快速开始](#-快速开始) • [⚙️ 配置项](#️-配置项说明) • [🛠️ LLM 工具](#️-llm-可调用工具) • [🧩 架构](#-架构) • [📝 更新日志](CHANGELOG.md)
 
-> 本项目由AI编写
-> 
-> 插件 Logo 来源于 Pixiv Pid: [130776279](https://www.pixiv.net/artworks/130776279)
+</div>
 
-[快速开始](#-快速开始) • [功能概览](#-功能概览) • [配置项](#-配置项说明) • [LLM 工具](#-llm-可调用工具) • [更新日志](CHANGELOG.md)
+> 🎨 本项目由 AI 编写 · 插件 Logo 来源于 Pixiv Pid: [130776279](https://www.pixiv.net/artworks/130776279)
+
+---
+
+## ✨ 核心特性
+
+| 特性 | 说明 |
+|------|------|
+| 🌤️ **每日早安播报** | 天气 + 今日日程 + Notion 待办 + 熬夜检测，一条消息搞定起床信息 |
+| ⏰ **智能习惯提醒** | 洗澡 / 睡觉 / 喝水定时提醒，可推迟、可临时改时间 |
+| 🤖 **LLM 日程管理** | 动嘴管日程：新增 / 删除 / 查询 / 修改，自然语言时间解析 |
+| 🔄 **Apple 日历双向同步** | iCloud CalDAV 读取 + 写入，自动去重与增量更新 |
+| 📝 **Notion 待办同步** | DDL 倒计时提醒（还剩N天 / 今天截止 / 已逾期） |
+| 🎨 **多平台 Markdown 渲染** | QQ 官方原生表格，Onebot 等平台自动降级纯文本 |
 
 ---
 
@@ -18,29 +37,39 @@
 
 ### 每日早安播报
 每天早上自动推送（可配置时间），一条消息搞定起床信息：
-- 🌤️ **天气情况** — 当前温度、预报、温差、降水概率
-- 📅 **今日日程** — Apple 日历已排期的事件一览
-- 📝 **Notion 待办** — DDL 倒计时（还剩N天 / 今天截止 / 已逾期）
-- 💡 **贴心建议** — 结合熬夜检测智能生成
+
+```markdown
+早安~新的一天开始啦♪
+
+#### 📅 早安播报
+早安~ 2026-08-16 周六
+
+**🌤️ 天气** 当前晴 28°C，今日晴 24~33°C，降水概率10%
+
+#### 📋 今日日程
+| 时间 | 课程 |
+|------|------|
+| 09:45 | 学术英语听说 |
+| 14:00 | 马克思主义哲学史 |
+
+#### 📌 待办提醒
+| 剩余 | 事项 |
+|------|------|
+| 🔥 还剩1天 | 《资本论》读书报告 |
+| 📃 还剩3天 | 学生会面试 |
+
+#### 🫕 温馨提示
+今天天气不错，出门记得防晒~读书报告只剩1天了，合理安排时间哦~
+```
 
 ### 习惯提醒
+
 | 习惯 | 默认时间 | 说明 |
 |------|---------|------|
 | 🚿 洗澡提醒 | 22:00 | 可推迟、可临时改时间 |
 | 😴 睡觉提醒 | 23:00 | 智能催睡，超时带吐槽 |
 | 💧 喝水提醒 | 每90分钟 | 9:30–21:30 循环，可跳过 |
 | 📅 日程智能提醒 | 提前 N 分钟 | **LLM 生成**自然语言提醒，结合上下文 |
-
-### 日程管理
-支持自然语言操作日程，动动嘴就能管日程：
-```
-用户: 帮我加个明天早上9点开组会的日程
-用户: 把下午3点的会议改到4点
-用户: 删除明天的读书会
-用户: 看看这周有什么安排
-```
-
-注册 4 个 LLM 工具：`create_schedule` / `delete_schedule` / `list_schedules` / `update_schedule`，支持时间解析与标题关键词匹配。
 
 ### Apple iCloud 日历双向同步
 
@@ -71,26 +100,33 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 
 ## 🚀 快速开始
 
-### 第一步：配置 api-gateway Skill（如需 Notion 功能）
-
-日程助手通过 Maton Gateway 读写 Notion，需要先配置：
-
-1. 在 [Maton](https://www.maton.ai/) 上接入 Notion（OAuth2 方式），生成 **Maton API Key**
-2. 下载 [api-gateway-skill](https://github.com/maton-ai/api-gateway-skill)，在配置中填入你的 Maton API Key
-3. AstrBot 管理面板 → **Skills** → 上传 api-gateway-skill 并启用
-
-### 第二步：安装日程助手
+### 第一步：安装日程助手
 
 **方式一：插件市场**
 - AstrBot WebUI → 插件市场 → 搜索 `schedule_assistant`
 
 **方式二：手动安装**
-- 将插件文件夹放入 `/AstrBot/data/plugins/`
-- 重启 AstrBot
-- 在管理面板按需配置各项参数
+1. 将插件文件夹放入 `/AstrBot/data/plugins/`
+2. 重启 AstrBot
+3. 在管理面板按需配置各项参数
 
-### 依赖安装
-核心依赖已集成在 AstrBot 环境中，无需额外安装。
+> 💡 核心依赖已集成在 AstrBot 环境中，无需额外安装。
+
+### 第二步：最小配置（跑通全部定时提醒）
+
+只需在 WebUI 插件配置 → **基础设置** → `user_ids` 填一行：
+
+```
+Flandre:FriendMessage:8F3F9FB8F550542AD89BBE3A29C703D2
+```
+
+`平台ID:会话类型:用户ID`（UMO 格式）一行搞定「提醒谁 + 从哪个平台发」。填纯 QQ 号也可以，会自动按私聊发送。
+
+### 第三步（可选）：配置 Notion 同步
+
+1. 在 [Maton](https://www.maton.ai/) 上接入 Notion（OAuth2 方式），生成 **Maton API Key**
+2. 下载 [api-gateway-skill](https://github.com/maton-ai/api-gateway-skill)，在配置中填入你的 Maton API Key
+3. AstrBot 管理面板 → **Skills** → 上传 api-gateway-skill 并启用
 
 ---
 
@@ -157,25 +193,80 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 | `markdown_native_platforms` | list | `[]` | 额外追加原生解析 Markdown 的平台 ID |
 | `qq_markdown_enabled` | bool | 留空 | QQ 平台开关：留空跟随全局；`false` 强制 QQ 不走原生 md |
 
----
+### 快速配置模板
 
-## 🧩 架构
+在 WebUI 配置面板填写，或参考以下结构（`data/config/schedule_assistant_config.json`）：
 
-### 定时消息引擎（engine.py）
-「定时触发」与「内容生成/发送」解耦：
-- 业务通过 `register_job` 注册，`content_provider` 只负责生成内容，发送统一走 MessagingService
-- 特殊任务（喝水重排、Apple 同步等）用 `register_raw_job` 注册自定义 handler
-- 触发方式：`CronTrigger` 实例 / `"HH:MM"` 每日定时 / `"interval:N"` 每 N 分钟
-
-### Markdown 渲染管线（markdown.py）
-两级降级策略，`render` 返回 `(content, kind)`：
-- `native`：平台原生解析 md，原文直发（qq_official / discord / telegram / slack / kook 等，可用 `markdown_native_platforms` 追加）
-- `plain`：strip 降级为纯文本
-- 依赖均为惰性导入，未启用时零开销
+```json
+{
+  "basic_settings": {
+    "persona_id": "",
+    "user_nickname": "",
+    "user_ids": ["Flandre:FriendMessage:8F3F9FB8F550542AD89BBE3A29C703D2"]
+  },
+  "schedule_reminder_settings": {
+    "enable_schedule_reminder": false,
+    "schedule_reminder_minutes": 10,
+    "schedule_reminder_check_interval": 5
+  },
+  "habit_reminder_settings": {
+    "enable_morning_report": true,
+    "morning_report_time": "09:00",
+    "enable_bath_reminder": true,
+    "bath_time": "22:00",
+    "enable_sleep_reminder": true,
+    "sleep_time": "23:00",
+    "enable_water_reminder": true,
+    "water_interval": 90,
+    "water_start_time": "09:30",
+    "water_end_time": "21:30"
+  },
+  "calendar_sync_settings": {
+    "enable_apple_calendar_sync": false,
+    "apple_calendar_sync_interval": 30,
+    "apple_calendar": { "username": "", "app_password": "", "calendar_id": "" },
+    "webcal_urls": []
+  },
+  "external_services_settings": {
+    "maton_api_key": "",
+    "notion_db_ids": [],
+    "weather_api_key": "",
+    "weather_city": "杭州"
+  },
+  "message_render_settings": {
+    "markdown_enabled": true,
+    "markdown_native_platforms": [],
+    "qq_markdown_enabled": null
+  }
+}
+```
 
 ---
 
 ## 🛠️ LLM 可调用工具
+
+插件注册 4 个 LLM 工具，模型会自动判断何时调用，你只需用自然语言说需求：
+
+```
+用户: 帮我加个明天早上9点开组会的日程
+🤖 → create_schedule(title=组会, datetime_str=明天9点)
+    已创建日程「组会」，时间：08-17 09:00 ✅
+
+用户: 把下午3点的会议改到4点
+🤖 → update_schedule(title_keyword=会议, new_datetime=下午4点)
+    已修改日程：时间改为下午4点 ✅
+
+用户: 看看这周有什么安排
+🤖 → list_schedules(days=7)
+    📋 接下来7天日程（共3个）：
+    ━━━ 08-17 周一 ━━━
+      ⏰ 09:00 │ 组会
+      ...
+
+用户: 删除明天的读书会
+🤖 → delete_schedule(title_keyword=读书会)
+    已删除日程「读书会」✅
+```
 
 ### create_schedule
 创建新日程。
@@ -214,15 +305,36 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 
 ---
 
+## 🧩 架构
+
+### 定时消息引擎（engine.py）
+「定时触发」与「内容生成/发送」解耦：
+- 业务通过 `register_job` 注册，`content_provider` 只负责生成内容，发送统一走 MessagingService
+- 特殊任务（喝水重排、Apple 同步等）用 `register_raw_job` 注册自定义 handler
+- 触发方式：`CronTrigger` 实例 / `"HH:MM"` 每日定时 / `"interval:N"` 每 N 分钟
+
+### Markdown 渲染管线（markdown.py）
+两级降级策略，`render` 返回 `(content, kind)`：
+- `native`：平台原生解析 md，原文直发（qq_official / discord / telegram / slack / kook 等，可用 `markdown_native_platforms` 追加）
+- `plain`：strip 降级为纯文本
+- 依赖均为惰性导入，未启用时零开销
+
+---
+
 ## 📝 更新日志
 
 > 📋 **[查看完整更新日志 →](CHANGELOG.md)**
 
 ---
 
-## 🤝 贡献与反馈
+## ⭐ 支持本项目
 
-如遇问题请在 [GitHub Issues](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/issues) 提交，欢迎 Pull Request！
+如果这个插件对你有帮助，欢迎点亮 Star ⭐，有问题和建议请提交 [Issue](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/issues) 或 [Pull Request](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/pulls)。
+
+## 🙏 致谢
+
+- [AstrBot](https://github.com/AstrBotDevs/AstrBot) 开源聊天机器人框架
+- 插件 Logo 来源于 Pixiv Pid: [130776279](https://www.pixiv.net/artworks/130776279)
 
 ---
 
