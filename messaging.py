@@ -100,13 +100,12 @@ class MessagingService:
             config: 插件配置，包含以下键：
                 - send_platform_id: 全局发送平台ID（配置项，不写死平台）
                 - default_session_type: 默认会话类型，默认 FriendMessage
-                - user_platform_bindings: 用户平台绑定，支持：
-                    - UMO 映射 dict: {"Flandre:FriendMessage:xxx": "Flandre"}
-                    - UMO 字符串列表: ["Flandre:FriendMessage:xxx"]
-                    - 旧格式列表: ["user_id:platform_id"] 或 [{"user_id":..,"platform_id":..}]
             platform_lookup: 可选异步回调 user_id -> platform_id，用于从持久化存储恢复平台
             users_lookup: 可选异步回调 () -> list[str]，返回所有已知用户ID（用于目标用户解析）
             default_user_id: 可选默认目标用户ID（用户名单首个用户）
+
+        平台路由说明：user_ids 中的 UMO 条目（platform:session_type:session_id）
+        会在名单解析时自动注册平台绑定（register_umo_binding），无需单独配置。
         """
         self.context = context
         self.config = config
@@ -120,7 +119,8 @@ class MessagingService:
         self._session_types = set(COMMON_SESSION_TYPES)
         if self._session_type:
             self._session_types.add(self._session_type)
-        self._user_platform_bindings = self._parse_user_platform_bindings()
+        # 平台绑定由 user_ids 中的 UMO 条目在名单解析时自动注册（register_umo_binding）
+        self._user_platform_bindings: dict = {}
         self._recent_user_platforms: dict = {}
         self._md_renderer: MarkdownRenderer | None = None
 
@@ -178,7 +178,7 @@ class MessagingService:
 
     def register_umo_binding(self, umo: str, platform_id: str = "") -> str | None:
         """
-        注册一条 UMO 平台绑定（动态添加，无需改配置）
+        注册一条 UMO 平台绑定（user_ids 中的 UMO 条目在名单解析时自动调用）
 
         Args:
             umo: UMO 字符串，如 "Flandre:FriendMessage:xxx"
@@ -196,64 +196,6 @@ class MessagingService:
             "session_type": session_type,
         }
         return session_id
-
-    def _parse_user_platform_bindings(self) -> dict:
-        """
-        解析用户平台绑定配置
-
-        支持三种格式：
-        1. UMO 映射 dict: {"Flandre:FriendMessage:xxx": "Flandre"}
-        2. UMO 字符串列表: ["Flandre:FriendMessage:xxx"]
-        3. 旧格式: ["user_id:platform_id"] 或 [{"user_id":..,"platform_id":..}]
-
-        Returns:
-            dict: {user_id: {"platform": platform_id, "session_type": session_type}}
-        """
-        bindings: dict = {}
-        raw_bindings = self.config.get("user_platform_bindings", []) or []
-        items: list = []
-        if isinstance(raw_bindings, dict):
-            items = [(str(k), str(v)) for k, v in raw_bindings.items()]
-        elif isinstance(raw_bindings, (list, tuple)):
-            for item in raw_bindings:
-                if isinstance(item, dict):
-                    key = item.get("umo") or item.get("user_id") or ""
-                    value = item.get("platform_id") or item.get("platform") or ""
-                    items.append((str(key), str(value)))
-                elif isinstance(item, str):
-                    items.append((item, ""))
-                else:
-                    items.append((str(item), ""))
-        else:
-            items = [(str(raw_bindings), "")]
-
-        for key, value_platform in items:
-            key = key.strip()
-            if not key:
-                continue
-            parsed = self._split_umo(key)
-            if parsed:
-                platform, session_type, session_id = parsed
-                bindings[session_id] = {
-                    "platform": (value_platform or platform).strip(),
-                    "session_type": session_type,
-                }
-                continue
-            # 旧格式：user_id:platform_id 或纯 user_id
-            if ":" in key:
-                user_id, platform_id = key.split(":", 1)
-                user_id = user_id.strip()
-                platform_id = platform_id.strip()
-            else:
-                user_id, platform_id = key, ""
-            if user_id:
-                bindings[user_id] = {
-                    "platform": (
-                        platform_id or value_platform or self._global_platform_id
-                    ).strip(),
-                    "session_type": self._session_type,
-                }
-        return bindings
 
     def _get_available_platform_ids(self) -> list[str]:
         """

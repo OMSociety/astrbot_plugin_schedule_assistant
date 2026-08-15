@@ -29,6 +29,7 @@
 ### ⚙️ 配置变更
 - `whitelist_qq_ids` 与 `target_user_ids` 合并为 **`user_ids`**（用户名单 ID 列表，每行一个接收自动提醒的用户 ID，支持 UMO 格式）；旧键已删除，不再兼容读取
 - 移除 **`broadcast_to_all_known_users`**（历史活跃用户开关）：日程扫描 / Apple 同步等任务本就固定覆盖历史活跃用户，该开关不受其控制，删除后行为不变
+- 移除 **`user_platform_bindings`**（用户平台绑定配置）：`user_ids` 中的 UMO 条目（`平台ID:会话类型:用户ID`）会在名单解析时自动注册平台路由，无需单独配置；纯 ID 用户由会话记忆 + 全局 `send_platform_id` 自动路由
 
 ### 🔧 代码质量提升
 - `BROADCAST_MD_OVERRIDE` 三处重复定义收敛到 `constants.py` 统一引用

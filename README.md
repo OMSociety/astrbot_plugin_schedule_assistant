@@ -153,10 +153,9 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 
 | 配置项 | 类型 | 说明 |
 |--------|------|------|
-| `user_ids` | list | 用户名单 ID 列表，每行一个接收自动提醒的用户 ID（QQ 号或平台 UID，支持 UMO 格式） |
+| `user_ids` | list | 用户名单 ID 列表，每行一个接收自动提醒的用户 ID（QQ 号或平台 UID）；填 UMO 格式（`平台ID:会话类型:用户ID`）可同时完成平台路由 |
 | `default_session_type` | string | 默认会话类型 |
 | `send_platform_id` | string | 默认发送平台 ID |
-| `user_platform_bindings` | list | 用户平台绑定列表，格式 `用户ID:会话类型:平台实例ID`（如 `12345:FriendMessage:qq_official`） |
 
 ### 消息渲染设置
 

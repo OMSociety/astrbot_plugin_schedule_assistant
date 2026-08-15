@@ -220,12 +220,6 @@
     "description": "默认发送平台 ID",
     "hint": "留空则自动按最近会话/平台可用性选择。",
     "default": ""
-   },
-   "user_platform_bindings": {
-    "type": "list",
-    "description": "用户平台绑定（多平台路由）",
-    "hint": "每行一个，格式 用户ID:会话类型:平台实例ID，如 12345:FriendMessage:qq_official。",
-    "default": []
    }
   }
  },
