@@ -407,14 +407,6 @@ class ScheduleAssistant(Star):
 
         return ""
 
-    def _is_admin(self, user_id: str) -> bool:
-        """判断用户是否为管理员（admin_uids 配置项，UID 格式）"""
-        if not user_id:
-            return False
-        user_id = str(user_id)
-        admin_uids = self.config.get("admin_uids", []) or []
-        return user_id in {str(uid) for uid in admin_uids if uid}
-
     async def _get_target_user_ids(
         self, include_known_users: bool = False
     ) -> list[str]:

@@ -102,7 +102,7 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 |--------|------|------|------|
 | `persona_id` | string | `""` | LLM 人设 ID（对应配置文件中的 `persona_id`），留空自动从会话获取 |
 | `user_nickname` | string | `""` | 用户昵称，留空则播报称呼为「主人」 |
-| `admin_uids` | list | `[]` | 管理员用户 ID 列表（QQ 号或平台用户 ID，用于权限校验） |
+| `user_ids` | list | `[]` | 用户名单 ID 列表，每行一个接收自动提醒的用户 ID（QQ 号或平台 UID）；填 UMO 格式（`平台ID:会话类型:用户ID`）可同时完成平台路由 |
 
 ### 日程提醒设置
 
@@ -148,12 +148,6 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 | `notion_db_ids` | list | Notion 数据库 ID 列表，格式：`["事务:xxx", "阅读:yyy"]` |
 | `weather_api_key` | string | 心知天气 API Key（[seniverse.com](https://seniverse.com)） |
 | `weather_city` | string | 天气查询城市（默认：杭州） |
-
-### 消息推送设置
-
-| 配置项 | 类型 | 说明 |
-|--------|------|------|
-| `user_ids` | list | 用户名单 ID 列表，每行一个接收自动提醒的用户 ID（QQ 号或平台 UID）；填 UMO 格式（`平台ID:会话类型:用户ID`）可同时完成平台路由 |
 
 ### 消息渲染设置
 

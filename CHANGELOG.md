@@ -31,6 +31,8 @@
 - 移除 **`broadcast_to_all_known_users`**（历史活跃用户开关）：日程扫描 / Apple 同步等任务本就固定覆盖历史活跃用户，该开关不受其控制，删除后行为不变
 - 移除 **`user_platform_bindings`**（用户平台绑定配置）：`user_ids` 中的 UMO 条目（`平台ID:会话类型:用户ID`）会在名单解析时自动注册平台路由，无需单独配置；纯 ID 用户由会话记忆 + 全局 `send_platform_id` 自动路由
 - 移除 **`default_session_type` / `send_platform_id`**：会话类型固定为私聊 FriendMessage（UMO 条目可自带 session_type）；平台路由由 UMO 条目 + 会话记忆 + 可用平台自动完成，无需全局默认平台
+- **`user_ids` 移入「基础设置」分组**（原「消息推送」分组删除），与人格/称呼放在一起
+- 移除 **`admin_uids`**（管理员配置）：`_is_admin` 判定方法无任何调用者，插件无需要权限校验的命令/操作，属死配置
 
 ### 🔧 代码质量提升
 - `BROADCAST_MD_OVERRIDE` 三处重复定义收敛到 `constants.py` 统一引用

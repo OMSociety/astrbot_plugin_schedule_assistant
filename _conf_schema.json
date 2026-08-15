@@ -2,7 +2,7 @@
  "basic_settings": {
   "description": "基础设置",
   "type": "object",
-  "hint": "播报人格、称呼与管理员。",
+  "hint": "播报人格、称呼与接收用户。",
   "items": {
    "persona_id": {
     "type": "string",
@@ -17,10 +17,10 @@
     "hint": "播报时对用户的称呼。留空则使用「主人」。",
     "default": ""
    },
-   "admin_uids": {
+   "user_ids": {
     "type": "list",
-    "description": "管理员用户 ID",
-    "hint": "每行一个 UID（QQ 号或平台用户 ID）。管理员可执行更多操作。",
+    "description": "用户名单 ID 列表",
+    "hint": "每行一个，接收自动提醒的用户 ID（QQ 号或平台 UID，支持 UMO 格式）。",
     "default": []
    }
   }
@@ -195,19 +195,6 @@
     "description": "天气查询城市",
     "hint": "填写城市名，如 北京、杭州、上海。",
     "default": "杭州"
-   }
-  }
- },
- "push_settings": {
-  "description": "消息推送",
-  "type": "object",
-  "hint": "自动提醒的接收对象。",
-  "items": {
-   "user_ids": {
-    "type": "list",
-    "description": "用户名单 ID 列表",
-    "hint": "每行一个，接收自动提醒的用户 ID（QQ 号或平台 UID，支持 UMO 格式）。",
-    "default": []
    }
   }
  },
