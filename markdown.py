@@ -121,10 +121,9 @@ def strip_markdown(text: str) -> str:
 
 
 def render_qq_active(text: str) -> str:
-    """QQ 官方主动消息专用：md → QQ 展示友好的纯文本排版
+    """QQ 官方平台降级排版：md → QQ 展示友好的纯文本
 
-    QQ 官方平台的主动推送（定时播报等，无 msg_id）不支持原生 markdown
-    渲染（群主动被拒、私聊主动静默显示原文），因此对 QQ 主动消息
+    当 qq_markdown_enabled=false 强制关闭 QQ 原生 md 时使用，
     将 md 排版为近似观感的纯文本：标题转【】、列表转 ·、表格转 键：值。
     """
     if not text:
@@ -191,10 +190,9 @@ class MarkdownRenderer:
         return self.platform_types.get(platform_id, platform_id)
 
     def _is_native(self, platform_id: str) -> bool:
-        platform_type = self._resolve_platform_type(platform_id)
-        if platform_type == "qq_official" and self.qq_md_enabled is False:
-            return False
-        return platform_type in self.native_platforms
+        # qq_official 已在 render() 中单独处理（默认原生 / 配置关闭时降级），
+        # 此处只需按平台类型名判断即可。
+        return self._resolve_platform_type(platform_id) in self.native_platforms
 
     # ---------- 对外主入口 ----------
 
@@ -209,12 +207,14 @@ class MarkdownRenderer:
         if not _has_markdown_syntax(text):
             return text, "plain"  # 无 md 语法 → 直发，行为零变化
 
-        # QQ 官方主动消息（定时播报等）不支持原生 markdown 渲染
-        # （群主动被拒、私聊主动静默显示原文），一律转 QQ 排版纯文本。
+        # QQ 官方：默认原生 md 直发（QQ 已全面开放 markdown 渲染，表格原生显示）；
+        # 仅当显式配置 qq_markdown_enabled=false 时，转 QQ 排版纯文本兜底。
         # 被动回复场景由 AstrBot 事件链路处理，不经过本 renderer，不受影响。
         platform_type = self._resolve_platform_type(platform_id)
         if platform_type == "qq_official":
-            return render_qq_active(text), "plain"
+            if self.qq_md_enabled is False:
+                return render_qq_active(text), "plain"
+            return text, "native"
 
         # 原生平台 → 保留 md 原文（discord / telegram 等）
         if self._is_native(platform_id):

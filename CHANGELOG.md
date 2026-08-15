@@ -21,6 +21,7 @@
 - **服务初始化并发竞态**（`main.py`）：`_ensure_services` 初始化代码原先在锁外，热重载时可能并发重复创建 Notion 连接；整体移入锁内
 - **工具注册防重复**（`main.py`）：工具注册失败时先置位标志，避免热重载后重复挂载工具
 - **配置默认值对齐**（`_conf_schema.json`）：喝水时段默认值修正为 `09:30`/`21:30`（与代码、README 一致），`weather_city` 默认 `杭州`
+- **QQ 官方原生 Markdown 真正生效**（`markdown.py`）：此前 `qq_official` 平台被无条件转为 QQ 排版纯文本，`qq_markdown_enabled` 配置形同虚设；现默认直发原生 md（表格原生渲染），仅当 `qq_markdown_enabled=false` 时降级为 QQ 排版纯文本。非原生平台（如 Onebot）仍自动 strip 降级
 
 ### 🔧 代码质量提升
 - `BROADCAST_MD_OVERRIDE` 三处重复定义收敛到 `constants.py` 统一引用
