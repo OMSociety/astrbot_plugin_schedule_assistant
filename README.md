@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="logo.png" width="120" alt="Schedule Assistant Logo" />
+<img src="https://raw.githubusercontent.com/OMSociety/astrbot_plugin_schedule_assistant/main/logo.png" width="120" alt="Schedule Assistant Logo" />
 
 # 🗓️ Schedule Assistant 日程助手
 
@@ -38,7 +38,7 @@
 ### 每日早安播报
 每天早上自动推送（可配置时间），一条消息搞定起床信息：
 
-<img src="docs/briefing_example.png" alt="早安播报示例" width="480" />
+<img src="https://raw.githubusercontent.com/OMSociety/astrbot_plugin_schedule_assistant/main/docs/briefing_example.png" alt="早安播报示例" width="480" />
 
 ### 习惯提醒
 
