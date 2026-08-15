@@ -2,11 +2,11 @@
 
 <img src="https://raw.githubusercontent.com/OMSociety/astrbot_plugin_schedule_assistant/main/logo.png" width="120" alt="Schedule Assistant Logo" />
 
-# 🗓️ Schedule Assistant 日程助手
+# 🗓️ Schedule Assistant 日程提醒助手
 
 **你的贴心日程管家** —— 早安播报 · 习惯提醒 · LLM 日程管理 · Apple 日历双向同步 · Notion 待办同步
 
-[![Version](https://img.shields.io/badge/version-v2.0.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/OMSociety/astrbot_plugin_schedule_assistant)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/stargazers)
@@ -78,7 +78,7 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 
 ## 🚀 快速开始
 
-### 第一步：安装日程助手
+### 第一步：安装日程提醒助手
 
 **方式一：插件市场**
 - AstrBot WebUI → 插件市场 → 搜索 `schedule_assistant`
