@@ -384,6 +384,9 @@ class MessagingService:
         目标用户解析统一收敛到消息服务路由：
         用户名单（UMO 自动注册绑定） > 默认用户 > 全部已知用户（可选）
 
+        所有来源统一做 UMO 归一化，避免同一用户同时以「纯 ID」和
+        「完整 UMO」两种形式出现在结果中导致重复发送。
+
         Args:
             include_known_users: 是否包含存储中的全部已知用户
                 （定时任务如日程扫描/Apple 同步固定传 True）
@@ -392,20 +395,25 @@ class MessagingService:
             List[str]: 去重排序后的目标用户ID列表
         """
         user_ids: set[str] = set()
-        for uid in self._collect_config_target_ids(self.config):
+
+        def _normalize(uid: str) -> str:
+            """UMO 字符串归一化为 session_id，非 UMO 原样返回"""
             registered = self.register_umo_binding(uid)
-            if registered:
-                user_ids.add(registered)
-            else:
-                user_ids.add(uid)
+            return registered or uid
+
+        for uid in self._collect_config_target_ids(self.config):
+            user_ids.add(_normalize(str(uid)))
         if self._default_user_id:
-            user_ids.add(str(self._default_user_id))
+            # 默认用户可能来自 user_ids 的 UMO 条目，同样归一化
+            user_ids.add(_normalize(str(self._default_user_id)))
         if include_known_users:
             if self._users_lookup:
                 try:
                     for uid in await self._users_lookup():
                         if uid:
-                            user_ids.add(str(uid))
+                            # 已知用户索引可能混入 UMO 形式（工具/事件路径写入），
+                            # 统一归一化去重，避免同一用户被发送两次
+                            user_ids.add(_normalize(str(uid)))
                 except Exception as lookup_err:
                     logger.warning(f"{LOG_PREFIX} 读取已知用户失败: err={lookup_err}")
         return sorted(user_ids)
