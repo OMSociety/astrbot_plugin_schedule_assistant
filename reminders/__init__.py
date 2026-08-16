@@ -6,10 +6,10 @@ from .schedule import ScheduleReminder, check_and_trigger_schedule_reminder
 
 __all__ = [
     "BathReminder",
+    "BriefingReminder",
+    "HabitReminder",
+    "ScheduleReminder",
     "SleepReminder",
     "WaterReminder",
-    "HabitReminder",
-    "BriefingReminder",
-    "ScheduleReminder",
     "check_and_trigger_schedule_reminder",
 ]

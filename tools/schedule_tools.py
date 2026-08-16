@@ -9,15 +9,14 @@
 
 from datetime import datetime, timedelta
 
-from dateutil import parser as date_parser
-from dateutil.relativedelta import relativedelta
-from pydantic import Field
-from pydantic.dataclasses import dataclass
-
 from astrbot.api import logger
 from astrbot.core.agent.run_context import ContextWrapper
 from astrbot.core.agent.tool import FunctionTool
 from astrbot.core.astr_agent_context import AstrAgentContext
+from dateutil import parser as date_parser
+from dateutil.relativedelta import relativedelta
+from pydantic import Field
+from pydantic.dataclasses import dataclass
 
 from ..schedule_store import ScheduleItem
 
@@ -329,7 +328,8 @@ class ListSchedulesTool(FunctionTool[AstrAgentContext]):
                     dt = datetime.strptime(s.time, "%Y-%m-%d %H:%M")
                     if now <= dt <= future:
                         user_schedules.append((dt, s))
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"日程时间解析失败，跳过: {s.time!r} err={e}")
                     continue
 
             if not user_schedules:

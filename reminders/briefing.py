@@ -1,5 +1,4 @@
 """早安播报服务"""
-# ruff: noqa: E501
 
 from ..constants import BROADCAST_MD_OVERRIDE
 
@@ -20,7 +19,7 @@ class BriefingReminder:
         agenda: str,
         notion_todos: str,
         late_night: str = "",
-        user_id: str = None,
+        user_id: str | None = None,
     ) -> str:
         agenda_lines = (
             [ln.strip().replace("|", " ") for ln in agenda.split("\n") if ln.strip()]

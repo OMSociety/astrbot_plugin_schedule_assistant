@@ -17,9 +17,10 @@ class WeatherService:
         weather_current, weather_forecast = "", ""
         if not self.weather_api_key:
             return "未配置天气API", ""
-        if self._cache["data"][0] or self._cache["data"][1]:
-            if _time.time() - self._cache["timestamp"] < self._CACHE_TTL:
-                return self._cache["data"]
+        if (self._cache["data"][0] or self._cache["data"][1]) and (
+            _time.time() - self._cache["timestamp"] < self._CACHE_TTL
+        ):
+            return self._cache["data"]
         try:
             async with aiohttp.ClientSession() as session:
                 now_params = {

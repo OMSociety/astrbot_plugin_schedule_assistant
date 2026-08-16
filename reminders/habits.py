@@ -3,9 +3,8 @@
 BathReminder, SleepReminder, WaterReminder 都基于此类
 """
 
-# ruff: noqa: E501
-
 from datetime import datetime
+from typing import ClassVar
 
 from ..constants import (
     BROADCAST_MD_OVERRIDE,
@@ -21,7 +20,7 @@ class HabitReminder:
     """通用习惯提醒生成器"""
 
     # 默认 fallback 消息
-    FALLBACKS = {
+    FALLBACKS: ClassVar[dict[str, str]] = {
         "bath": "🚿 洗澡时间到啦~ 今天流汗了吗？快去洗个澡清爽一下！",
         "sleep": "😴 睡觉时间到啦~ 晚安，早点休息哦~",
         "sleep_late": "🌙 都几点了还不睡！快去睡觉！",
@@ -29,7 +28,7 @@ class HabitReminder:
     }
 
     # 各习惯的默认时间配置
-    DEFAULT_TIMES = {
+    DEFAULT_TIMES: ClassVar[dict[str, str | int]] = {
         "bath": DEFAULT_BATH_TIME,
         "sleep": DEFAULT_SLEEP_TIME,
         "water_start": DEFAULT_WATER_START,
@@ -100,7 +99,7 @@ class HabitReminder:
         raise NotImplementedError
 
     async def generate(
-        self, username: str, history_text: str, user_id: str = None
+        self, username: str, history_text: str, user_id: str | None = None
     ) -> str | None:
         """生成提醒消息
 
@@ -168,7 +167,6 @@ class SleepReminder(HabitReminder):
         return ctx
 
     def _build_prompt(self, context: dict) -> str:
-        is_late = context.get("is_late", False)
         return f"""【重要】你的所有回复必须严格遵循系统人格设定。如果系统人格部分为空，则用你默认的对话风格。
 
 生成一条睡觉时间提醒：

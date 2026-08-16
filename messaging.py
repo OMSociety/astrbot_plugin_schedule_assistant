@@ -132,10 +132,11 @@ class MessagingService:
                     meta = platform.meta()
                     if meta and meta.id and meta.name:
                         mapping[str(meta.id)] = str(meta.name)
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"{LOG_PREFIX} 读取平台 meta 失败: {e}")
                     continue
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"{LOG_PREFIX} 构建平台类型映射失败: {e}")
         return mapping
 
     def _get_md_renderer(self) -> MarkdownRenderer:
@@ -206,8 +207,8 @@ class MessagingService:
                 pid = platform.meta().id
                 if pid:
                     ids.append(str(pid))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"{LOG_PREFIX} 获取平台列表失败: {e}")
         if not ids:
             logger.warning(f"{LOG_PREFIX} 未发现已注册平台，发送将不可用")
         return ids
@@ -406,16 +407,15 @@ class MessagingService:
         if self._default_user_id:
             # 默认用户可能来自 user_ids 的 UMO 条目，同样归一化
             user_ids.add(_normalize(str(self._default_user_id)))
-        if include_known_users:
-            if self._users_lookup:
-                try:
-                    for uid in await self._users_lookup():
-                        if uid:
-                            # 已知用户索引可能混入 UMO 形式（工具/事件路径写入），
-                            # 统一归一化去重，避免同一用户被发送两次
-                            user_ids.add(_normalize(str(uid)))
-                except Exception as lookup_err:
-                    logger.warning(f"{LOG_PREFIX} 读取已知用户失败: err={lookup_err}")
+        if include_known_users and self._users_lookup:
+            try:
+                for uid in await self._users_lookup():
+                    if uid:
+                        # 已知用户索引可能混入 UMO 形式（工具/事件路径写入），
+                        # 统一归一化去重，避免同一用户被发送两次
+                        user_ids.add(_normalize(str(uid)))
+            except Exception as lookup_err:
+                logger.warning(f"{LOG_PREFIX} 读取已知用户失败: err={lookup_err}")
         return sorted(user_ids)
 
     async def reply_to_event(self, event: Any, message: str) -> None:
@@ -439,8 +439,8 @@ class MessagingService:
                     session_id, MessageChain([Comp.Plain(message)])
                 )
                 return
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"{LOG_PREFIX} session_id 直发失败，尝试下一层: {e}")
 
         # 第二层：按 user_id + 平台组合发送
         try:
@@ -452,8 +452,8 @@ class MessagingService:
                 else:
                     await self.send_to_user(user_id, message)
                 return
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"{LOG_PREFIX} user_id 发送失败，尝试下一层: {e}")
 
         # 第三层：兜底告警，不抛异常
         logger.warning(

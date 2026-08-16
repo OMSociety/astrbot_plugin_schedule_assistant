@@ -13,7 +13,6 @@ from typing import Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-
 from astrbot.api import logger
 from astrbot.api.event import filter
 from astrbot.api.star import Context, Star
@@ -189,16 +188,16 @@ class ScheduleAssistant(Star):
                             elif not transaction_db:
                                 transaction_db = raw
                                 logger.warning(
-                                    f"{LOG_PREFIX} notion_db_ids 使用无前缀字符串，已按顺序第1个映射为「事务库」"  # noqa: E501
+                                    f"{LOG_PREFIX} notion_db_ids 使用无前缀字符串，已按顺序第1个映射为「事务库」"
                                 )
                             elif not reading_db:
                                 reading_db = raw
                                 logger.warning(
-                                    f"{LOG_PREFIX} notion_db_ids 使用无前缀字符串，已按顺序第2个映射为「阅读库」"  # noqa: E501
+                                    f"{LOG_PREFIX} notion_db_ids 使用无前缀字符串，已按顺序第2个映射为「阅读库」"
                                 )
                             elif raw:
                                 logger.warning(
-                                    f"{LOG_PREFIX} notion_db_ids 额外无前缀字符串未使用: {raw[:12]}..."  # noqa: E501
+                                    f"{LOG_PREFIX} notion_db_ids 额外无前缀字符串未使用: {raw[:12]}..."
                                 )
                     self.notion = NotionClient(maton_key, transaction_db, reading_db)
                     self.notion_service = NotionService(self.notion)
@@ -235,11 +234,11 @@ class ScheduleAssistant(Star):
                         webcal_urls=conf.get("webcal_urls", []) or [],
                     )
                     logger.info(
-                        f"{LOG_PREFIX} Apple Calendar 已配置: {username[:3]}***, calendar_id={cal_id}"  # noqa: E501
+                        f"{LOG_PREFIX} Apple Calendar 已配置: {username[:3]}***, calendar_id={cal_id}"
                     )
                 else:
                     logger.warning(
-                        f"{LOG_PREFIX} Apple Calendar 未配置凭据（username 或 app_password 缺失）"  # noqa: E501
+                        f"{LOG_PREFIX} Apple Calendar 未配置凭据（username 或 app_password 缺失）"
                     )
 
             # 全部服务初始化成功后才标记就绪；中途异常时保持 False，
@@ -334,7 +333,7 @@ class ScheduleAssistant(Star):
                 datetime.now() + timedelta(seconds=initial_delay)
             )
             logger.info(
-                f"{LOG_PREFIX} 喝水提醒首次触发: {next_trigger.strftime('%H:%M')} ({initial_delay / 60:.1f}分钟后)"  # noqa: E501
+                f"{LOG_PREFIX} 喝水提醒首次触发: {next_trigger.strftime('%H:%M')} ({initial_delay / 60:.1f}分钟后)"
             )
 
         engine.register_raw_job(
@@ -354,7 +353,7 @@ class ScheduleAssistant(Star):
             end_h, end_m = map(int, water_end.split(":"))
         except (ValueError, TypeError, AttributeError):
             logger.warning(
-                f"{LOG_PREFIX} 喝水时段配置非法: start={water_start!r} end={water_end!r}，使用默认 09:00-21:00"  # noqa: E501
+                f"{LOG_PREFIX} 喝水时段配置非法: start={water_start!r} end={water_end!r}，使用默认 09:00-21:00"
             )
             start_h, start_m, end_h, end_m = 9, 0, 21, 0
         try:
@@ -382,8 +381,8 @@ class ScheduleAssistant(Star):
                 name = event.get_sender_name()
                 if isinstance(name, str) and name.strip():
                     return name.strip()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"{LOG_PREFIX} 获取发送者昵称异常: {e}")
 
         for attr in ("sender_nickname", "sender_name", "nickname", "name"):
             name = getattr(event, attr, None)
@@ -463,6 +462,7 @@ class ScheduleAssistant(Star):
                 try:
                     dt = datetime.strptime(s.time, "%Y-%m-%d %H:%M")
                 except Exception:
+                    logger.debug(f"{LOG_PREFIX} 日程时间格式无法解析: {s.time!r}")
                     continue
             if dt.date() == today:
                 today_items.append((dt, s.title))
@@ -484,7 +484,7 @@ class ScheduleAssistant(Star):
             events = await self.apple_calendar.get_all_events(days=1)
             today = datetime.now().date()
             logger.info(
-                f"{LOG_PREFIX} Apple日历获取到 {len(events)} 个事件，开始筛选今日({today})事件..."  # noqa: E501
+                f"{LOG_PREFIX} Apple日历获取到 {len(events)} 个事件，开始筛选今日({today})事件..."
             )
 
             rows = []
@@ -497,6 +497,9 @@ class ScheduleAssistant(Star):
                 try:
                     start_dt = datetime.fromisoformat(start_str)
                 except Exception:
+                    logger.debug(
+                        f"{LOG_PREFIX} Apple 事件时间格式无法解析: {start_str!r}"
+                    )
                     continue
                 if start_dt.date() != today:
                     continue
@@ -511,7 +514,7 @@ class ScheduleAssistant(Star):
                 return "暂无"
             rows.sort(key=lambda x: x[0])
             logger.info(
-                f"{LOG_PREFIX} 今日 Apple 日历事件筛选完成，共 {len(rows)} 个: {[s for _, s in rows]}"  # noqa: E501
+                f"{LOG_PREFIX} 今日 Apple 日历事件筛选完成，共 {len(rows)} 个: {[s for _, s in rows]}"
             )
             return "\n".join([line for _, line in rows[:limit]])
         except Exception as e:
@@ -544,8 +547,8 @@ class ScheduleAssistant(Star):
             # 过滤：有效昵称不能是纯数字（QQ号）
             if cached and not cached.isdigit():
                 return cached
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"{LOG_PREFIX} 读取昵称缓存失败: {e}")
         fallback = str(self.config.get("user_nickname", "") or "").strip()
         if fallback and not fallback.isdigit():
             return fallback
@@ -742,7 +745,7 @@ class ScheduleAssistant(Star):
                     raw_minutes = raw_minutes.strip()
                     if not raw_minutes.isdigit():
                         logger.warning(
-                            f"{LOG_PREFIX} schedule_reminder_minutes 非数字，使用默认值 10"  # noqa: E501
+                            f"{LOG_PREFIX} schedule_reminder_minutes 非数字，使用默认值 10"
                         )
                         raw_minutes = 10
                 minutes_ahead = int(raw_minutes)
@@ -789,7 +792,7 @@ class ScheduleAssistant(Star):
                 user_ids = await self._get_target_user_ids(include_known_users=True)
                 if not user_ids:
                     logger.debug(
-                        f"{LOG_PREFIX} Apple Calendar 已读取 {len(events)} 个事件，但无可同步用户"  # noqa: E501
+                        f"{LOG_PREFIX} Apple Calendar 已读取 {len(events)} 个事件，但无可同步用户"
                     )
                     return
                 recent_events_added = False
@@ -797,7 +800,7 @@ class ScheduleAssistant(Star):
                     stats = await self.store.sync_from_apple_calendar(user_id, events)
                     logger.debug(
                         f"{LOG_PREFIX} Apple→本地同步 user={user_id} "
-                        f"added={stats['added']} updated={stats['updated']} deleted={stats['deleted']}"  # noqa: E501
+                        f"added={stats['added']} updated={stats['updated']} deleted={stats['deleted']}"
                     )
                     if stats.get("added", 0) > 0:
                         recent_events_added = True

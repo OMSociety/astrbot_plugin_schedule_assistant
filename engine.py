@@ -17,7 +17,6 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from apscheduler.triggers.cron import CronTrigger
-
 from astrbot.api import logger
 
 from .constants import LOG_PREFIX
@@ -194,8 +193,8 @@ class TimedMessageEngine:
         """移除一个任务（不存在时静默忽略）"""
         try:
             self.scheduler.remove_job(name)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"{LOG_PREFIX} 移除任务失败（可能不存在）: {name} err={e}")
         self._registered_jobs.discard(name)
 
     def has_job(self, name: str) -> bool:

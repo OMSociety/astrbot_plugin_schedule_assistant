@@ -12,7 +12,6 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import urljoin, urlparse
 
 import aiohttp
-
 from astrbot.api import logger
 
 __all__ = ["AppleCalendar"]
@@ -65,21 +64,23 @@ class AppleCalendar:
         last_error = None
         for attempt in range(retries):
             try:
-                async with aiohttp.ClientSession() as session:
-                    async with session.request(
+                async with (
+                    aiohttp.ClientSession() as session,
+                    session.request(
                         method,
                         url,
                         data=data,
                         headers=headers,
                         timeout=aiohttp.ClientTimeout(total=timeout),
-                    ) as resp:
-                        if resp.status >= 500 and attempt < retries - 1:
-                            await asyncio.sleep(1 * (attempt + 1))
-                            last_error = aiohttp.ClientResponseError(
-                                resp.request_info, resp.history, status=resp.status
-                            )
-                            continue
-                        return await resp.text(encoding="utf-8", errors="replace")
+                    ) as resp,
+                ):
+                    if resp.status >= 500 and attempt < retries - 1:
+                        await asyncio.sleep(1 * (attempt + 1))
+                        last_error = aiohttp.ClientResponseError(
+                            resp.request_info, resp.history, status=resp.status
+                        )
+                        continue
+                    return await resp.text(encoding="utf-8", errors="replace")
             except (aiohttp.ClientError, asyncio.TimeoutError) as e:
                 last_error = e
                 if attempt < retries - 1:
@@ -160,7 +161,7 @@ class AppleCalendar:
         async with self._discover_lock:
             if self._discovered:
                 return True
-            body1 = b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:"><D:prop><D:current-user-principal/></D:prop></D:propfind>'  # noqa: E501
+            body1 = b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:"><D:prop><D:current-user-principal/></D:prop></D:propfind>'
             resp1 = await self._async_request(
                 "https://caldav.icloud.com/",
                 method="PROPFIND",
@@ -187,7 +188,7 @@ class AppleCalendar:
                 logger.debug("[AppleCalendar] principal URL 组装失败")
                 return False
             logger.debug(f"[AppleCalendar] principal URL: {self._principal_url}")
-            body2 = b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><C:calendar-home-set/></D:prop></D:propfind>'  # noqa: E501
+            body2 = b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><C:calendar-home-set/></D:prop></D:propfind>'
             resp2 = await self._async_request(
                 self._principal_url,
                 method="PROPFIND",
@@ -227,7 +228,7 @@ class AppleCalendar:
 
     async def _caldav_fetch(self, cal_url: str, days: int = 30) -> list[dict]:
         """纯异步 CalDAV 抓取：PROPFIND → 并发拉 .ics → 解析"""
-        body = b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:"><D:prop><D:href/></D:prop></D:propfind>'  # noqa: E501
+        body = b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:"><D:prop><D:href/></D:prop></D:propfind>'
         resp = await self._async_request(
             cal_url.rstrip("/") + "/",
             method="PROPFIND",
@@ -292,7 +293,7 @@ class AppleCalendar:
         resp = await self._async_request(
             self._caldav_base_url + "/",
             method="PROPFIND",
-            data=b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:"><D:prop><D:href/></D:prop></D:propfind>',  # noqa: E501
+            data=b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:"><D:prop><D:href/></D:prop></D:propfind>',
             headers={
                 "Authorization": self._auth_header(),
                 "Content-Type": "text/xml",
@@ -447,17 +448,19 @@ class AppleCalendar:
         events = []
         try:
             http_url = url.replace("webcal://", "https://")
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
+            async with (
+                aiohttp.ClientSession() as session,
+                session.get(
                     http_url,
                     headers={"User-Agent": "Mozilla/5.0"},
                     timeout=aiohttp.ClientTimeout(total=30),
-                ) as resp:
-                    ical_data = await resp.text()
+                ) as resp,
+            ):
+                ical_data = await resp.text()
             events = self._parse_vevents(ical_data)
             logger.debug(f"[AppleCalendar] WebCal 读取成功: {len(events)} 个事件")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[AppleCalendar] WebCal 读取失败: {e}")
         return events
 
     def _cleanup_expired_cache(self):
@@ -471,7 +474,7 @@ class AppleCalendar:
             for k in expired_keys:
                 del self._events_cache[k]
             logger.debug(
-                f"[AppleCalendar] 清理了 {len(expired_keys)} 个过期缓存键: {expired_keys}"  # noqa: E501
+                f"[AppleCalendar] 清理了 {len(expired_keys)} 个过期缓存键: {expired_keys}"
             )
 
     async def get_all_events(self, days: int = 1) -> list[dict]:
@@ -487,7 +490,7 @@ class AppleCalendar:
         cached = self._events_cache.get(cache_key)
         if cached and (now_ts - cached.get("ts", 0)) < self._events_cache_ttl_seconds:
             logger.debug(
-                f"[AppleCalendar] 使用缓存 key={cache_key}, 事件数={len(cached.get('events', []))}"  # noqa: E501
+                f"[AppleCalendar] 使用缓存 key={cache_key}, 事件数={len(cached.get('events', []))}"
             )
             return list(cached.get("events", []))
 
@@ -500,7 +503,7 @@ class AppleCalendar:
                 and (now_ts - cached.get("ts", 0)) < self._events_cache_ttl_seconds
             ):
                 logger.debug(
-                    f"[AppleCalendar] 使用缓存(锁内) key={cache_key}, 事件数={len(cached.get('events', []))}"  # noqa: E501
+                    f"[AppleCalendar] 使用缓存(锁内) key={cache_key}, 事件数={len(cached.get('events', []))}"
                 )
                 return list(cached.get("events", []))
 
@@ -517,7 +520,7 @@ class AppleCalendar:
                         if uid:
                             all_events[uid] = evt  # 去重
                     logger.debug(
-                        f"[AppleCalendar] 日历 {cal.get('id', '?')} 获取到 {len(cal_events)} 个事件"  # noqa: E501
+                        f"[AppleCalendar] 日历 {cal.get('id', '?')} 获取到 {len(cal_events)} 个事件"
                     )
 
             for url in self.webcal_urls:
@@ -536,7 +539,7 @@ class AppleCalendar:
                 "events": events_list,
             }
             logger.info(
-                f"[AppleCalendar] get_all_events(days={days}, cache_key={cache_key}) 返回 {len(events_list)} 个事件（去重后）"  # noqa: E501
+                f"[AppleCalendar] get_all_events(days={days}, cache_key={cache_key}) 返回 {len(events_list)} 个事件（去重后）"
             )
             return events_list
 
@@ -561,10 +564,14 @@ class AppleCalendar:
         if not resolved_id:
             # 尝试按名称匹配日历
             for c in calendars:
-                if c.get("name") and (self._calendar_id or calendar_id):
-                    if self._calendar_id and self._calendar_id in c.get("name", ""):
-                        resolved_id = c["id"]
-                        break
+                if (
+                    c.get("name")
+                    and (self._calendar_id or calendar_id)
+                    and self._calendar_id
+                    and self._calendar_id in c.get("name", "")
+                ):
+                    resolved_id = c["id"]
+                    break
             if not resolved_id:
                 resolved_id = calendars[0]["id"]
                 logger.debug(
@@ -575,7 +582,7 @@ class AppleCalendar:
         dtstart_fmt = start.strftime("%Y%m%dT%H%M%S")
         dtend_fmt = (end or (start + timedelta(hours=1))).strftime("%Y%m%dT%H%M%S")
         created = datetime.now().strftime("%Y%m%dT%H%M%S")
-        vevent = f"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:{uid}\r\nDTSTAMP:{created}\r\nDTSTART;TZID=Asia/Shanghai:{dtstart_fmt}\r\nDTEND;TZID=Asia/Shanghai:{dtend_fmt}\r\nSUMMARY:{summary}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n".encode()  # noqa: E501
+        vevent = f"BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:{uid}\r\nDTSTAMP:{created}\r\nDTSTART;TZID=Asia/Shanghai:{dtstart_fmt}\r\nDTEND;TZID=Asia/Shanghai:{dtend_fmt}\r\nSUMMARY:{summary}\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n".encode()
         event_url = f"{cal_url}{uid}.ics"
         resp = await self._async_request(
             event_url,

@@ -13,7 +13,7 @@ _LLM_CIRCUIT_BREAKER_TTL = 300  # 5分钟
 class LLMService:
     """LLM 服务，封装 AstrBot 的 llm_generate 接口"""
 
-    def __init__(self, context, config: dict = None):
+    def __init__(self, context, config: dict | None = None):
         self.context = context
         self.config = config or {}
         self._provider_id = None
@@ -60,8 +60,8 @@ class LLMService:
                     if pid:
                         platform = str(pid)
                         break
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"{LOG_PREFIX} 读取平台列表失败: {e}")
         if not platform:
             # 最后兜底：平台无关默认值（避免硬编码具体平台名）
             platform = "default"
@@ -69,7 +69,7 @@ class LLMService:
         logger.debug(f"{LOG_PREFIX} 规范化 umo: {umo} → {normalized}")
         return normalized
 
-    async def _get_persona_prompt(self, umo: str = None) -> str:
+    async def _get_persona_prompt(self, umo: str | None = None) -> str:
         """获取人设 prompt，按优先级：配置指定 > 当前会话 > 全局默认"""
         umo = self._normalize_umo(umo)
         try:
@@ -104,7 +104,7 @@ class LLMService:
         prompt: str,
         use_persona: bool = True,
         history: str = "",
-        umo: str = None,
+        umo: str | None = None,
         extra_system: str = "",
     ) -> str:
         """生成 LLM 回复
@@ -134,7 +134,7 @@ class LLMService:
         )
 
     async def generate_llm_message(
-        self, prompt: str, system_prompt: str = None, temperature: float = 0.7
+        self, prompt: str, system_prompt: str | None = None, temperature: float = 0.7
     ) -> str:
         """直接调用 LLM 接口
 

@@ -5,8 +5,6 @@
 避免同一条目被多次提醒。
 """
 
-# ruff: noqa: E501
-
 from datetime import datetime
 from typing import Any
 

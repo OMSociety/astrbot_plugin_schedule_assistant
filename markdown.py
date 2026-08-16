@@ -9,7 +9,6 @@ Markdown 渲染与降级管线
 模块被 import 时不产生任何副作用，默认路径（无 md 语法 / markdown_enabled=False）
 完全不走本模块的逻辑。
 """
-# ruff: noqa: E501
 
 from __future__ import annotations
 
@@ -34,12 +33,12 @@ DEFAULT_NATIVE_PLATFORMS = {
 _MD_PATTERNS = (
     re.compile(r"\*\*[^*]+\*\*"),  # 加粗
     re.compile(r"(?<!\w)#{1,6}\s"),  # 标题
-    re.compile(r"^\s*[-*+]\s+", re.M),  # 无序列表
-    re.compile(r"^\s*\d+[.)]\s+", re.M),  # 有序列表
+    re.compile(r"^\s*[-*+]\s+", re.MULTILINE),  # 无序列表
+    re.compile(r"^\s*\d+[.)]\s+", re.MULTILINE),  # 有序列表
     re.compile(r"\[[^\]]+\]\([^)]+\)"),  # 链接
-    re.compile(r"^\s*>\s?", re.M),  # 引用
+    re.compile(r"^\s*>\s?", re.MULTILINE),  # 引用
     re.compile(r"`[^`]+`"),  # 行内代码
-    re.compile(r"^\s*\|.*\|\s*$", re.M),  # 表格行
+    re.compile(r"^\s*\|.*\|\s*$", re.MULTILINE),  # 表格行
 )
 
 
@@ -56,11 +55,11 @@ def _strip_md_regex(text: str) -> str:
     t = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", t)  # 图片
     t = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", t)  # 链接
     t = re.sub(r"`([^`]+)`", r"\1", t)  # 行内代码
-    t = re.sub(r"^\s*#{1,6}\s*", "", t, flags=re.M)  # 标题
-    t = re.sub(r"^\s*[-*+]\s+", "", t, flags=re.M)  # 列表符号
-    t = re.sub(r"^\s*>\s?", "", t, flags=re.M)  # 引用
+    t = re.sub(r"^\s*#{1,6}\s*", "", t, flags=re.MULTILINE)  # 标题
+    t = re.sub(r"^\s*[-*+]\s+", "", t, flags=re.MULTILINE)  # 列表符号
+    t = re.sub(r"^\s*>\s?", "", t, flags=re.MULTILINE)  # 引用
     t = re.sub(r"\*\*([^*]+)\*\*", r"\1", t)  # 加粗
-    t = re.sub(r"^\s*\|.*\|\s*$", "", t, flags=re.M)  # 表格行（丢弃）
+    t = re.sub(r"^\s*\|.*\|\s*$", "", t, flags=re.MULTILINE)  # 表格行（丢弃）
     return _squeeze_blank_lines(t)
 
 
