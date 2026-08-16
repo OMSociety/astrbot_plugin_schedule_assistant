@@ -398,11 +398,7 @@ class ScheduleAssistant(Star):
                 sender_id = ""
             for key in ("nickname", "name", "card", "group_card"):
                 val = sender.get(key)
-                if (
-                    isinstance(val, str)
-                    and val.strip()
-                    and val != sender_id
-                ):
+                if isinstance(val, str) and val.strip() and val != sender_id:
                     return val.strip()
 
         return ""
