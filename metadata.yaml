@@ -4,3 +4,7 @@ author: OMSociety
 version: 1.0.1
 repo: https://github.com/OMSociety/astrbot_plugin_schedule_assistant
 display_name: 日程提醒助手
+tags:
+  - 待办
+  - 日历
+  - 习惯
