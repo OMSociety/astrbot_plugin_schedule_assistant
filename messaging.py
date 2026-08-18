@@ -14,7 +14,7 @@ from astrbot.api import logger
 from astrbot.api.event import MessageChain
 
 from .constants import LOG_PREFIX
-from .markdown import MarkdownRenderer
+from .markdown import MarkdownRenderer, render_qq_active
 
 # 常见会话类型，用于识别 UMO 格式（platform:session_type:session_id）
 COMMON_SESSION_TYPES = (
@@ -147,12 +147,25 @@ class MessagingService:
             )
         return self._md_renderer
 
-    def _build_markdown_chain(self, message: str, platform_id: str) -> MessageChain:
+    def _build_markdown_chain(
+        self, message: str, platform_id: str, proactive: bool = False
+    ) -> MessageChain:
         """按平台渲染 markdown，返回消息链
 
-        两级策略：原生平台直发 md 原文，其余 strip 后纯文本直发。
+        两级策略：原生平台直发 md 原文（use_markdown_），其余 strip 后纯文本直发。
+
+        proactive=True（主动推送，如定时播报）：QQ 官方适配器的 send_by_session
+        不支持 use_markdown_（只发纯文本 content），直发会把 md 源码暴露给用户，
+        因此对 QQ 官方主动推送降级为 QQ 排版纯文本（标题转【】、去加粗等）。
         """
         renderer = self._get_md_renderer()
+        # QQ 官方主动推送：适配器不支持主动 markdown，降级为 QQ 友好排版
+        if (
+            proactive
+            and renderer.enabled
+            and renderer._resolve_platform_type(platform_id) == "qq_official"
+        ):
+            return MessageChain([Comp.Plain(render_qq_active(message))])
         content, kind = renderer.render(message, platform_id)
         if kind == "native":
             return MessageChain([Comp.Plain(content)], use_markdown_=True)
@@ -346,7 +359,10 @@ class MessagingService:
 
                 try:
                     if md_enabled:
-                        chain = self._build_markdown_chain(message, platform)
+                        # send_to_user 是主动推送：QQ 官方走 QQ 排版降级（适配器不支持主动 md）
+                        chain = self._build_markdown_chain(
+                            message, platform, proactive=True
+                        )
                     else:
                         chain = MessageChain([Comp.Plain(message)])
                     await self.context.send_message(session, chain)

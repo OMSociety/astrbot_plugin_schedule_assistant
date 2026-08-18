@@ -7,6 +7,7 @@ resolve_target_users 对纯 ID / UMO 混存场景的去重（修复重复发送�
 """
 
 import asyncio
+from types import SimpleNamespace
 
 from schedule_assistant.messaging import MessageTarget, MessagingService
 
@@ -101,3 +102,78 @@ class TestResolveTargetUsers:
         ms = self._make_service([self.UID], None, ["known_user_1", "known_user_2"])
         result = asyncio.run(ms.resolve_target_users(include_known_users=False))
         assert result == [self.UID]
+
+
+class _FakePlatform:
+    """模拟平台实例（meta() 返回 id/name，用于平台类型映射）"""
+
+    def __init__(self, pid: str, name: str):
+        self._pid = pid
+        self._name = name
+
+    def meta(self):
+        return SimpleNamespace(id=self._pid, name=self._name)
+
+
+class TestBuildMarkdownChain:
+    """主动推送 markdown 降级（QQ 官方适配器 send_by_session 不支持 use_markdown_）"""
+
+    SAMPLE = (
+        "早安喵~\n\n#### 📅 早安播报\n2026-08-16 周日\n\n"
+        "**🌤️ 天气** 小雨 22°C\n\n| 时间 | 事项 |\n|------|------|\n| 09:00 | 组会 |"
+    )
+
+    class _FakeCtx:
+        class PM:
+            def __init__(self):
+                self.platform_insts = [
+                    _FakePlatform("Flandre", "qq_official"),
+                    _FakePlatform("webchat", "webchat"),
+                ]
+
+        platform_manager = PM()
+
+    def _service(self, md_enabled: bool = True) -> MessagingService:
+        return MessagingService(
+            self._FakeCtx(),
+            {
+                "markdown_enabled": md_enabled,
+                "markdown_native_platforms": [],
+                "qq_markdown_enabled": None,
+            },
+        )
+
+    def test_proactive_qq_official_no_md_symbols(self):
+        """主动推送 QQ 官方 → QQ 排版降级（无 md 符号，标题转【】）"""
+        chain = self._service()._build_markdown_chain(
+            self.SAMPLE, "Flandre", proactive=True
+        )
+        text = chain.chain[0].text
+        assert "####" not in text
+        assert "**" not in text
+        assert "【📅 早安播报】" in text
+        assert "时间：事项" in text  # 表格转键值
+
+    def test_reply_qq_official_keeps_native(self):
+        """被动回复 QQ 官方 → 保留 native（use_markdown_ 交给适配器渲染）"""
+        chain = self._service()._build_markdown_chain(
+            self.SAMPLE, "Flandre", proactive=False
+        )
+        assert getattr(chain, "use_markdown_", False) is True
+
+    def test_proactive_webchat_still_strips(self):
+        """主动推送 webchat → strip 干净文本（不受 QQ 降级影响）"""
+        chain = self._service()._build_markdown_chain(
+            self.SAMPLE, "webchat", proactive=True
+        )
+        text = chain.chain[0].text
+        assert "####" not in text
+        assert "**" not in text
+
+    def test_proactive_md_disabled_keeps_raw(self):
+        """markdown_enabled=False → 维持原文直发（配置语义不变）"""
+        chain = self._service(md_enabled=False)._build_markdown_chain(
+            self.SAMPLE, "Flandre", proactive=True
+        )
+        text = chain.chain[0].text
+        assert "####" in text  # 原文直发
