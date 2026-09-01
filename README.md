@@ -171,6 +171,18 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 | `markdown_native_platforms` | list | `[]` | 额外追加原生解析 Markdown 的平台 ID |
 | `qq_markdown_enabled` | bool | 留空 | QQ 平台开关：留空跟随全局；`false` 强制 QQ 不走原生 md |
 
+### 提醒 Prompt 模板（可定制）
+
+| 配置项 | 类型 | 默认 | 说明 |
+|--------|------|------|------|
+| `prompt_morning` | string | `""` | 早安播报模板。占位符：`{username} {date} {weekday} {weather_current} {weather_forecast} {agenda} {notion_todos} {late_night}` |
+| `prompt_bath` | string | `""` | 洗澡提醒模板。占位符：`{current_time} {default_time} {history}` |
+| `prompt_sleep` | string | `""` | 睡觉提醒模板。占位符：`{current_time} {default_time} {is_late} {history}` |
+| `prompt_water` | string | `""` | 喝水提醒模板。占位符：`{current_time} {history}` |
+| `prompt_schedule` | string | `""` | 日程提醒模板。占位符：`{item_title} {time_label} {ahead_label} {item_context} {conv_history}` |
+
+> 默认值已内置（见 `prompt_config.py`），留空即用内置默认；想定制语气时填写对应模板。
+
 ### 快速配置模板
 
 在 WebUI 配置面板填写，或参考以下结构（`data/config/schedule_assistant_config.json`）：
@@ -215,6 +227,13 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
     "markdown_enabled": true,
     "markdown_native_platforms": [],
     "qq_markdown_enabled": null
+  },
+  "prompt_settings": {
+    "prompt_morning": "",
+    "prompt_bath": "",
+    "prompt_sleep": "",
+    "prompt_water": "",
+    "prompt_schedule": ""
   }
 }
 ```
@@ -280,22 +299,6 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 | `new_title` | string? | 新标题 |
 | `new_datetime` | string? | 新时间，支持自然语言 |
 | `new_description` | string? | 新备注 |
-
----
-
-## 🧩 架构
-
-### 定时消息引擎（engine.py）
-「定时触发」与「内容生成/发送」解耦：
-- 业务通过 `register_job` 注册，`content_provider` 只负责生成内容，发送统一走 MessagingService
-- 特殊任务（喝水重排、Apple 同步等）用 `register_raw_job` 注册自定义 handler
-- 触发方式：`CronTrigger` 实例 / `"HH:MM"` 每日定时 / `"interval:N"` 每 N 分钟
-
-### Markdown 渲染管线（markdown.py）
-两级降级策略，`render` 返回 `(content, kind)`：
-- `native`：平台原生解析 md，原文直发（qq_official / discord / telegram / slack / kook 等，可用 `markdown_native_platforms` 追加）
-- `plain`：strip 降级为纯文本
-- 依赖均为惰性导入，未启用时零开销
 
 ---
 
