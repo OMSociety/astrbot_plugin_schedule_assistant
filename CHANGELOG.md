@@ -8,6 +8,10 @@
 - 内置 `prompt_config.py` 集中存放默认模板（配置留空时使用内置默认，老用户零影响）
 - 新增时间格式辅助：`_format_time_label`（把 `2026-09-01 14:30` 转成 `14:30`）、`_format_ahead_label`（把提前分钟数转成"10 分钟后开始"）
 
+### 🐛 Bug 修复
+
+- **修复早安播报默认模板中条件式占位符未求值的问题**：`DEFAULT_PROMPT_MORNING` 里的 `{weather_forecast if weather_forecast else "暂无"}` 是 format 风格写法，但 `render_prompt` 用 `.replace` 替换、无法求值，会导致播报原文中直接出现这段代码文字。改为 `{weather_forecast}`，兜底文案交给调用方（`weather_forecast or "暂无"`）
+
 ### ⚠️ 行为变化
 
 - 日程提醒提示词**从旧版僵化模板改为自然口语新版**（15~30 字、像朋友随口一句），并新增时间解析；LLM 失败时的 fallback 文案不变
