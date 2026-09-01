@@ -222,5 +222,42 @@
     "default": null
    }
   }
+ },
+ "prompt_settings": {
+  "description": "提醒 Prompt 模板（可定制）",
+  "type": "object",
+  "hint": "各提醒的 LLM 提示词模板，支持 {变量名} 占位符。默认值已内置，无需改动；需要定制语气时编辑对应模板。",
+  "items": {
+   "prompt_morning": {
+    "type": "string",
+    "description": "早安播报模板",
+    "hint": "占位符：{username} {date} {weekday} {weather_current} {weather_forecast} {agenda} {notion_todos} {late_night}",
+    "default": ""
+   },
+   "prompt_bath": {
+    "type": "string",
+    "description": "洗澡提醒模板",
+    "hint": "占位符：{current_time} {default_time} {history}",
+    "default": ""
+   },
+   "prompt_sleep": {
+    "type": "string",
+    "description": "睡觉提醒模板",
+    "hint": "占位符：{current_time} {default_time} {is_late} {history}",
+    "default": ""
+   },
+   "prompt_water": {
+    "type": "string",
+    "description": "喝水提醒模板",
+    "hint": "占位符：{current_time} {history}",
+    "default": ""
+   },
+   "prompt_schedule": {
+    "type": "string",
+    "description": "日程提醒模板",
+    "hint": "占位符：{item_title} {time_label} {ahead_label} {item_context} {conv_history}",
+    "default": ""
+   }
+  }
  }
 }

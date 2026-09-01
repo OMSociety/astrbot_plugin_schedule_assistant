@@ -218,7 +218,7 @@ class ScheduleAssistant(Star):
             self.water_reminder = WaterReminder(
                 self.config, self.default_user_id, self.llm_service, self.store
             )
-            self.schedule_reminder = ScheduleReminder(self.llm_service)
+            self.schedule_reminder = ScheduleReminder(self.llm_service, self.config)
 
             conf = self.config
             if conf.get("enable_apple_calendar_sync"):
