@@ -106,10 +106,7 @@ class HabitReminder:
 
     def _build_prompt(self, context: dict) -> str:
         """用配置模板（或默认）渲染 prompt"""
-        template = (
-            self.config.get(self._prompt_config_key)
-            or self._default_prompt
-        )
+        template = self.config.get(self._prompt_config_key) or self._default_prompt
         return render_prompt(template, context)
 
     async def generate(
