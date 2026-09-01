@@ -6,7 +6,7 @@
 
 **你的贴心日程管家** —— 早安播报 · 习惯提醒 · LLM 日程管理 · Apple 日历双向同步 · Notion 待办同步
 
-[![Version](https://img.shields.io/badge/version-1.0.3-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
+[![Version](https://img.shields.io/badge/version-1.0.4-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/OMSociety/astrbot_plugin_schedule_assistant)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/stargazers)
@@ -151,6 +151,8 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 | `apple_calendar.app_password` | string | - | **App 专用密码**（非登录密码） |
 | `apple_calendar.calendar_id` | string | - | 目标日历 UUID 或名称，留空默认第一个 |
 | `webcal_urls` | list | `[]` | WebCal 共享日历链接 |
+
+> 💡 **WebCal 订阅安全**：`webcal_urls` 只接受公网 `https://` 订阅地址（`webcal://` 自动转 `https://`）。插件会拒绝 `localhost`、内网（如 `192.168.x` / `10.x`）、云元数据（`169.254.169.254`）等地址（防 SSRF）。请勿填写内网或本机地址。
 
 > 写入开关统一使用顶层的 `enable_apple_calendar_sync`，开启后本地创建/删除的日程会自动同步到 Apple 日历。
 
