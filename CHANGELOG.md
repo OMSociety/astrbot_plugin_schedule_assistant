@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.3] - 2026-09-01
+
+### 🐛 Bug 修复
+
+- **修复早安播报默认模板中条件式占位符未求值的问题**：`DEFAULT_PROMPT_MORNING` 里的 `{weather_forecast if weather_forecast else "暂无"}` 是 format 风格写法，但 `render_prompt` 用 `.replace` 替换、无法求值，会导致播报原文中直接出现这段代码文字。改为 `{weather_forecast}`，兜底文案交给调用方（`weather_forecast or "暂无"`）
+
 ## [1.0.2] - 2026-09-01
 
 ### ✨ 新功能
@@ -7,10 +13,6 @@
 - **提醒 Prompt 全部配置化**：早安播报、洗澡 / 睡觉 / 喝水提醒、日程提醒的 LLM 提示词模板改为可配置项（配置 `prompt_settings` 分组下的 `prompt_morning` / `prompt_bath` / `prompt_sleep` / `prompt_water` / `prompt_schedule`），支持 `{占位符}` 变量替换，无需改代码即可定制提醒语气
 - 内置 `prompt_config.py` 集中存放默认模板（配置留空时使用内置默认，老用户零影响）
 - 新增时间格式辅助：`_format_time_label`（把 `2026-09-01 14:30` 转成 `14:30`）、`_format_ahead_label`（把提前分钟数转成"10 分钟后开始"）
-
-### 🐛 Bug 修复
-
-- **修复早安播报默认模板中条件式占位符未求值的问题**：`DEFAULT_PROMPT_MORNING` 里的 `{weather_forecast if weather_forecast else "暂无"}` 是 format 风格写法，但 `render_prompt` 用 `.replace` 替换、无法求值，会导致播报原文中直接出现这段代码文字。改为 `{weather_forecast}`，兜底文案交给调用方（`weather_forecast or "暂无"`）
 
 ### ⚠️ 行为变化
 
