@@ -95,7 +95,7 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 只需在 WebUI 插件配置 → **基础设置** → `user_ids` 填一行：
 
 ```
-Flandre:FriendMessage:8F3F9FB8F550542AD89BBE3A29C703D2
+你的平台ID:FriendMessage:你的用户ID
 ```
 
 `平台ID:会话类型:用户ID`（UMO 格式）一行搞定「提醒谁 + 从哪个平台发」。填纯 QQ 号也可以，会自动按私聊发送。
@@ -180,7 +180,7 @@ Flandre:FriendMessage:8F3F9FB8F550542AD89BBE3A29C703D2
   "basic_settings": {
     "persona_id": "",
     "user_nickname": "",
-    "user_ids": ["Flandre:FriendMessage:8F3F9FB8F550542AD89BBE3A29C703D2"]
+    "user_ids": ["你的平台ID:FriendMessage:你的用户ID"]
   },
   "schedule_reminder_settings": {
     "enable_schedule_reminder": false,

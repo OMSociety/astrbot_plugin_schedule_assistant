@@ -191,7 +191,7 @@ class MessagingService:
         注册一条 UMO 平台绑定（user_ids 中的 UMO 条目在名单解析时自动调用）
 
         Args:
-            umo: UMO 字符串，如 "Flandre:FriendMessage:xxx"
+            umo: UMO 字符串，如 "bot:FriendMessage:xxx"
             platform_id: 可选发送平台，为空时取 UMO 第一段
 
         Returns:

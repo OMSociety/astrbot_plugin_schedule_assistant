@@ -16,9 +16,9 @@ class TestMessageTargetFromUmo:
     """UMO 字符串解析"""
 
     def test_valid_umo(self):
-        t = MessageTarget.from_umo("Flandre:FriendMessage:UID123")
+        t = MessageTarget.from_umo("bot:FriendMessage:UID123")
         assert t is not None
-        assert t.platform_id == "Flandre"
+        assert t.platform_id == "bot"
         assert t.session_type == "FriendMessage"
         assert t.session_id == "UID123"
 
@@ -29,27 +29,27 @@ class TestMessageTargetFromUmo:
 
     def test_invalid_session_type(self):
         t = MessageTarget.from_umo(
-            "Flandre:UnknownType:UID123", session_types={"FriendMessage"}
+            "bot:UnknownType:UID123", session_types={"FriendMessage"}
         )
         assert t is None
 
     def test_too_few_parts(self):
-        assert MessageTarget.from_umo("Flandre:UID123") is None
+        assert MessageTarget.from_umo("bot:UID123") is None
 
     def test_empty(self):
         assert MessageTarget.from_umo("") is None
         assert MessageTarget.from_umo(None) is None
 
     def test_to_session_roundtrip(self):
-        t = MessageTarget.from_umo("Flandre:FriendMessage:UID123")
-        assert t.to_session() == "Flandre:FriendMessage:UID123"
+        t = MessageTarget.from_umo("bot:FriendMessage:UID123")
+        assert t.to_session() == "bot:FriendMessage:UID123"
 
 
 class TestResolveTargetUsers:
     """目标用户解析归一化去重（修复重复发送的核心逻辑）"""
 
-    UID = "D097688D60BFA4D7D716B66DB75BE662"
-    UMO = f"Flandre:FriendMessage:{UID}"
+    UID = "UID123"
+    UMO = f"bot:FriendMessage:{UID}"
 
     class _FakeCtx:
         class PM:
@@ -127,7 +127,7 @@ class TestBuildMarkdownChain:
         class PM:
             def __init__(self):
                 self.platform_insts = [
-                    _FakePlatform("Flandre", "qq_official"),
+                    _FakePlatform("bot", "qq_official"),
                     _FakePlatform("webchat", "webchat"),
                 ]
 
@@ -146,7 +146,7 @@ class TestBuildMarkdownChain:
     def test_proactive_qq_official_no_md_symbols(self):
         """主动推送 QQ 官方 → QQ 排版降级（无 md 符号，标题转【】）"""
         chain = self._service()._build_markdown_chain(
-            self.SAMPLE, "Flandre", proactive=True
+            self.SAMPLE, "bot", proactive=True
         )
         text = chain.chain[0].text
         assert "####" not in text
@@ -157,7 +157,7 @@ class TestBuildMarkdownChain:
     def test_reply_qq_official_keeps_native(self):
         """被动回复 QQ 官方 → 保留 native（use_markdown_ 交给适配器渲染）"""
         chain = self._service()._build_markdown_chain(
-            self.SAMPLE, "Flandre", proactive=False
+            self.SAMPLE, "bot", proactive=False
         )
         assert getattr(chain, "use_markdown_", False) is True
 
@@ -173,7 +173,7 @@ class TestBuildMarkdownChain:
     def test_proactive_md_disabled_keeps_raw(self):
         """markdown_enabled=False → 维持原文直发（配置语义不变）"""
         chain = self._service(md_enabled=False)._build_markdown_chain(
-            self.SAMPLE, "Flandre", proactive=True
+            self.SAMPLE, "bot", proactive=True
         )
         text = chain.chain[0].text
         assert "####" in text  # 原文直发
