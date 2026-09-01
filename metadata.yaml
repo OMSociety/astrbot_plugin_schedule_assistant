@@ -1,7 +1,7 @@
 name: schedule_assistant
 desc: 你的贴心日程管家，支持早安播报、习惯提醒、LLM 智能日程管理、Apple 日历双向同步、Notion 待办同步
 author: OMSociety
-version: 1.0.1
+version: 1.0.2
 repo: https://github.com/OMSociety/astrbot_plugin_schedule_assistant
 display_name: 日程提醒助手
 tags:
