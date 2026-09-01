@@ -171,7 +171,7 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 | `markdown_native_platforms` | list | `[]` | 额外追加原生解析 Markdown 的平台 ID |
 | `qq_markdown_enabled` | bool | 留空 | QQ 平台开关：留空跟随全局；`false` 强制 QQ 不走原生 md |
 
-### 提醒 Prompt 模板（可定制）
+### 提醒 Prompt 模板
 
 | 配置项 | 类型 | 默认 | 说明 |
 |--------|------|------|------|
@@ -181,7 +181,7 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 | `prompt_water` | string | `""` | 喝水提醒模板。占位符：`{current_time} {history}` |
 | `prompt_schedule` | string | `""` | 日程提醒模板。占位符：`{item_title} {time_label} {ahead_label} {item_context} {conv_history}` |
 
-> 默认值已内置（见 `prompt_config.py`），留空即用内置默认；想定制语气时填写对应模板。
+> 各模板留空则使用内置默认（见 `prompt_config.py`）；想定制提醒语气时填写，支持 `{变量名}` 占位符。
 
 ### 快速配置模板
 

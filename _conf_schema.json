@@ -224,9 +224,9 @@
   }
  },
  "prompt_settings": {
-  "description": "提醒 Prompt 模板（可定制）",
+  "description": "提醒 Prompt 模板",
   "type": "object",
-  "hint": "各提醒的 LLM 提示词模板，支持 {变量名} 占位符。默认值已内置，无需改动；需要定制语气时编辑对应模板。",
+  "hint": "各提醒的 LLM 提示词模板。留空则使用内置默认模板；想定制提醒语气时填写，支持 {变量名} 占位符。",
   "items": {
    "prompt_morning": {
     "type": "string",
