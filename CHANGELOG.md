@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.0.5] - 2026-09-02
+
+### 🐛 Bug 修复
+
+- **Apple 日历 `create_event` 补全 DESCRIPTION 与 ICS 转义**：此前创建事件时不写入备注（`description`），且 `SUMMARY` 未做 RFC 5545 转义，标题含分号/逗号/换行时会导致 ICS 解析错乱。现补 `DESCRIPTION` 行，并对 SUMMARY/DESCRIPTION 做 `\` `;` `,` 换行转义
+
 ## [1.0.4] - 2026-09-01
 
 ### 🔒 安全修复
