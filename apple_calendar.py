@@ -48,7 +48,6 @@ class AppleCalendar:
         self._principal_url: str | None = None
         self._caldav_base_url: str | None = None
         self._caldav_base_domain: str | None = None
-        self._calendars: list[dict] | None = None
         self._discovered = False
         self._discover_lock = asyncio.Lock()
         self._fetch_lock = asyncio.Lock()
@@ -56,6 +55,7 @@ class AppleCalendar:
         self._events_cache_ttl_seconds = 300
         self._calendars_cache: list[dict] = []
         self._calendars_cache_ttl_seconds = 300
+        self._calendars_ts: float = 0.0
         self._last_ics_discovery_log_ts = 0.0
         self._last_ics_discovery_count: int | None = None
         self._calendar_id = calendar_id
@@ -105,25 +105,6 @@ class AppleCalendar:
         )
         return None
 
-    async def _async_request(
-        self,
-        url: str,
-        method: str = "GET",
-        data: bytes | None = None,
-        headers: dict | None = None,
-        timeout: int = 30,
-        retries: int = 3,
-    ) -> str | None:
-        """向后兼容别名：直接委托给 _aiohttp_request"""
-        return await self._aiohttp_request(
-            url,
-            method=method,
-            data=data,
-            headers=headers,
-            timeout=timeout,
-            retries=retries,
-        )
-
     @staticmethod
     def _clean_href(raw: str) -> str:
         href = html.unescape((raw or "").strip())
@@ -133,7 +114,7 @@ class AppleCalendar:
         for splitter in ('">', "'>", "<", ">"):
             if splitter in href:
                 href = href.split(splitter, 1)[0]
-        m = re.search("(https?://[^\\s<>'\\\"]+|/^\\s<>'\\\"]+)", href)
+        m = re.search(r"(https?://[^\s<>'\"]+|/[^\s<>'\"]+)", href)
         href = m.group(1) if m else href
         href = re.sub(r"\s+", "", href)
         return href
@@ -177,7 +158,7 @@ class AppleCalendar:
             if self._discovered:
                 return True
             body1 = b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:"><D:prop><D:current-user-principal/></D:prop></D:propfind>'
-            resp1 = await self._async_request(
+            resp1 = await self._aiohttp_request(
                 "https://caldav.icloud.com/",
                 method="PROPFIND",
                 data=body1,
@@ -191,7 +172,7 @@ class AppleCalendar:
                 return False
             principal_href = self._extract_href(resp1, "current-user-principal")
             if not principal_href:
-                m = re.search(r"(/\\d+/\\w+)/?$", resp1)
+                m = re.search(r"(/\d+/\w+)/?$", resp1)
                 principal_href = "/" + m.group(1) if m else None
             if not principal_href:
                 logger.debug("[AppleCalendar] 无法解析 principal URL")
@@ -204,7 +185,7 @@ class AppleCalendar:
                 return False
             logger.debug(f"[AppleCalendar] principal URL: {self._principal_url}")
             body2 = b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><C:calendar-home-set/></D:prop></D:propfind>'
-            resp2 = await self._async_request(
+            resp2 = await self._aiohttp_request(
                 self._principal_url,
                 method="PROPFIND",
                 data=body2,
@@ -218,11 +199,11 @@ class AppleCalendar:
                 return False
             cal_home_href = self._extract_href(resp2, "calendar-home-set")
             if not cal_home_href:
-                m = re.search(r"https?://[^\\s<>\"']+/calendars/", resp2)
+                m = re.search(r"https?://[^\s<>\"']+/calendars/", resp2)
                 if m:
                     cal_home_href = m.group(0).rstrip("/")
                 else:
-                    m = re.search(r"/(\\d+/calendars/?)", resp2)
+                    m = re.search(r"/(\d+/calendars/?)", resp2)
                     if m:
                         cal_home_href = "/" + m.group(1).rstrip("/")
             if not cal_home_href:
@@ -241,10 +222,13 @@ class AppleCalendar:
             )
             return True
 
-    async def _caldav_fetch(self, cal_url: str, days: int = 30) -> list[dict]:
-        """纯异步 CalDAV 抓取：PROPFIND → 并发拉 .ics → 解析"""
+    async def _caldav_fetch(self, cal_url: str) -> list[dict]:
+        """纯异步 CalDAV 抓取：PROPFIND → 并发拉 .ics → 解析。
+
+        PROPFIND 本身不带时间窗口过滤，调用方自行按需筛选。
+        """
         body = b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:"><D:prop><D:href/></D:prop></D:propfind>'
-        resp = await self._async_request(
+        resp = await self._aiohttp_request(
             cal_url.rstrip("/") + "/",
             method="PROPFIND",
             data=body,
@@ -299,13 +283,12 @@ class AppleCalendar:
         now_ts = time.monotonic()
         if (
             self._calendars_cache
-            and (now_ts - getattr(self, "_calendars_ts", 0))
-            < self._calendars_cache_ttl_seconds
+            and (now_ts - self._calendars_ts) < self._calendars_cache_ttl_seconds
         ):
             return list(self._calendars_cache)
         if not await self._discover():
             return []
-        resp = await self._async_request(
+        resp = await self._aiohttp_request(
             self._caldav_base_url + "/",
             method="PROPFIND",
             data=b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:"><D:prop><D:href/></D:prop></D:propfind>',
@@ -342,11 +325,26 @@ class AppleCalendar:
                 calendars.append(
                     {"href": href, "url": cal_url, "id": cal_uuid, "name": ""}
                 )
-        self._calendars = calendars
         self._calendars_cache = list(calendars)
         self._calendars_ts = time.monotonic()
         logger.debug(f"[AppleCalendar] 发现 {len(calendars)} 个日历")
         return calendars
+
+    async def find_events_by_summary(self, summary: str) -> list[tuple[dict, str]]:
+        """按标题精确匹配查找各日历中的事件，返回 (事件, 日历ID) 列表。
+
+        供删除同步等外部调用使用，避免直接依赖内部抓取方法。
+        """
+        if not summary:
+            return []
+        if not await self._discover():
+            return []
+        matches: list[tuple[dict, str]] = []
+        for cal in await self._list_calendars():
+            for evt in await self._caldav_fetch(cal["url"]):
+                if evt.get("summary") == summary:
+                    matches.append((evt, cal["id"]))
+        return matches
 
     def _parse_vevents(self, ical_data: str) -> list[dict]:
         """解析 VEVENT，正确处理 UTC 和本地时区
@@ -515,7 +513,7 @@ class AppleCalendar:
             or ip.is_unspecified
         )
 
-    async def fetch_webcal_async(self, url: str, days: int = 30) -> list[dict]:
+    async def fetch_webcal_async(self, url: str) -> list[dict]:
         events = []
         try:
             # 防 SSRF：WebCal 地址必须为公网 https/http，拒绝内网/本地/云元数据地址
@@ -589,7 +587,7 @@ class AppleCalendar:
                 calendars = await self._list_calendars()
                 logger.debug(f"[AppleCalendar] 准备获取 {len(calendars)} 个日历的事件")
                 for cal in calendars:
-                    cal_events = await self._caldav_fetch(cal["url"], days)
+                    cal_events = await self._caldav_fetch(cal["url"])
                     for evt in cal_events:
                         uid = evt.get("uid")
                         if uid:
@@ -599,7 +597,7 @@ class AppleCalendar:
                     )
 
             for url in self.webcal_urls:
-                webcal_events = await self.fetch_webcal_async(url, days)
+                webcal_events = await self.fetch_webcal_async(url)
                 for evt in webcal_events:
                     uid = evt.get("uid")
                     if uid:
@@ -613,7 +611,7 @@ class AppleCalendar:
                 "ts": time.monotonic(),
                 "events": events_list,
             }
-            logger.info(
+            logger.debug(
                 f"[AppleCalendar] get_all_events(days={days}, cache_key={cache_key}) 返回 {len(events_list)} 个事件（去重后）"
             )
             return events_list
@@ -635,23 +633,11 @@ class AppleCalendar:
             return None
 
         # 优先级：传入参数 > 配置的 calendar_id > 第一个日历
-        resolved_id = calendar_id or self._calendar_id
-        if not resolved_id:
-            # 尝试按名称匹配日历
-            for c in calendars:
-                if (
-                    c.get("name")
-                    and (self._calendar_id or calendar_id)
-                    and self._calendar_id
-                    and self._calendar_id in c.get("name", "")
-                ):
-                    resolved_id = c["id"]
-                    break
-            if not resolved_id:
-                resolved_id = calendars[0]["id"]
-                logger.debug(
-                    f"[AppleCalendar] 未找到指定日历，使用第一个: {resolved_id[:8]}..."
-                )
+        resolved_id = calendar_id or self._calendar_id or calendars[0]["id"]
+        if resolved_id == calendars[0]["id"] and not (calendar_id or self._calendar_id):
+            logger.debug(
+                f"[AppleCalendar] 未找到指定日历，使用第一个: {resolved_id[:8]}..."
+            )
         cal_url = f"{self._caldav_base_url}/{resolved_id}/"
         uid = str(uuid.uuid4())
         dtstart_fmt = start.strftime("%Y%m%dT%H%M%S")
@@ -674,7 +660,7 @@ class AppleCalendar:
         lines.append("END:VCALENDAR")
         vevent = ("\r\n".join(lines) + "\r\n").encode()
         event_url = f"{cal_url}{uid}.ics"
-        resp = await self._async_request(
+        resp = await self._aiohttp_request(
             event_url,
             method="PUT",
             data=vevent,
@@ -698,7 +684,7 @@ class AppleCalendar:
         resolved_id = calendar_id or self._calendar_id or calendars[0]["id"]
         cal_url = f"{self._caldav_base_url}/{resolved_id}/"
         event_url = f"{cal_url}{uid}.ics"
-        resp = await self._async_request(
+        resp = await self._aiohttp_request(
             event_url, method="DELETE", headers={"Authorization": self._auth_header()}
         )
         if resp is not None:

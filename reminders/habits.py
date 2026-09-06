@@ -61,11 +61,8 @@ class HabitReminder:
         self.habit_type = habit_type
 
     def _get_fallback(self) -> str:
-        """获取本提醒类型的 fallback 模板。
-
-        在 generate() 生成前调用并设置到 LLM 服务，
-        避免多个提醒共享同一 LLM 服务实例时互相覆盖 fallback 文案。
-        """
+        """获取本提醒类型的 fallback 文案，随 generate 调用显式传入 LLM 服务，
+        避免多个提醒共享同一 LLM 服务实例时串用其他场景的兜底文案。"""
         return self.FALLBACKS.get(self.habit_type, "")
 
     def _get_default_time(self) -> str:
@@ -125,12 +122,12 @@ class HabitReminder:
         now = datetime.now()
         context = self._get_prompt_context(username, history_text, now)
         prompt = self._build_prompt(context)
-        # 生成前设置本提醒的 fallback（生成后不再恢复：
-        # 每次生成都会重新设置，互不干扰）
-        self.llm_service.set_fallback_template(self._get_fallback())
         # prompt 中已含【近期对话】上下文，不再额外传 history= 避免重复注入
         return await self.llm_service.generate(
-            prompt, umo=user_id, extra_system=BROADCAST_MD_OVERRIDE
+            prompt,
+            umo=user_id,
+            extra_system=BROADCAST_MD_OVERRIDE,
+            fallback=self._get_fallback(),
         )
 
 

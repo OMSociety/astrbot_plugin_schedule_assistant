@@ -79,6 +79,7 @@ class ScheduleAssistant(Star):
         self.llm_service: LLMService | None = None
         self.apple_calendar: AppleCalendar | None = None
         self.notion: NotionClient | None = None
+        self.schedule_reminder: ScheduleReminder | None = None
         self._services_ready = False
         self._services_init_lock = asyncio.Lock()
         self._tasks_registered = False
@@ -123,10 +124,6 @@ class ScheduleAssistant(Star):
             return
         # 如果是某种边界情况导致 __init__ 没启动，兜底执行
         await self._initialize()
-
-    def _add_or_replace_job(self, func, trigger, *, job_id: str, **kwargs):
-        """兼容旧内部调用：统一收敛到定时引擎（raw job 模式）"""
-        self.timed_engine.register_raw_job(job_id, trigger, func, **kwargs)
 
     def _schedule_next_water_reminder(self, run_date: datetime):
         self.timed_engine.register_raw_job(
@@ -353,9 +350,10 @@ class ScheduleAssistant(Star):
             end_h, end_m = map(int, water_end.split(":"))
         except (ValueError, TypeError, AttributeError):
             logger.warning(
-                f"{LOG_PREFIX} 喝水时段配置非法: start={water_start!r} end={water_end!r}，使用默认 09:00-21:00"
+                f"{LOG_PREFIX} 喝水时段配置非法: start={water_start!r} end={water_end!r}，使用默认 {DEFAULT_WATER_START}-{DEFAULT_WATER_END}"
             )
-            start_h, start_m, end_h, end_m = 9, 0, 21, 0
+            start_h, start_m = map(int, DEFAULT_WATER_START.split(":"))
+            end_h, end_m = map(int, DEFAULT_WATER_END.split(":"))
         try:
             interval_min = max(1, int(water_interval))
         except (ValueError, TypeError):
@@ -483,7 +481,7 @@ class ScheduleAssistant(Star):
         try:
             events = await self.apple_calendar.get_all_events(days=1)
             today = datetime.now().date()
-            logger.info(
+            logger.debug(
                 f"{LOG_PREFIX} Apple日历获取到 {len(events)} 个事件，开始筛选今日({today})事件..."
             )
 
@@ -510,10 +508,10 @@ class ScheduleAssistant(Star):
                 rows.append((start_dt, f"⏰ {time_label} │ {summary}"))
 
             if not rows:
-                logger.info(f"{LOG_PREFIX} 今日 Apple 日历无日程")
+                logger.debug(f"{LOG_PREFIX} 今日 Apple 日历无日程")
                 return "暂无"
             rows.sort(key=lambda x: x[0])
-            logger.info(
+            logger.debug(
                 f"{LOG_PREFIX} 今日 Apple 日历事件筛选完成，共 {len(rows)} 个: {[s for _, s in rows]}"
             )
             return "\n".join([line for _, line in rows[:limit]])
@@ -623,26 +621,6 @@ class ScheduleAssistant(Star):
         )
         return briefing or None
 
-    async def _morning_briefing(self, target_user_id: str | None = None):
-        """兼容入口：手动触发早安播报（定时任务由引擎注册 provider）"""
-        try:
-            await self._ensure_services()
-            shared = await self._prepare_morning_context()
-            target_user_ids = (
-                [str(target_user_id)]
-                if target_user_id
-                else await self._get_target_user_ids()
-            )
-            if not target_user_ids:
-                return
-            for user_id in target_user_ids:
-                content = await self._morning_briefing_content(user_id, shared)
-                if content:
-                    await self.messaging.send_to_user(user_id, content)
-            logger.info(f"{LOG_PREFIX} 早安播报已发送 users={target_user_ids}")
-        except Exception as e:
-            logger.error(f"{LOG_PREFIX} 早安播报失败: {e}")
-
     def _make_habit_content_provider(self, reminder_obj, label: str):
         """构造习惯提醒内容生成器（定时引擎调用，只生成不发送）"""
 
@@ -694,12 +672,6 @@ class ScheduleAssistant(Star):
             logger.error(f"{LOG_PREFIX} {label}提醒失败: {e}")
             return []
 
-    async def _bath_reminder(self, target_user_id: str | None = None):
-        await self._run_habit_reminder(self.bath_reminder, "洗澡", target_user_id)
-
-    async def _sleep_reminder(self, target_user_id: str | None = None):
-        await self._run_habit_reminder(self.sleep_reminder, "睡觉", target_user_id)
-
     async def _water_reminder(self, target_user_id: str | None = None):
         await self._run_habit_reminder(self.water_reminder, "喝水", target_user_id)
 
@@ -734,7 +706,7 @@ class ScheduleAssistant(Star):
                 self._schedule_reminder_last_log_ts = now_ts
 
             await self._ensure_services()
-            if not hasattr(self, "schedule_reminder"):
+            if not self.schedule_reminder:
                 return
 
             try:
@@ -760,7 +732,6 @@ class ScheduleAssistant(Star):
                         schedule_store=self.store,
                         llm_service=self.llm_service,
                         user_id=user_id,
-                        minutes_window=minutes_ahead,
                         minutes_before=minutes_ahead,
                         reminder=self.schedule_reminder,
                     )
@@ -782,7 +753,7 @@ class ScheduleAssistant(Star):
             logger.debug(f"{LOG_PREFIX} Apple 同步仍在运行，跳过本轮")
             return
         try:
-            if not hasattr(self, "apple_calendar") or not self.apple_calendar:
+            if not self.apple_calendar:
                 return
             try:
                 events = await self.apple_calendar.get_all_events(days=7)
@@ -865,11 +836,3 @@ class ScheduleAssistant(Star):
                 await self.apple_calendar.close()
             except Exception as e:
                 logger.warning(f"{LOG_PREFIX} 关闭 AppleCalendar 失败: {e}")
-
-
-async def __initialize(context: Context) -> ScheduleAssistant:
-    # 配置文件中 schedule_assistant 是扁平结构（无顶层包装），
-    # 直接取 get_config() 的返回值，无需再 get("schedule_assistant")
-    config = context.get_config()
-    assistant = ScheduleAssistant(context, config)
-    return assistant

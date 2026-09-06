@@ -153,7 +153,6 @@ async def check_and_trigger_schedule_reminder(
     schedule_store,
     llm_service,
     user_id: str,
-    minutes_window: int = 30,
     minutes_before: int = 15,
     reminder: "ScheduleReminder | None" = None,
 ) -> list[dict[str, Any]]:
@@ -234,7 +233,6 @@ async def check_and_trigger_schedule_reminder(
             conv_history=conv_history,
             user_id=user_id,
         )
-        # prompt 已含 conv_history，不再额外传 history= 避免重复注入
 
         triggered.append(
             {

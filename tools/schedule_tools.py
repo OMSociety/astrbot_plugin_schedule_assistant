@@ -206,14 +206,10 @@ class DeleteScheduleTool(FunctionTool[AstrAgentContext]):
                 or not self._plugin.apple_calendar
             ):
                 return
-            calendars = await self._plugin.apple_calendar._list_calendars()
-            for cal in calendars:
-                events = await self._plugin.apple_calendar._caldav_fetch(cal["url"], 30)
-                for evt in events:
-                    if evt.get("summary") == title:
-                        await self._plugin.apple_calendar.delete_event(
-                            evt["uid"], cal["id"]
-                        )
+            for evt, cal_id in await self._plugin.apple_calendar.find_events_by_summary(
+                title
+            ):
+                await self._plugin.apple_calendar.delete_event(evt["uid"], cal_id)
         except Exception as e:
             logger.warning(f"Apple 日历同步删除失败: {e}")
 
@@ -237,7 +233,16 @@ class DeleteScheduleTool(FunctionTool[AstrAgentContext]):
                 return "日程存储服务未初始化"
 
             if schedule_id:
+                schedules_dict = await self.store.get_schedules(user_id)
+                all_items = schedules_dict.get("schedules", []) + schedules_dict.get(
+                    "habits", []
+                )
+                target = next((s for s in all_items if s.id == schedule_id), None)
                 success = await self.store.remove_item(user_id, schedule_id)
+                # 与关键词删除路径保持一致：本地删除后同步删除 Apple 日历同名事件，
+                # 否则下次同步会把日程拉回来
+                if success and target:
+                    await self._sync_delete_to_apple(target.title)
                 return "已删除日程 ✅" if success else "未找到指定日程"
 
             if title_keyword:

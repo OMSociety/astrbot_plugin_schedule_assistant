@@ -31,7 +31,7 @@ class MessageTarget:
     平台无关的消息目标
 
     统一承载 platform_id / session_type / session_id 三元组，
-    所有发送路由（send_to_user / reply_to_event / UMO 解析）统一走它。
+    所有发送路由（send_to_user / UMO 解析）统一走它。
     """
 
     platform_id: str
@@ -433,45 +433,3 @@ class MessagingService:
             except Exception as lookup_err:
                 logger.warning(f"{LOG_PREFIX} 读取已知用户失败: err={lookup_err}")
         return sorted(user_ids)
-
-    async def reply_to_event(self, event: Any, message: str) -> None:
-        """
-        回复消息事件，兼容不同版本的事件对象
-
-        采用三层兜底策略：
-        1. 优先通过 session_id 直接回复（最可靠）
-        2. 次选通过 user_id + 平台提取发送
-        3. 兜底记录日志（避免崩溃）
-
-        Args:
-            event: 消息事件对象
-            message: 要回复的消息文本
-        """
-        # 第一层：优先尝试 session_id 直接回复
-        try:
-            session_id = getattr(event, "session_id", "")
-            if isinstance(session_id, str) and session_id.strip():
-                await self.context.send_message(
-                    session_id, MessageChain([Comp.Plain(message)])
-                )
-                return
-        except Exception as e:
-            logger.debug(f"{LOG_PREFIX} session_id 直发失败，尝试下一层: {e}")
-
-        # 第二层：按 user_id + 平台组合发送
-        try:
-            user_id = str(event.get_sender_id())
-            if user_id:
-                platform_id = self._extract_platform_id_from_event(event)
-                if platform_id:
-                    await self.send_to_user(user_id, message, platform_id)
-                else:
-                    await self.send_to_user(user_id, message)
-                return
-        except Exception as e:
-            logger.debug(f"{LOG_PREFIX} user_id 发送失败，尝试下一层: {e}")
-
-        # 第三层：兜底告警，不抛异常
-        logger.warning(
-            f"{LOG_PREFIX} 回复失败，且无可用回退通道: message={message[:40]}"
-        )
