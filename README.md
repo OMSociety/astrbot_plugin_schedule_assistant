@@ -163,7 +163,7 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 | `maton_api_key` | string | Maton API Key（Notion 功能必需） |
 | `notion_db_ids` | list | Notion 数据库 ID 列表，格式：`["事务:xxx", "阅读:yyy"]` |
 | `weather_api_key` | string | 心知天气 API Key（[seniverse.com](https://seniverse.com)） |
-| `weather_city` | string | 天气查询城市（默认：杭州） |
+| `weather_city` | string | 天气查询城市（默认：北京） |
 
 ### 消息渲染设置
 
@@ -223,7 +223,7 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
     "maton_api_key": "",
     "notion_db_ids": [],
     "weather_api_key": "",
-    "weather_city": "杭州"
+    "weather_city": "北京"
   },
   "message_render_settings": {
     "markdown_enabled": true,

@@ -7,6 +7,7 @@
 """
 
 import asyncio
+import contextlib
 import time
 from datetime import datetime, timedelta
 from typing import Any
@@ -89,6 +90,7 @@ class ScheduleAssistant(Star):
         self._schedule_reminder_last_log_ts = 0.0
 
         self._init_task: asyncio.Task | None = None
+        self._delayed_task: asyncio.Task | None = None
         self._runtime_cleaned = False
         self._cleanup_lock: asyncio.Lock | None = None
 
@@ -150,7 +152,7 @@ class ScheduleAssistant(Star):
                 register_schedule_tools(self)
 
             api_key = self.config.get("weather_api_key")
-            city = self.config.get("weather_city", "杭州")
+            city = self.config.get("weather_city", "北京")
             if api_key:
                 self.weather_service = WeatherService(
                     {"weather_api_key": api_key, "weather_city": city}
@@ -778,7 +780,9 @@ class ScheduleAssistant(Star):
 
                 # 如果新增了近期事件，触发一次即时扫描（30秒后）
                 if recent_events_added and self.config.get("enable_schedule_reminder"):
-                    asyncio.create_task(self._delayed_schedule_reminder_scan())
+                    self._delayed_task = asyncio.create_task(
+                        self._delayed_schedule_reminder_scan()
+                    )
             except Exception as e:
                 logger.error(f"{LOG_PREFIX} Apple Calendar 同步失败: {e}")
         finally:
@@ -824,8 +828,14 @@ class ScheduleAssistant(Star):
             await self.store.set_user_nickname(user_id, sender_name)
 
     async def terminate(self):
-        """插件卸载时清理定时任务"""
+        """插件卸载时清理定时任务与后台协程"""
         self.timed_engine.shutdown()
+        # 取消仍在 sleep/执行的后台协程，避免卸载后继续回调 messaging
+        for task in (self._init_task, self._delayed_task):
+            if task is not None and not task.done():
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
         if self.notion:
             try:
                 await self.notion.close()

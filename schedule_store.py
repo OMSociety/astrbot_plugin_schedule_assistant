@@ -314,6 +314,8 @@ class ScheduleStore:
                 continue
 
             apple_uids.add(uid)
+            # 无论走哪个分支都视为已处理，重复实例在下一轮循环被拦下
+            processed_uids_this_sync.add(uid)
             start_str = evt.get("start", "")
             if not start_str:
                 continue
@@ -356,7 +358,6 @@ class ScheduleStore:
                     ).to_dict()
                 )
                 stats["added"] += 1
-                processed_uids_this_sync.add(uid)
         before_count = len(schedules)
         schedules = [
             s
@@ -424,8 +425,9 @@ class ScheduleStore:
             role_label = "用户" if msg["role"] == "user" else "芙兰"
             ts = datetime.fromisoformat(msg["timestamp"]).strftime("%H:%M")
             line = f"[{ts}] {role_label}: {msg['content']}"
-            line_tokens_est = int(len(line) * 1.5)
-            if total_chars + line_tokens_est > max_tokens * 1.5:
+            # 截断口径：按字符数近似 token（1 字符 ≈ 1.5 token，两边同乘后
+            # 实际等价于字符数上限 max_tokens）
+            if total_chars + len(line) > max_tokens:
                 break
             total_chars += len(line)
             lines.append(line)

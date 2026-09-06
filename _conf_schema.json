@@ -194,7 +194,7 @@
     "type": "string",
     "description": "天气查询城市",
     "hint": "填写城市名，如 北京、杭州、上海。",
-    "default": "杭州"
+    "default": "北京"
    }
   }
  },
