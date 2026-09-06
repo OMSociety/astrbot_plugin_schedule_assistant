@@ -425,8 +425,9 @@ class ScheduleStore:
             role_label = "用户" if msg["role"] == "user" else "芙兰"
             ts = datetime.fromisoformat(msg["timestamp"]).strftime("%H:%M")
             line = f"[{ts}] {role_label}: {msg['content']}"
-            # 截断口径：按字符数近似 token（1 字符 ≈ 1.5 token，两边同乘后
-            # 实际等价于字符数上限 max_tokens）
+            # 截断口径：按字符数近似 token（1 字符 ≈ 1.5 token）。
+            # 旧实现 total 侧漏乘 1.5，实际字符预算膨胀到 ~1.5×max_tokens，
+            # 现修正为 max_tokens 字符（历史会变短约 1/3，方向保守）
             if total_chars + len(line) > max_tokens:
                 break
             total_chars += len(line)
