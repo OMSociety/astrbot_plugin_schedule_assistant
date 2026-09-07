@@ -154,7 +154,7 @@
      "calendar_id": {
       "type": "string",
       "description": "目标日历 ID",
-      "hint": "仅支持日历 UUID（不支持名称），留空默认第一个日历。UUID 可从 Apple 日历的 CalDAV 服务器地址里复制：地址形如 …/calendars/<UUID>/，取其中 UUID 段填入。",
+      "hint": "仅支持日历 UUID，留空默认第一个日历。UUID 可从 Apple 日历的 CalDAV 服务器地址里复制：地址形如 …/calendars/<UUID>/，取其中 UUID 段填入。",
       "default": ""
      }
     }

@@ -62,7 +62,7 @@
 **接入所需：**
 - `username` — Apple ID 邮箱（如 `xxx@icloud.com`）
 - `app_password` — **App 专用密码**（在 [appleid.apple.com](https://appleid.apple.com) 生成，不是登录密码）
-- `calendar_id` — 目标日历 UUID（不支持名称），留空默认第一个。UUID 可从 Apple 日历的 CalDAV 服务器地址里复制：地址形如 `…/calendars/<UUID>/`，取其中 UUID 段填入
+- `calendar_id` — 目标日历 UUID，留空默认第一个。UUID 可从 Apple 日历的 CalDAV 服务器地址里复制：地址形如 `…/calendars/<UUID>/`，取其中 UUID 段填入
 
 ### Notion 待办同步
 每小时检查一次 Notion 事务库，DDL 临近（24小时内）时私信提醒。需要先配置 Maton Gateway 作为中间层接入。
@@ -149,7 +149,7 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 | `apple_calendar_sync_interval` | int | `30` | Apple 日历同步间隔（分钟） |
 | `apple_calendar.username` | string | - | Apple ID 邮箱 |
 | `apple_calendar.app_password` | string | - | **App 专用密码**（非登录密码） |
-| `apple_calendar.calendar_id` | string | - | 目标日历 UUID（不支持名称），留空默认第一个；UUID 从 Apple 日历的 CalDAV 服务器地址（`…/calendars/<UUID>/`）里复制 |
+| `apple_calendar.calendar_id` | string | - | 目标日历 UUID，留空默认第一个；UUID 从 Apple 日历的 CalDAV 服务器地址（`…/calendars/<UUID>/`）里复制 |
 | `webcal_urls` | list | `[]` | WebCal 共享日历链接 |
 
 > 💡 **WebCal 订阅安全**：`webcal_urls` 只接受公网 `https://` 订阅地址（`webcal://` 自动转 `https://`）。插件会拒绝 `localhost`、内网（如 `192.168.x` / `10.x`）、云元数据（`169.254.169.254`）等地址（防 SSRF）。请勿填写内网或本机地址。
