@@ -116,7 +116,7 @@ class _FakePlatform:
 
 
 class TestBuildMarkdownChain:
-    """主动推送 markdown 降级（QQ 官方适配器 send_by_session 不支持 use_markdown_）"""
+    """markdown 渲染：原生平台直发（use_markdown_），其余 strip 纯文本直发"""
 
     SAMPLE = (
         "早安喵~\n\n#### 📅 早安播报\n2026-08-16 周日\n\n"
@@ -143,29 +143,22 @@ class TestBuildMarkdownChain:
             },
         )
 
-    def test_proactive_qq_official_no_md_symbols(self):
-        """主动推送 QQ 官方 → QQ 排版降级（无 md 符号，标题转【】）"""
-        chain = self._service()._build_markdown_chain(
-            self.SAMPLE, "bot", proactive=True
-        )
+    def test_proactive_qq_official_keeps_native_markdown(self):
+        """主动推送 QQ 官方 → 现走 native markdown（上游支持主动 md，保留原文交给适配器）"""
+        chain = self._service()._build_markdown_chain(self.SAMPLE, "bot")
+        assert getattr(chain, "use_markdown_", False) is True
         text = chain.chain[0].text
-        assert "####" not in text
-        assert "**" not in text
-        assert "【📅 早安播报】" in text
-        assert "时间：事项" in text  # 表格转键值
+        assert "#### 📅 早安播报" in text
+        assert "**🌤️ 天气**" in text
 
     def test_reply_qq_official_keeps_native(self):
         """被动回复 QQ 官方 → 保留 native（use_markdown_ 交给适配器渲染）"""
-        chain = self._service()._build_markdown_chain(
-            self.SAMPLE, "bot", proactive=False
-        )
+        chain = self._service()._build_markdown_chain(self.SAMPLE, "bot")
         assert getattr(chain, "use_markdown_", False) is True
 
     def test_proactive_webchat_still_strips(self):
-        """主动推送 webchat → strip 干净文本（不受 QQ 降级影响）"""
-        chain = self._service()._build_markdown_chain(
-            self.SAMPLE, "webchat", proactive=True
-        )
+        """主动推送 webchat → strip 干净文本（非原生平台）"""
+        chain = self._service()._build_markdown_chain(self.SAMPLE, "webchat")
         text = chain.chain[0].text
         assert "####" not in text
         assert "**" not in text
@@ -173,7 +166,7 @@ class TestBuildMarkdownChain:
     def test_proactive_md_disabled_keeps_raw(self):
         """markdown_enabled=False → 维持原文直发（配置语义不变）"""
         chain = self._service(md_enabled=False)._build_markdown_chain(
-            self.SAMPLE, "bot", proactive=True
+            self.SAMPLE, "bot"
         )
         text = chain.chain[0].text
         assert "####" in text  # 原文直发
