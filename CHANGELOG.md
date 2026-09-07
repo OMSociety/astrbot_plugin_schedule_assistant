@@ -5,6 +5,13 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)；
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.0.7] - 2026-09-08
+
+### ⚙️ 变更
+
+- 移除 QQ 官方平台主动推送的降级分支：上游 AstrBot (#9914) 已支持 QQ 官方 `send_by_session` 主动推送的原声 Markdown，此前为避免 `####`/`**` 源码暴露而做的「QQ 友好排版降级」不再需要。主动推送（早安播报/习惯提醒等）现直接走原生 Markdown 渲染，与被动回复行为一致。
+- 显式配置 `qq_markdown_enabled=False` 时，仍保留 QQ 友好排版兜底（该配置项行为不变）。
+
 ## [1.0.6] - 2026-09-06
 
 ### 🐛 修复
