@@ -1,0 +1,176 @@
+{
+  "metadata": {
+    "display_name": "Schedule Reminder Assistant",
+    "desc": "Your attentive schedule keeper, with morning broadcasts, habit reminders, LLM-driven schedule management, two-way Apple Calendar sync, and Notion to-do sync."
+  },
+  "config": {
+    "basic_settings": {
+      "description": "Basic settings",
+      "hint": "Broadcast persona, form of address, and recipient users.",
+      "persona_id": {
+        "description": "Persona used for broadcasts",
+        "hint": "The persona used for morning broadcasts and habit reminders. Leave blank to take it from the session automatically."
+      },
+      "user_nickname": {
+        "description": "User nickname",
+        "hint": "How the user is addressed in broadcasts. Leave blank to use 'Master'."
+      },
+      "user_ids": {
+        "description": "List of recipient user IDs",
+        "hint": "One per line: the user IDs that receive automatic reminders (QQ number or platform UID, UMO format supported)."
+      }
+    },
+    "schedule_reminder_settings": {
+      "description": "Schedule reminders",
+      "hint": "Smart reminder toggle, lead time, and scan frequency for schedules.",
+      "enable_schedule_reminder": {
+        "description": "Enable LLM smart schedule reminders",
+        "hint": "When enabled, the AI generates a natural-language reminder as a schedule item approaches, using the conversation context."
+      },
+      "schedule_reminder_minutes": {
+        "description": "Reminder lead time (minutes)",
+        "hint": "How many minutes before a schedule item starts to remind. All-day events do not get a reminder."
+      },
+      "schedule_reminder_check_interval": {
+        "description": "Schedule reminder scan interval (minutes)",
+        "hint": "Scan frequency; 1/3 to 1/2 of the lead time is recommended (e.g. 3-5 when the lead time is 10 minutes). Minimum 2 minutes."
+      }
+    },
+    "habit_reminder_settings": {
+      "description": "Habit reminders",
+      "hint": "Scheduled reminders for morning greeting, bathing, sleep, drinking water, and more.",
+      "enable_morning_report": {
+        "description": "Enable morning broadcast",
+        "hint": "Pushes a morning broadcast at a fixed time every day, including weather, today's schedule, and Notion to-dos."
+      },
+      "morning_report_time": {
+        "description": "Morning broadcast time",
+        "hint": "Format HH:MM, e.g. 09:00."
+      },
+      "enable_bath_reminder": {
+        "description": "Enable bathing reminder",
+        "hint": "Reminds about bathing at a fixed time every day."
+      },
+      "bath_time": {
+        "description": "Bathing reminder time",
+        "hint": "Format HH:MM, e.g. 22:00."
+      },
+      "enable_sleep_reminder": {
+        "description": "Enable sleep reminder",
+        "hint": "Reminds about going to sleep at a fixed time every day."
+      },
+      "sleep_time": {
+        "description": "Sleep reminder time",
+        "hint": "Format HH:MM, e.g. 23:00."
+      },
+      "enable_water_reminder": {
+        "description": "Enable water reminder",
+        "hint": "Reminds about drinking water at intervals within the configured time range."
+      },
+      "water_interval": {
+        "description": "Water reminder interval (minutes)",
+        "hint": "How many minutes between reminders."
+      },
+      "water_start_time": {
+        "description": "Water reminder start time",
+        "hint": "Format HH:MM; no reminders before this time."
+      },
+      "water_end_time": {
+        "description": "Water reminder end time",
+        "hint": "Format HH:MM; no reminders after this time."
+      }
+    },
+    "calendar_sync_settings": {
+      "description": "Calendar sync",
+      "hint": "Sync settings for Apple Calendar and WebCal calendars.",
+      "enable_apple_calendar_sync": {
+        "description": "Two-way Apple Calendar sync",
+        "hint": "Syncs iCloud calendar events locally, with both read and write support."
+      },
+      "apple_calendar_sync_interval": {
+        "description": "Apple Calendar sync interval (minutes)",
+        "hint": "How many minutes between syncs."
+      },
+      "apple_calendar": {
+        "description": "Apple Calendar credentials",
+        "hint": "iCloud login credentials and target calendar.",
+        "username": {
+          "description": "Apple ID email",
+          "hint": "e.g. xxx@icloud.com; two-factor authentication must be enabled."
+        },
+        "app_password": {
+          "description": "Apple app-specific password",
+          "hint": "Not your login password! Go to appleid.apple.com → Security → Generate an app-specific password."
+        },
+        "calendar_id": {
+          "description": "Target calendar ID",
+          "hint": "Only a calendar UUID is supported; leave blank to default to the first calendar. The UUID can be copied from the CalDAV server address of Apple Calendar: the address looks like …/calendars/<UUID>/ — take the UUID segment and fill it in."
+        }
+      },
+      "webcal_urls": {
+        "description": "WebCal shared calendar links",
+        "hint": "One per line, e.g. webcal://pXXX-caldav.icloud.com.cn/published/..."
+      }
+    },
+    "external_services_settings": {
+      "description": "External services",
+      "hint": "API credentials for Notion and the weather service.",
+      "maton_api_key": {
+        "description": "Notion API Key (Maton proxy)",
+        "hint": "Used for Notion to-do sync; sign up at https://www.maton.ai to obtain it."
+      },
+      "notion_db_ids": {
+        "description": "List of Notion database IDs",
+        "hint": "One per line; an optional type prefix may be used, e.g. 事务:xxxxxxxx or 阅读:yyyyyyyy."
+      },
+      "weather_api_key": {
+        "description": "Seniverse weather API Key",
+        "hint": "Weather data for the morning broadcast; obtain it from https://seniverse.com (the free tier is sufficient)."
+      },
+      "weather_city": {
+        "description": "City for weather lookup",
+        "hint": "Enter a city name, e.g. Beijing, Hangzhou, Shanghai."
+      }
+    },
+    "message_render_settings": {
+      "description": "Message rendering",
+      "hint": "How reminder and broadcast messages are rendered as Markdown.",
+      "markdown_enabled": {
+        "description": "Enable Markdown rendering for reminders/broadcasts",
+        "hint": "When enabled, the platform decides automatically: native platforms receive raw md text, others fall back to plain text."
+      },
+      "markdown_native_platforms": {
+        "description": "Additional platform type names with native Markdown support",
+        "hint": "One platform type name per line (e.g. qq_official, discord); entering an instance ID has no effect. Common platforms are built in by default."
+      },
+      "qq_markdown_enabled": {
+        "description": "Native Markdown on QQ Official platform",
+        "hint": "On = QQ sends native md directly (tables included); Off = QQ is forced to plain text. If this item is not configured, it follows the global markdown_enabled switch."
+      }
+    },
+    "prompt_settings": {
+      "description": "Reminder prompt templates",
+      "hint": "LLM prompt templates for each reminder. Leave blank to use the built-in default; fill them in to customize the reminder tone. {placeholder} variables are supported.",
+      "prompt_morning": {
+        "description": "Morning broadcast template",
+        "hint": "Placeholders: {username} {date} {weekday} {weather_current} {weather_forecast} {agenda} {notion_todos} {late_night}"
+      },
+      "prompt_bath": {
+        "description": "Bathing reminder template",
+        "hint": "Placeholders: {current_time} {default_time} {history}"
+      },
+      "prompt_sleep": {
+        "description": "Sleep reminder template",
+        "hint": "Placeholders: {current_time} {default_time} {is_late} {history}"
+      },
+      "prompt_water": {
+        "description": "Water reminder template",
+        "hint": "Placeholders: {current_time} {history}"
+      },
+      "prompt_schedule": {
+        "description": "Schedule reminder template",
+        "hint": "Placeholders: {item_title} {time_label} {ahead_label} {item_context} {conv_history}"
+      }
+    }
+  }
+}

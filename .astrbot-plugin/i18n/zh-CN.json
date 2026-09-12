@@ -1,0 +1,176 @@
+{
+  "metadata": {
+    "display_name": "日程提醒助手",
+    "desc": "你的贴心日程管家，支持早安播报、习惯提醒、LLM 智能日程管理、Apple 日历双向同步、Notion 待办同步"
+  },
+  "config": {
+    "basic_settings": {
+      "description": "基础设置",
+      "hint": "播报人格、称呼与接收用户。",
+      "persona_id": {
+        "description": "播报使用的人格",
+        "hint": "早安播报与习惯提醒使用的人格。留空则自动从会话获取。"
+      },
+      "user_nickname": {
+        "description": "用户昵称",
+        "hint": "播报时对用户的称呼。留空则使用「主人」。"
+      },
+      "user_ids": {
+        "description": "用户名单 ID 列表",
+        "hint": "每行一个，接收自动提醒的用户 ID（QQ 号或平台 UID，支持 UMO 格式）。"
+      }
+    },
+    "schedule_reminder_settings": {
+      "description": "日程提醒",
+      "hint": "日程的智能提醒开关、提前量与扫描频率。",
+      "enable_schedule_reminder": {
+        "description": "开启日程 LLM 智能提醒",
+        "hint": "开启后，AI 会在日程临近时结合对话上下文生成自然语言提醒。"
+      },
+      "schedule_reminder_minutes": {
+        "description": "日程提前提醒分钟数",
+        "hint": "日程开始前多少分钟提醒。全天日程不提醒。"
+      },
+      "schedule_reminder_check_interval": {
+        "description": "日程提醒扫描间隔（分钟）",
+        "hint": "扫描频率，建议取提前量的 1/3~1/2（如提前 10 分钟则填 3~5），最小 2 分钟。"
+      }
+    },
+    "habit_reminder_settings": {
+      "description": "习惯提醒",
+      "hint": "早安、洗澡、睡觉、喝水等定时提醒。",
+      "enable_morning_report": {
+        "description": "开启早安播报",
+        "hint": "每天定时推送早安播报，含天气、今日日程与 Notion 待办。"
+      },
+      "morning_report_time": {
+        "description": "早安播报时间",
+        "hint": "格式 HH:MM，如 09:00。"
+      },
+      "enable_bath_reminder": {
+        "description": "开启洗澡提醒",
+        "hint": "每天固定时间提醒洗澡。"
+      },
+      "bath_time": {
+        "description": "洗澡提醒时间",
+        "hint": "格式 HH:MM，如 22:00。"
+      },
+      "enable_sleep_reminder": {
+        "description": "开启睡觉提醒",
+        "hint": "每天固定时间提醒睡觉。"
+      },
+      "sleep_time": {
+        "description": "睡觉提醒时间",
+        "hint": "格式 HH:MM，如 23:00。"
+      },
+      "enable_water_reminder": {
+        "description": "开启喝水提醒",
+        "hint": "按间隔在设定时段内定时提醒喝水。"
+      },
+      "water_interval": {
+        "description": "喝水提醒间隔（分钟）",
+        "hint": "每隔多少分钟提醒一次。"
+      },
+      "water_start_time": {
+        "description": "喝水提醒开始时间",
+        "hint": "格式 HH:MM，此时间前不提醒。"
+      },
+      "water_end_time": {
+        "description": "喝水提醒结束时间",
+        "hint": "格式 HH:MM，此时间后不提醒。"
+      }
+    },
+    "calendar_sync_settings": {
+      "description": "日历同步",
+      "hint": "Apple 日历与 WebCal 日历的同步配置。",
+      "enable_apple_calendar_sync": {
+        "description": "Apple 日历双向同步",
+        "hint": "同步 iCloud 日历事件到本地，支持读取与写入。"
+      },
+      "apple_calendar_sync_interval": {
+        "description": "Apple 日历同步间隔（分钟）",
+        "hint": "每隔多少分钟同步一次。"
+      },
+      "apple_calendar": {
+        "description": "Apple 日历认证配置",
+        "hint": "iCloud 登录凭证与目标日历。",
+        "username": {
+          "description": "Apple ID 邮箱",
+          "hint": "如 xxx@icloud.com，需开启两步验证。"
+        },
+        "app_password": {
+          "description": "Apple App 专用密码",
+          "hint": "不是登录密码！去 appleid.apple.com → 安全性 → 生成 App 专用密码。"
+        },
+        "calendar_id": {
+          "description": "目标日历 ID",
+          "hint": "仅支持日历 UUID，留空默认第一个日历。UUID 可从 Apple 日历的 CalDAV 服务器地址里复制：地址形如 …/calendars/<UUID>/，取其中 UUID 段填入。"
+        }
+      },
+      "webcal_urls": {
+        "description": "WebCal 共享日历链接",
+        "hint": "每行一个，如 webcal://pXXX-caldav.icloud.com.cn/published/..."
+      }
+    },
+    "external_services_settings": {
+      "description": "外部服务",
+      "hint": "Notion 与天气服务的 API 凭据。",
+      "maton_api_key": {
+        "description": "Notion API Key（Maton 代理）",
+        "hint": "用于 Notion 待办同步，从 https://www.maton.ai 注册获取。"
+      },
+      "notion_db_ids": {
+        "description": "Notion 数据库 ID 列表",
+        "hint": "每行一个，可带类型前缀，如 事务:xxxxxxxx 或 阅读:yyyyyyyy。"
+      },
+      "weather_api_key": {
+        "description": "心知天气 API Key",
+        "hint": "用于早安播报的天气数据，从 https://seniverse.com 获取（免费版够用）。"
+      },
+      "weather_city": {
+        "description": "天气查询城市",
+        "hint": "填写城市名，如 北京、杭州、上海。"
+      }
+    },
+    "message_render_settings": {
+      "description": "消息渲染",
+      "hint": "提醒与播报消息的 Markdown 渲染方式。",
+      "markdown_enabled": {
+        "description": "提醒/播报启用 Markdown 渲染",
+        "hint": "开启后按平台自动选择：原生平台直发 md 原文，其余降级纯文本。"
+      },
+      "markdown_native_platforms": {
+        "description": "额外原生支持 Markdown 的平台类型名",
+        "hint": "每行一个平台类型名（如 qq_official、discord），填实例 ID 无效。默认已内置常见平台。"
+      },
+      "qq_markdown_enabled": {
+        "description": "QQ 官方平台原生 Markdown",
+        "hint": "开启=QQ 直发原生 md（含表格）；关闭=QQ 强制纯文本。不配置本项则跟随全局开关 markdown_enabled。"
+      }
+    },
+    "prompt_settings": {
+      "description": "提醒 Prompt 模板",
+      "hint": "各提醒的 LLM 提示词模板。留空则使用内置默认模板；想定制提醒语气时填写，支持 {变量名} 占位符。",
+      "prompt_morning": {
+        "description": "早安播报模板",
+        "hint": "占位符：{username} {date} {weekday} {weather_current} {weather_forecast} {agenda} {notion_todos} {late_night}"
+      },
+      "prompt_bath": {
+        "description": "洗澡提醒模板",
+        "hint": "占位符：{current_time} {default_time} {history}"
+      },
+      "prompt_sleep": {
+        "description": "睡觉提醒模板",
+        "hint": "占位符：{current_time} {default_time} {is_late} {history}"
+      },
+      "prompt_water": {
+        "description": "喝水提醒模板",
+        "hint": "占位符：{current_time} {history}"
+      },
+      "prompt_schedule": {
+        "description": "日程提醒模板",
+        "hint": "占位符：{item_title} {time_label} {ahead_label} {item_context} {conv_history}"
+      }
+    }
+  }
+}

@@ -1,0 +1,176 @@
+{
+  "metadata": {
+    "display_name": "スケジュールリマインダー",
+    "desc": "あなたに寄り添うスケジュール管理役。おはよう配信、習慣リマインダー、LLM によるスマートなスケジュール管理、Apple カレンダーの双方向同期、Notion の ToDo 同期に対応します。"
+  },
+  "config": {
+    "basic_settings": {
+      "description": "基本設定",
+      "hint": "配信のペルソナ、呼び方、受信ユーザー。",
+      "persona_id": {
+        "description": "配信に使用するペルソナ",
+        "hint": "おはよう配信と習慣リマインダーに使用するペルソナ。空欄の場合はセッションから自動的に取得します。"
+      },
+      "user_nickname": {
+        "description": "ユーザーのニックネーム",
+        "hint": "配信時にユーザーを呼ぶ際の呼び方。空欄の場合は「主人」を使用します。"
+      },
+      "user_ids": {
+        "description": "受信ユーザー ID のリスト",
+        "hint": "1 行に 1 つ、自動リマインダーを受け取るユーザー ID（QQ 番号またはプラットフォーム UID、UMO 形式に対応）。"
+      }
+    },
+    "schedule_reminder_settings": {
+      "description": "スケジュールリマインダー",
+      "hint": "スケジュールのスマートリマインダーのオン・オフ、事前通知の時間、スキャン頻度。",
+      "enable_schedule_reminder": {
+        "description": "スケジュールの LLM スマートリマインダーを有効にする",
+        "hint": "有効にすると、AI がスケジュールが近づいたときに会話のコンテキストを踏まえて自然言語のリマインダーを生成します。"
+      },
+      "schedule_reminder_minutes": {
+        "description": "事前通知の分数",
+        "hint": "スケジュール開始の何分前に通知するか。終日スケジュールは通知しません。"
+      },
+      "schedule_reminder_check_interval": {
+        "description": "スケジュールリマインダーのスキャン間隔（分）",
+        "hint": "スキャン頻度。事前通知の 1/3〜1/2 を推奨します（例：10 分前なら 3〜5）。最小 2 分です。"
+      }
+    },
+    "habit_reminder_settings": {
+      "description": "習慣リマインダー",
+      "hint": "おはよう・入浴・就寝・水分補給などの定時リマインダー。",
+      "enable_morning_report": {
+        "description": "おはよう配信を有効にする",
+        "hint": "毎日決まった時刻におはよう配信を送信します。天気、今日のスケジュール、Notion の ToDo を含みます。"
+      },
+      "morning_report_time": {
+        "description": "おはよう配信の時刻",
+        "hint": "形式は HH:MM（例：09:00）。"
+      },
+      "enable_bath_reminder": {
+        "description": "入浴リマインダーを有効にする",
+        "hint": "毎日決まった時刻に入浴を促します。"
+      },
+      "bath_time": {
+        "description": "入浴リマインダーの時刻",
+        "hint": "形式は HH:MM（例：22:00）。"
+      },
+      "enable_sleep_reminder": {
+        "description": "就寝リマインダーを有効にする",
+        "hint": "毎日決まった時刻に就寝を促します。"
+      },
+      "sleep_time": {
+        "description": "就寝リマインダーの時刻",
+        "hint": "形式は HH:MM（例：23:00）。"
+      },
+      "enable_water_reminder": {
+        "description": "水分補給リマインダーを有効にする",
+        "hint": "設定した時間帯の中で、一定間隔で水分補給を促します。"
+      },
+      "water_interval": {
+        "description": "水分補給リマインダーの間隔（分）",
+        "hint": "何分ごとに通知するか。"
+      },
+      "water_start_time": {
+        "description": "水分補給リマインダーの開始時刻",
+        "hint": "形式は HH:MM。この時刻より前は通知しません。"
+      },
+      "water_end_time": {
+        "description": "水分補給リマインダーの終了時刻",
+        "hint": "形式は HH:MM。この時刻より後は通知しません。"
+      }
+    },
+    "calendar_sync_settings": {
+      "description": "カレンダー同期",
+      "hint": "Apple カレンダーと WebCal カレンダーの同期設定。",
+      "enable_apple_calendar_sync": {
+        "description": "Apple カレンダーを双方向で同期",
+        "hint": "iCloud カレンダーの予定をローカルに同期します。読み取りと書き込みに対応します。"
+      },
+      "apple_calendar_sync_interval": {
+        "description": "Apple カレンダーの同期間隔（分）",
+        "hint": "何分ごとに同期するか。"
+      },
+      "apple_calendar": {
+        "description": "Apple カレンダーの認証設定",
+        "hint": "iCloud のログイン認証情報と対象カレンダー。",
+        "username": {
+          "description": "Apple ID のメールアドレス",
+          "hint": "例：xxx@icloud.com。2 ファクタ認証を有効にする必要があります。"
+        },
+        "app_password": {
+          "description": "Apple アプリ用パスワード",
+          "hint": "ログインパスワードではありません！appleid.apple.com → セキュリティ → アプリ用パスワードを生成 で作成します。"
+        },
+        "calendar_id": {
+          "description": "対象カレンダーの ID",
+          "hint": "カレンダーの UUID のみに対応します。空欄の場合は最初のカレンダーが既定になります。UUID は Apple カレンダーの CalDAV サーバーアドレスからコピーできます：アドレスは …/calendars/<UUID>/ の形式なので、その UUID 部分を取得して入力します。"
+        }
+      },
+      "webcal_urls": {
+        "description": "WebCal 共有カレンダーのリンク",
+        "hint": "1 行に 1 つ（例：webcal://pXXX-caldav.icloud.com.cn/published/...）"
+      }
+    },
+    "external_services_settings": {
+      "description": "外部サービス",
+      "hint": "Notion と天気サービスの API 認証情報。",
+      "maton_api_key": {
+        "description": "Notion API Key（Maton プロキシ経由）",
+        "hint": "Notion の ToDo 同期に使用します。https://www.maton.ai で登録して取得します。"
+      },
+      "notion_db_ids": {
+        "description": "Notion データベース ID のリスト",
+        "hint": "1 行に 1 つ。型の接頭辞を付けられます（例：事务:xxxxxxxx や 阅读:yyyyyyyy）。"
+      },
+      "weather_api_key": {
+        "description": "Seniverse 天気 API Key",
+        "hint": "おはよう配信用の天気データに使用します。https://seniverse.com で取得できます（無料プランで十分です）。"
+      },
+      "weather_city": {
+        "description": "天気を取得する都市",
+        "hint": "都市名を入力します（例：北京、杭州、上海）。"
+      }
+    },
+    "message_render_settings": {
+      "description": "メッセージレンダリング",
+      "hint": "リマインダーと配信メッセージの Markdown レンダリング方式。",
+      "markdown_enabled": {
+        "description": "リマインダー／配信で Markdown レンダリングを有効にする",
+        "hint": "有効にするとプラットフォームごとに自動選択します。ネイティブ対応プラットフォームには md 原文をそのまま送信し、それ以外はプレーンテキストに降格します。"
+      },
+      "markdown_native_platforms": {
+        "description": "ネイティブで Markdown に対応する追加のプラットフォーム種別名",
+        "hint": "1 行に 1 つプラットフォーム種別名（例：qq_official、discord）。インスタンス ID を入力しても無効です。一般的なプラットフォームは既定で組み込まれています。"
+      },
+      "qq_markdown_enabled": {
+        "description": "QQ 公式プラットフォームのネイティブ Markdown",
+        "hint": "オン＝QQ がネイティブ md を直接送信（表を含む）。オフ＝QQ は強制的にプレーンテキスト。本項目を設定しない場合は全体スイッチ markdown_enabled に従います。"
+      }
+    },
+    "prompt_settings": {
+      "description": "リマインダーのプロンプトテンプレート",
+      "hint": "各リマインダーの LLM プロンプトテンプレート。空欄の場合は組み込みの既定テンプレートを使用します。リマインダーの口調をカスタマイズしたいときに記入します。{変数名} のプレースホルダーに対応します。",
+      "prompt_morning": {
+        "description": "おはよう配信テンプレート",
+        "hint": "プレースホルダー：{username} {date} {weekday} {weather_current} {weather_forecast} {agenda} {notion_todos} {late_night}"
+      },
+      "prompt_bath": {
+        "description": "入浴リマインダーテンプレート",
+        "hint": "プレースホルダー：{current_time} {default_time} {history}"
+      },
+      "prompt_sleep": {
+        "description": "就寝リマインダーテンプレート",
+        "hint": "プレースホルダー：{current_time} {default_time} {is_late} {history}"
+      },
+      "prompt_water": {
+        "description": "水分補給リマインダーテンプレート",
+        "hint": "プレースホルダー：{current_time} {history}"
+      },
+      "prompt_schedule": {
+        "description": "スケジュールリマインダーテンプレート",
+        "hint": "プレースホルダー：{item_title} {time_label} {ahead_label} {item_context} {conv_history}"
+      }
+    }
+  }
+}
