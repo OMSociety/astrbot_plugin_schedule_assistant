@@ -172,7 +172,7 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 | 配置项 | 类型 | 默认 | 说明 |
 |--------|------|------|------|
 | `markdown_enabled` | bool | `true` | 全局 Markdown 渲染开关，关闭后降级为纯文本 |
-| `markdown_native_platforms` | list | `[]` | 额外追加原生解析 Markdown 的平台 ID |
+| `markdown_native_platforms` | list | `[]` | 额外追加原生解析 Markdown 的平台类型名（填实例 ID 无效） |
 | `qq_markdown_enabled` | bool | 留空 | QQ 平台开关：留空跟随全局；`false` 强制 QQ 不走原生 md |
 
 ### 提醒 Prompt 模板

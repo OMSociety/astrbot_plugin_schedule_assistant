@@ -170,7 +170,7 @@ WebUI のプラグイン設定 → **基本設定** → `user_ids` に 1 行入�
 | 設定項目 | 型 | デフォルト | 説明 |
 |--------|------|------|------|
 | `markdown_enabled` | bool | `true` | グローバルの Markdown レンダリングスイッチ。オフにするとプレーンテキストへフォールバック |
-| `markdown_native_platforms` | list | `[]` | Markdown をネイティブ解析するプラットフォーム ID の追加 |
+| `markdown_native_platforms` | list | `[]` | Markdown をネイティブ解析するプラットフォーム型名の追加（インスタンス ID は無効） |
 | `qq_markdown_enabled` | bool | 空欄 | QQ プラットフォームのスイッチ：空欄ならグローバル設定に従う。`false` で QQ はネイティブ md を強制オフ |
 
 ### リマインダー Prompt テンプレート

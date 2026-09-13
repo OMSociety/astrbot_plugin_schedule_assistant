@@ -170,7 +170,7 @@ The `PlatformID:SessionType:UserID` format (UMO format) — one line covers both
 | Key | Type | Default | Description |
 |--------|------|------|------|
 | `markdown_enabled` | bool | `true` | Global Markdown rendering toggle; when off, falls back to plain text |
-| `markdown_native_platforms` | list | `[]` | Additional platform IDs that parse Markdown natively |
+| `markdown_native_platforms` | list | `[]` | Additional platform type names that parse Markdown natively (instance IDs have no effect) |
 | `qq_markdown_enabled` | bool | Leave empty | QQ platform toggle: leave empty to follow the global setting; `false` forces QQ to skip native md |
 
 ### Reminder Prompt Templates
