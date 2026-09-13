@@ -28,7 +28,7 @@
 | ⏰ **Smart habit reminders** | Scheduled reminders for showering / sleeping / drinking water, with snooze and one-off time changes |
 | 🤖 **LLM schedule management** | Manage your schedule in natural language: add / delete / query / modify, with automatic time parsing |
 | 🔄 **Apple Calendar two-way sync** | iCloud CalDAV read + write, with automatic deduplication and incremental updates |
-| 📝 **Notion to-do sync** | DDL countdown reminders (N days left / due today / overdue) |
+| 📝 **Notion to-do sync** | DDL countdowns in the morning broadcast (N days left / due today / overdue) |
 | 🎨 **Multi-platform Markdown rendering** | Native tables on qq_official, automatic fallback to plain text on Onebot and other platforms |
 
 ---
@@ -65,7 +65,7 @@ Automatically pushed every morning (time configurable), one message with everyth
 - `calendar_id` — UUID of the target calendar; leave empty for the first one. The UUID can be copied from the CalDAV server address of the Apple calendar: the address looks like `…/calendars/<UUID>/`, take the UUID segment and fill it in
 
 ### Notion To-Do Sync
-Checks your Notion databases once an hour and sends a private message when a DDL is near (within 24 hours). Requires setting up Maton Gateway as the middleware first.
+Notion to-dos are listed in the daily morning broadcast with DDL countdowns (N days left / due today / overdue). Requires configuring Maton Gateway as the intermediate layer first.
 
 ### Markdown Rendering
 All scheduled broadcasts (morning / habit / schedule reminders) go through a unified rendering pipeline with automatic fallback per platform:
