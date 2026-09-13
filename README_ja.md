@@ -95,7 +95,7 @@ QQ のネイティブテーブルは整列された行として自動レンダ�
 WebUI のプラグイン設定 → **基本設定** → `user_ids` に 1 行入力するだけです：
 
 ```
-你的平台ID:FriendMessage:你的用户ID
+プラットフォームID:FriendMessage:ユーザーID
 ```
 
 `プラットフォーム ID:セッションタイプ:ユーザー ID`（UMO 形式）の 1 行で「誰にリマインドするか + どのプラットフォームから送るか」を解決します。QQ 番号だけの入力も可能で、自動的に個人チャットとして送信されます。
@@ -161,7 +161,7 @@ WebUI のプラグイン設定 → **基本設定** → `user_ids` に 1 行入�
 | 設定項目 | 型 | 説明 |
 |--------|------|------|
 | `maton_api_key` | string | Maton API Key（Notion 機能に必須） |
-| `notion_db_ids` | list | Notion データベース ID のリスト。形式：`["事务:xxx", "阅读:yyy"]` |
+| `notion_db_ids` | list | Notion データベース ID のリスト。形式：`["仕事:xxx", "読書:yyy"]` — 接頭辞は任意のカテゴリ名で構いません |
 | `weather_api_key` | string | Seniverse の API キー（[seniverse.com](https://seniverse.com)） |
 | `weather_city` | string | 天気を取得する都市（デフォルト：北京） |
 
@@ -194,7 +194,7 @@ WebUI の設定パネルで入力するか、以下の構造を参考にして�
   "basic_settings": {
     "persona_id": "",
     "user_nickname": "",
-    "user_ids": ["你的平台ID:FriendMessage:你的用户ID"]
+    "user_ids": ["プラットフォームID:FriendMessage:ユーザーID"]
   },
   "schedule_reminder_settings": {
     "enable_schedule_reminder": false,
@@ -247,24 +247,24 @@ WebUI の設定パネルで入力するか、以下の構造を参考にして�
 プラグインは 4 つの LLM ツールを登録しており、モデルが呼び出しタイミングを自動判断します。自然言語で要件を言うだけです：
 
 ```
-用户: 帮我加个明天早上9点开组会的日程
-🤖 → create_schedule(title=组会, datetime_str=明天9点)
-    已创建日程「组会」，时间：08-17 09:00 ✅
+ユーザー: 明日の朝 9 時にチーム定例を入れて
+🤖 → create_schedule(title=チーム定例, datetime_str=明日の9時)
+    予定「チーム定例」を作成しました。時間：08-17 09:00 ✅
 
-用户: 把下午3点的会议改到4点
-🤖 → update_schedule(title_keyword=会议, new_datetime=下午4点)
-    已修改日程：时间改为下午4点 ✅
+ユーザー: 午後 3 時の会議を 4 時に変更して
+🤖 → update_schedule(title_keyword=会議, new_datetime=午後4時)
+    予定を変更しました：時間を午後 4 時に変更 ✅
 
-用户: 看看这周有什么安排
+ユーザー: 今週の予定を教えて
 🤖 → list_schedules(days=7)
-    📋 接下来7天日程（共3个）：
-    ━━━ 08-17 周一 ━━━
-      ⏰ 09:00 │ 组会
+    📋 今後 7 日間の予定（全 3 件）：
+    ━━━ 08-17 月 ━━━
+      ⏰ 09:00 │ チーム定例
       ...
 
-用户: 删除明天的读书会
-🤖 → delete_schedule(title_keyword=读书会)
-    已删除日程「读书会」✅
+ユーザー: 明日の読書会を削除して
+🤖 → delete_schedule(title_keyword=読書会)
+    予定「読書会」を削除しました ✅
 ```
 
 ### create_schedule

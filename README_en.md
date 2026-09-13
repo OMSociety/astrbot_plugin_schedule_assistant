@@ -95,7 +95,7 @@ QQ native tables are automatically rendered as aligned rows, no extra configurat
 You only need to fill in one line under WebUI plugin config → **Basic settings** → `user_ids`:
 
 ```
-你的平台ID:FriendMessage:你的用户ID
+PlatformID:FriendMessage:UserID
 ```
 
 The `PlatformID:SessionType:UserID` format (UMO format) — one line covers both "who to remind" and "which platform to send from". A plain QQ number also works; it will be sent as a private chat automatically.
@@ -161,7 +161,7 @@ The `PlatformID:SessionType:UserID` format (UMO format) — one line covers both
 | Key | Type | Description |
 |--------|------|------|
 | `maton_api_key` | string | Maton API Key (required for Notion features) |
-| `notion_db_ids` | list | List of Notion database IDs, format: `["事务:xxx", "阅读:yyy"]` |
+| `notion_db_ids` | list | List of Notion database IDs, format: `["work:xxx", "reading:yyy"]` — the prefix is an arbitrary category name of your choice |
 | `weather_api_key` | string | Seniverse weather API Key ([seniverse.com](https://seniverse.com)) |
 | `weather_city` | string | City for weather queries (default: Beijing) |
 
@@ -194,7 +194,7 @@ Fill it in via the WebUI configuration panel, or refer to the following structur
   "basic_settings": {
     "persona_id": "",
     "user_nickname": "",
-    "user_ids": ["你的平台ID:FriendMessage:你的用户ID"]
+    "user_ids": ["PlatformID:FriendMessage:UserID"]
   },
   "schedule_reminder_settings": {
     "enable_schedule_reminder": false,
@@ -223,7 +223,7 @@ Fill it in via the WebUI configuration panel, or refer to the following structur
     "maton_api_key": "",
     "notion_db_ids": [],
     "weather_api_key": "",
-    "weather_city": "北京"
+    "weather_city": "Beijing"
   },
   "message_render_settings": {
     "markdown_enabled": true,
@@ -247,24 +247,24 @@ Fill it in via the WebUI configuration panel, or refer to the following structur
 The plugin registers 4 LLM tools; the model decides automatically when to call them — just state your needs in natural language:
 
 ```
-用户: 帮我加个明天早上9点开组会的日程
-🤖 → create_schedule(title=组会, datetime_str=明天9点)
-    已创建日程「组会」，时间：08-17 09:00 ✅
+User: Add a schedule for a team meeting tomorrow at 9am
+🤖 → create_schedule(title=Team meeting, datetime_str=tomorrow 9am)
+    Schedule "Team meeting" created, time: 08-17 09:00 ✅
 
-用户: 把下午3点的会议改到4点
-🤖 → update_schedule(title_keyword=会议, new_datetime=下午4点)
-    已修改日程：时间改为下午4点 ✅
+User: Move the 3pm meeting to 4pm
+🤖 → update_schedule(title_keyword=meeting, new_datetime=4pm)
+    Schedule updated: time changed to 4pm ✅
 
-用户: 看看这周有什么安排
+User: What's on my schedule this week?
 🤖 → list_schedules(days=7)
-    📋 接下来7天日程（共3个）：
-    ━━━ 08-17 周一 ━━━
-      ⏰ 09:00 │ 组会
+    📋 Schedule for the next 7 days (3 items):
+    ━━━ 08-17 Mon ━━━
+      ⏰ 09:00 │ Team meeting
       ...
 
-用户: 删除明天的读书会
-🤖 → delete_schedule(title_keyword=读书会)
-    已删除日程「读书会」✅
+User: Delete tomorrow's book club
+🤖 → delete_schedule(title_keyword=book club)
+    Schedule "Book club" deleted ✅
 ```
 
 ### create_schedule

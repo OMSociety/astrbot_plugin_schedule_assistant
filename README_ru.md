@@ -95,7 +95,7 @@
 Достаточно заполнить одну строку в WebUI: конфигурация плагина → **Базовые настройки** → `user_ids`:
 
 ```
-你的平台ID:FriendMessage:你的用户ID
+IDПлатформы:FriendMessage:UserID
 ```
 
 Формат `IDПлатформы:ТипСессии:IDПользователя` (формат UMO) — одна строка решает, «кому напоминать + с какой платформы отправлять». Можно указать просто номер QQ — сообщение будет отправлено как личный чат автоматически.
@@ -161,7 +161,7 @@
 | Параметр | Тип | Описание |
 |--------|------|------|
 | `maton_api_key` | string | Maton API Key (обязателен для функций Notion) |
-| `notion_db_ids` | list | Список ID баз данных Notion, формат: `["事务:xxx", "阅读:yyy"]` |
+| `notion_db_ids` | list | Список ID баз данных Notion, формат: `["работа:xxx", "чтение:yyy"]` — префикс — произвольное название категории на ваш выбор |
 | `weather_api_key` | string | API-ключ погоды Seniverse ([seniverse.com](https://seniverse.com)) |
 | `weather_city` | string | Город для запроса погоды (по умолчанию: Пекин) |
 
@@ -194,7 +194,7 @@
   "basic_settings": {
     "persona_id": "",
     "user_nickname": "",
-    "user_ids": ["你的平台ID:FriendMessage:你的用户ID"]
+    "user_ids": ["IDПлатформы:FriendMessage:UserID"]
   },
   "schedule_reminder_settings": {
     "enable_schedule_reminder": false,
@@ -223,7 +223,7 @@
     "maton_api_key": "",
     "notion_db_ids": [],
     "weather_api_key": "",
-    "weather_city": "北京"
+    "weather_city": "Пекин"
   },
   "message_render_settings": {
     "markdown_enabled": true,
@@ -247,24 +247,24 @@
 Плагин регистрирует 4 инструмента LLM; модель сама определяет, когда их вызывать, — просто опишите задачу на естественном языке:
 
 ```
-用户: 帮我加个明天早上9点开组会的日程
-🤖 → create_schedule(title=组会, datetime_str=明天9点)
-    已创建日程「组会」，时间：08-17 09:00 ✅
+Пользователь: Добавь расписание — завтра планёрка в 9 утра
+🤖 → create_schedule(title=Планёрка, datetime_str=завтра в 9)
+    Запись «Планёрка» создана, время: 08-17 09:00 ✅
 
-用户: 把下午3点的会议改到4点
-🤖 → update_schedule(title_keyword=会议, new_datetime=下午4点)
-    已修改日程：时间改为下午4点 ✅
+Пользователь: Перенеси встречу с 15:00 на 16:00
+🤖 → update_schedule(title_keyword=встреча, new_datetime=сегодня в 16:00)
+    Запись изменена: время — сегодня в 16:00 ✅
 
-用户: 看看这周有什么安排
+Пользователь: Покажи расписание на неделю
 🤖 → list_schedules(days=7)
-    📋 接下来7天日程（共3个）：
-    ━━━ 08-17 周一 ━━━
-      ⏰ 09:00 │ 组会
+    📋 Расписание на ближайшие 7 дней (всего 3):
+    ━━━ 08-17 Пн ━━━
+      ⏰ 09:00 │ Планёрка
       ...
 
-用户: 删除明天的读书会
-🤖 → delete_schedule(title_keyword=读书会)
-    已删除日程「读书会」✅
+Пользователь: Удали завтрашний книжный клуб
+🤖 → delete_schedule(title_keyword=книжный клуб)
+    Запись «Книжный клуб» удалена ✅
 ```
 
 ### create_schedule
