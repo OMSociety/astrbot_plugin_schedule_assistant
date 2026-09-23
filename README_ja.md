@@ -8,7 +8,7 @@
 
 **あなたの頼れるスケジュール執事** — 朝の配信 · 習慣リマインダー · LLM によるスケジュール管理 · Apple カレンダー双方向同期 · Notion ToDo 同期
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
+[![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/OMSociety/astrbot_plugin_schedule_assistant)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/stargazers)
@@ -25,7 +25,7 @@
 | 機能 | 説明 |
 |------|------|
 | 🌤️ **毎日の朝の配信** | 天気 + 今日の予定 + Notion ToDo + 夜更かし検出。起床に必要な情報を 1 通のメッセージで |
-| ⏰ **スマートな習慣リマインダー** | 入浴 / 睡眠 / 水分補給の定時リマインダー。後回しや一時的な時刻変更も可能 |
+| ⏰ **スマートな習慣リマインダー** | 入浴 / 睡眠 / 水分補給の定時リマインダー。通知時刻は設定で変更可能 |
 | 🤖 **LLM によるスケジュール管理** | 話すだけで予定を管理：追加 / 削除 / 照会 / 変更、自然言語での日時解析 |
 | 🔄 **Apple カレンダー双方向同期** | iCloud CalDAV の読み書き、自動的な重複排除と増分更新 |
 | 📝 **Notion ToDo 同期** | 朝の配信で DDL カウントダウン（残り N 日 / 今日が締め切り / 期限超過） |
@@ -44,9 +44,9 @@
 
 | 習慣 | デフォルト時刻 | 説明 |
 |------|---------|------|
-| 🚿 入浴リマインダー | 22:00 | 後回しや一時的な時刻変更が可能 |
+| 🚿 入浴リマインダー | 22:00 | 通知時刻は設定で変更可能 |
 | 😴 睡眠リマインダー | 23:00 | スマートな就寝促し、遅いとツッコミ入り |
-| 💧 水分補給リマインダー | 90 分ごと | 9:30–21:30 の繰り返し、スキップ可能 |
+| 💧 水分補給リマインダー | 90 分ごと | 9:30–21:30 の時間帯で繰り返し通知 |
 | 📅 予定のスマートリマインダー | N 分前 | **LLM が生成**する自然言語リマインダー、文脈を考慮 |
 
 ### Apple iCloud カレンダー双方向同期
@@ -88,7 +88,7 @@ QQ のネイティブテーブルは整列された行として自動レンダ�
 2. AstrBot を再起動
 3. 管理パネルで必要に応じて各パラメーターを設定
 
-> 💡 主要な依存関係は AstrBot 環境に同梱済みで、追加インストールは不要です。
+> 💡 依存関係はプラグインの `requirements.txt`（`apscheduler` / `aiohttp` / `python-dateutil`）に記載されています。AstrBot がプラグインの読み込み・インストール時に不足分を自動で確認して導入するため、通常は手動インストール不要です。
 
 ### ステップ 2：最小構成（すべての定時リマインダーを動かす）
 
@@ -103,8 +103,9 @@ WebUI のプラグイン設定 → **基本設定** → `user_ids` に 1 行入�
 ### ステップ 3（任意）：Notion 同期の設定
 
 1. [Maton](https://www.maton.ai/) で Notion を接続（OAuth2 方式）し、**Maton API Key** を生成
-2. [api-gateway-skill](https://github.com/maton-ai/api-gateway-skill) をダウンロードし、設定に Maton API Key を入力
-3. AstrBot 管理パネル → **Skills** → api-gateway-skill をアップロードして有効化
+2. プラグイン設定 → **外部サービス** に `maton_api_key` を入力し、`notion_db_ids` で読み取るデータベースを指定（例：`仕事:xxx`、`読書:yyy`）
+
+> ⚠️ Notion ToDo はサードパーティのゲートウェイ `gateway.maton.ai` 経由で取得します（Notion 公式 API への直接接続ではありません）：`maton_api_key` はリクエストヘッダーとしてこのサードパーティに送信され、指定したデータベースのタイトル・ステータス・期限などのフィールドを読み取ることができます。
 
 ---
 
@@ -124,7 +125,7 @@ WebUI のプラグイン設定 → **基本設定** → `user_ids` に 1 行入�
 |--------|------|------|------|
 | `enable_schedule_reminder` | bool | `false` | 予定の LLM スマートリマインダーのスイッチ（デフォルトはオフ） |
 | `schedule_reminder_minutes` | int | `10` | 予定開始の何分前にリマインドするか（終日の予定は対象外） |
-| `schedule_reminder_check_interval` | int | `5` | 予定リマインダーのスキャン間隔（分）。リードタイムの 1/3〜1/2 を推奨（例：10 分前なら 3〜5 分間隔）、最小値は 2 分 |
+| `schedule_reminder_check_interval` | int | `5` | 予定リマインダーのスキャン間隔（分）。リードタイムの 1/3〜1/2 を推奨（例：10 分前なら 3〜5 分間隔）、最小値は 2 分で、事前通知の分数以下にしてください |
 
 ### 習慣リマインダー設定
 
@@ -158,12 +159,12 @@ WebUI のプラグイン設定 → **基本設定** → `user_ids` に 1 行入�
 
 ### 外部サービス設定
 
-| 設定項目 | 型 | 説明 |
-|--------|------|------|
-| `maton_api_key` | string | Maton API Key（Notion 機能に必須） |
-| `notion_db_ids` | list | Notion データベース ID のリスト。形式：`["仕事:xxx", "読書:yyy"]` — 接頭辞は任意のカテゴリ名で構いません |
-| `weather_api_key` | string | Seniverse の API キー（[seniverse.com](https://seniverse.com)） |
-| `weather_city` | string | 天気を取得する都市（デフォルト：北京） |
+| 設定項目 | 型 | デフォルト | 説明 |
+|--------|------|------|------|
+| `maton_api_key` | string | `""` | Maton API Key（Notion 機能に必須） |
+| `notion_db_ids` | list | `[]` | Notion データベース ID のリスト。形式：`["仕事:xxx", "読書:yyy"]` — 接頭辞は任意のカテゴリ名で構いません |
+| `weather_api_key` | string | `""` | Seniverse の API キー（[seniverse.com](https://seniverse.com)） |
+| `weather_city` | string | `北京` | 天気を取得する都市（デフォルト：北京） |
 
 ### メッセージレンダリング設定
 
@@ -246,14 +247,24 @@ WebUI の設定パネルで入力するか、以下の構造を参考にして�
 
 プラグインは 4 つの LLM ツールを登録しており、モデルが呼び出しタイミングを自動判断します。自然言語で要件を言うだけです：
 
+> ⏱️ **時刻の書式**：数字 / ISO 形式（「2024-01-15 14:30」「2024-01-15 09:00-11:00」「2024-01-16」）または中国語の自然言語（「明天9点」「明天9点到11点」「明天全天」）。日付のみは終日として扱われます。
+
 ```
 ユーザー: 明日の朝 9 時にチーム定例を入れて
-🤖 → create_schedule(title=チーム定例, datetime_str=明日の9時)
-    予定「チーム定例」を作成しました。時間：08-17 09:00 ✅
+🤖 → create_schedule(title=チーム定例, datetime_str=2024-01-15 09:00)
+    予定「チーム定例」を作成しました。時間：01-15 09:00 ✅
+
+ユーザー: 2024-01-15 の 9:00〜11:00 でチーム定例
+🤖 → create_schedule(title=チーム定例, datetime_str=2024-01-15 09:00-11:00)
+    予定「チーム定例」を作成しました。時間：01-15 09:00-11:00 ✅
+
+ユーザー: 2024-01-16 は終日、チームビルディング
+🤖 → create_schedule(title=チームビルディング, datetime_str=2024-01-16)
+    予定「チームビルディング」を作成しました。時間：01-16 終日 ✅
 
 ユーザー: 午後 3 時の会議を 4 時に変更して
-🤖 → update_schedule(title_keyword=会議, new_datetime=午後4時)
-    予定を変更しました：時間を午後 4 時に変更 ✅
+🤖 → update_schedule(title_keyword=会議, new_datetime=2024-01-15 16:00)
+    予定を変更しました：時間を 16:00 に変更 ✅
 
 ユーザー: 今週の予定を教えて
 🤖 → list_schedules(days=7)
@@ -273,7 +284,8 @@ WebUI の設定パネルで入力するか、以下の構造を参考にして�
 | パラメーター | 型 | 説明 |
 |------|------|------|
 | `title` | string | **必須**。予定のタイトル / 内容 |
-| `datetime_str` | string | **必須**。自然言語の日時に対応（例：「明日の 9 時」「あさっての午後 3 時」「2024-01-15 14:30」） |
+| `datetime_str` | string | **必須**。数字 / ISO（「2024-01-15 14:30」「2024-01-15 09:00-11:00」）または中国語の自然言語（「明天9点」「明天9点到11点」「明天全天」）。日付のみは終日 |
+| `end_datetime_str` | string? | 任意。時間帯の終了時刻（例：「11 時」）。指定しない場合は単一時刻（Apple カレンダーは開始から 1 時間） |
 | `description` | string? | 任意のメモ |
 
 ### delete_schedule
@@ -299,7 +311,8 @@ WebUI の設定パネルで入力するか、以下の構造を参考にして�
 | `schedule_id` | string? | 予定 ID（完全一致） |
 | `title_keyword` | string? | タイトルのキーワード（部分一致） |
 | `new_title` | string? | 新しいタイトル |
-| `new_datetime` | string? | 新しい日時。自然言語に対応 |
+| `new_datetime` | string? | 新しい日時。書式は `datetime_str` と同じ |
+| `new_end_datetime` | string? | 時間帯の新しい終了時刻（例：「11 時」）。`new_datetime` と一緒に指定 |
 | `new_description` | string? | 新しいメモ |
 
 ---

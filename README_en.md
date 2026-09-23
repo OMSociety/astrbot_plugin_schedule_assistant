@@ -8,7 +8,7 @@
 
 **Your considerate schedule butler** — Morning broadcast · Habit reminders · LLM schedule management · Apple Calendar two-way sync · Notion to-do sync
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
+[![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/OMSociety/astrbot_plugin_schedule_assistant)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/stargazers)
@@ -25,7 +25,7 @@
 | Feature | Description |
 |------|------|
 | 🌤️ **Daily morning broadcast** | Weather + today's agenda + Notion to-dos + late-night detection — everything you need to get up in one message |
-| ⏰ **Smart habit reminders** | Scheduled reminders for showering / sleeping / drinking water, with snooze and one-off time changes |
+| ⏰ **Smart habit reminders** | Scheduled reminders for showering / sleeping / drinking water; reminder times are configurable |
 | 🤖 **LLM schedule management** | Manage your schedule in natural language: add / delete / query / modify, with automatic time parsing |
 | 🔄 **Apple Calendar two-way sync** | iCloud CalDAV read + write, with automatic deduplication and incremental updates |
 | 📝 **Notion to-do sync** | DDL countdowns in the morning broadcast (N days left / due today / overdue) |
@@ -44,9 +44,9 @@ Automatically pushed every morning (time configurable), one message with everyth
 
 | Habit | Default time | Description |
 |------|---------|------|
-| 🚿 Shower reminder | 22:00 | Can be snoozed; one-off time changes supported |
+| 🚿 Shower reminder | 22:00 | The reminder time is configurable |
 | 😴 Sleep reminder | 23:00 | Smart bedtime nudges, with extra teasing if you stay up too late |
-| 💧 Water reminder | Every 90 minutes | Loops from 9:30–21:30, can be skipped |
+| 💧 Water reminder | Every 90 minutes | Reminds within the 9:30–21:30 window |
 | 📅 Smart schedule reminder | N minutes ahead | **LLM-generated** natural language reminders, with context |
 
 ### Apple iCloud Calendar Two-Way Sync
@@ -88,7 +88,7 @@ QQ native tables are automatically rendered as aligned rows, no extra configurat
 2. Restart AstrBot
 3. Configure the parameters as needed in the admin panel
 
-> 💡 Core dependencies are already bundled in the AstrBot environment; no extra installation is required.
+> 💡 Dependencies are declared in the plugin's `requirements.txt` (`apscheduler` / `aiohttp` / `python-dateutil`); AstrBot pre-checks and installs anything missing when loading or installing the plugin, so manual installation is normally unnecessary.
 
 ### Step 2: Minimal Configuration (Get All Scheduled Reminders Running)
 
@@ -103,8 +103,9 @@ The `PlatformID:SessionType:UserID` format (UMO format) — one line covers both
 ### Step 3 (Optional): Configure Notion Sync
 
 1. Connect Notion on [Maton](https://www.maton.ai/) (via OAuth2) and generate a **Maton API Key**
-2. Download [api-gateway-skill](https://github.com/maton-ai/api-gateway-skill) and fill in your Maton API Key in the configuration
-3. AstrBot admin panel → **Skills** → upload api-gateway-skill and enable it
+2. In the plugin config → **External Services**, fill in `maton_api_key` and set the databases to read via `notion_db_ids` (e.g. `work:xxx`, `reading:yyy`)
+
+> ⚠️ Notion todos are relayed through the third-party gateway `gateway.maton.ai` (not a direct call to the official Notion API): `maton_api_key` is sent to that third party as a request header, and it can read fields such as title, status and due date in the databases you specify.
 
 ---
 
@@ -124,7 +125,7 @@ The `PlatformID:SessionType:UserID` format (UMO format) — one line covers both
 |--------|------|------|------|
 | `enable_schedule_reminder` | bool | `false` | Toggle for LLM-based smart schedule reminders (off by default) |
 | `schedule_reminder_minutes` | int | `10` | Minutes to remind before a schedule starts (all-day schedules do not trigger reminders) |
-| `schedule_reminder_check_interval` | int | `5` | Scan interval for schedule reminders (minutes); recommended 1/3–1/2 of the lead time (e.g. 3–5 minutes for a 10-minute lead time), minimum 2 minutes |
+| `schedule_reminder_check_interval` | int | `5` | Scan interval for schedule reminders (minutes); recommended 1/3–1/2 of the lead time (e.g. 3–5 minutes for a 10-minute lead time), minimum 2 minutes and no greater than the lead time |
 
 ### Habit Reminder Settings
 
@@ -158,12 +159,12 @@ The `PlatformID:SessionType:UserID` format (UMO format) — one line covers both
 
 ### External Services Settings
 
-| Key | Type | Description |
-|--------|------|------|
-| `maton_api_key` | string | Maton API Key (required for Notion features) |
-| `notion_db_ids` | list | List of Notion database IDs, format: `["work:xxx", "reading:yyy"]` — the prefix is an arbitrary category name of your choice |
-| `weather_api_key` | string | Seniverse weather API Key ([seniverse.com](https://seniverse.com)) |
-| `weather_city` | string | City for weather queries (default: Beijing) |
+| Key | Type | Default | Description |
+|--------|------|------|------|
+| `maton_api_key` | string | `""` | Maton API Key (required for Notion features) |
+| `notion_db_ids` | list | `[]` | List of Notion database IDs, format: `["work:xxx", "reading:yyy"]` — the prefix is an arbitrary category name of your choice |
+| `weather_api_key` | string | `""` | Seniverse weather API Key ([seniverse.com](https://seniverse.com)) |
+| `weather_city` | string | `北京` | City for weather queries (default: Beijing) |
 
 ### Message Rendering Settings
 
@@ -246,14 +247,24 @@ Fill it in via the WebUI configuration panel, or refer to the following structur
 
 The plugin registers 4 LLM tools; the model decides automatically when to call them — just state your needs in natural language:
 
+> ⏱️ **Time formats**: numeric/ISO forms ("2024-01-15 14:30", "2024-01-15 09:00-11:00", "2024-01-16") or Chinese natural language ("明天9点", "明天9点到11点", "明天全天"); a bare date means all-day.
+
 ```
 User: Add a schedule for a team meeting tomorrow at 9am
-🤖 → create_schedule(title=Team meeting, datetime_str=tomorrow 9am)
-    Schedule "Team meeting" created, time: 08-17 09:00 ✅
+🤖 → create_schedule(title=Team meeting, datetime_str=2024-01-15 09:00)
+    Schedule "Team meeting" created, time: 01-15 09:00 ✅
+
+User: Group meeting on 2024-01-15 from 09:00 to 11:00
+🤖 → create_schedule(title=Team meeting, datetime_str=2024-01-15 09:00-11:00)
+    Schedule "Team meeting" created, time: 01-15 09:00-11:00 ✅
+
+User: Team building all day on 2024-01-16
+🤖 → create_schedule(title=Team building, datetime_str=2024-01-16)
+    Schedule "Team building" created, time: 01-16 all day ✅
 
 User: Move the 3pm meeting to 4pm
-🤖 → update_schedule(title_keyword=meeting, new_datetime=4pm)
-    Schedule updated: time changed to 4pm ✅
+🤖 → update_schedule(title_keyword=meeting, new_datetime=2024-01-15 16:00)
+    Schedule updated: time changed to 16:00 ✅
 
 User: What's on my schedule this week?
 🤖 → list_schedules(days=7)
@@ -273,7 +284,8 @@ Creates a new schedule.
 | Parameter | Type | Description |
 |------|------|------|
 | `title` | string | **Required**, schedule title / content |
-| `datetime_str` | string | **Required**, supports natural language time, e.g. "tomorrow 9am", "the day after tomorrow at 3pm", "2024-01-15 14:30" |
+| `datetime_str` | string | **Required**, numeric/ISO time ("2024-01-15 14:30", "2024-01-15 09:00-11:00") or Chinese natural language ("明天9点", "明天9点到11点", "明天全天"); a bare date means all-day |
+| `end_datetime_str` | string? | Optional end time for a ranged schedule (e.g. "11am"); without it the schedule is a single time point (Apple Calendar uses start + 1 hour) |
 | `description` | string? | Optional description |
 
 ### delete_schedule
@@ -299,7 +311,8 @@ Modifies a schedule. Title, time, and description can be updated individually or
 | `schedule_id` | string? | Schedule ID (exact match) |
 | `title_keyword` | string? | Title keyword (fuzzy match) |
 | `new_title` | string? | New title |
-| `new_datetime` | string? | New time, supports natural language |
+| `new_datetime` | string? | New time; same formats as `datetime_str` |
+| `new_end_datetime` | string? | New end time for a ranged schedule (e.g. "11am"); must be given together with `new_datetime` |
 | `new_description` | string? | New description |
 
 ---

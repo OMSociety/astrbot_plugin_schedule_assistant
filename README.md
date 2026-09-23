@@ -8,7 +8,7 @@
 
 **你的贴心日程管家** —— 早安播报 · 习惯提醒 · LLM 日程管理 · Apple 日历双向同步 · Notion 待办同步
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
+[![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/OMSociety/astrbot_plugin_schedule_assistant)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/stargazers)
@@ -27,7 +27,7 @@
 | 特性 | 说明 |
 |------|------|
 | 🌤️ **每日早安播报** | 天气 + 今日日程 + Notion 待办 + 熬夜检测，一条消息搞定起床信息 |
-| ⏰ **智能习惯提醒** | 洗澡 / 睡觉 / 喝水定时提醒，可推迟、可临时改时间 |
+| ⏰ **智能习惯提醒** | 洗澡 / 睡觉 / 喝水定时提醒，提醒时间可配置 |
 | 🤖 **LLM 日程管理** | 动嘴管日程：新增 / 删除 / 查询 / 修改，自然语言时间解析 |
 | 🔄 **Apple 日历双向同步** | iCloud CalDAV 读取 + 写入，自动去重与增量更新 |
 | 📝 **Notion 待办同步** | 早安播报中附 DDL 倒计时（还剩N天 / 今天截止 / 已逾期） |
@@ -46,9 +46,9 @@
 
 | 习惯 | 默认时间 | 说明 |
 |------|---------|------|
-| 🚿 洗澡提醒 | 22:00 | 可推迟、可临时改时间 |
+| 🚿 洗澡提醒 | 22:00 | 提醒时间可配置 |
 | 😴 睡觉提醒 | 23:00 | 智能催睡，超时带吐槽 |
-| 💧 喝水提醒 | 每90分钟 | 9:30–21:30 循环，可跳过 |
+| 💧 喝水提醒 | 每90分钟 | 9:30–21:30 时段内循环提醒 |
 | 📅 日程智能提醒 | 提前 N 分钟 | **LLM 生成**自然语言提醒，结合上下文 |
 
 ### Apple iCloud 日历双向同步
@@ -90,7 +90,7 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 2. 重启 AstrBot
 3. 在管理面板按需配置各项参数
 
-> 💡 核心依赖已集成在 AstrBot 环境中，无需额外安装。
+> 💡 依赖声明在插件 `requirements.txt`（`apscheduler` / `aiohttp` / `python-dateutil`）：AstrBot 加载与安装插件时会自动预检并补齐缺失依赖，通常无需手动安装。
 
 ### 第二步：最小配置（跑通全部定时提醒）
 
@@ -105,8 +105,9 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 ### 第三步（可选）：配置 Notion 同步
 
 1. 在 [Maton](https://www.maton.ai/) 上接入 Notion（OAuth2 方式），生成 **Maton API Key**
-2. 下载 [api-gateway-skill](https://github.com/maton-ai/api-gateway-skill)，在配置中填入你的 Maton API Key
-3. AstrBot 管理面板 → **Skills** → 上传 api-gateway-skill 并启用
+2. 插件配置 → **外部服务** 填入 `maton_api_key`，并用 `notion_db_ids` 指定要读取的数据库（如 `事务:xxx`、`阅读:yyy`）
+
+> ⚠️ Notion 待办经第三方网关 `gateway.maton.ai` 中转（非直连 Notion 官方 API）：`maton_api_key` 会作为请求头发送给该第三方，其可读取你指定数据库中的标题、状态与截止日期等字段。
 
 ---
 
@@ -126,7 +127,7 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 |--------|------|------|------|
 | `enable_schedule_reminder` | bool | `false` | 日程 LLM 智能提醒开关（默认关闭） |
 | `schedule_reminder_minutes` | int | `10` | 日程提前提醒分钟数（日程开始前多少分钟提醒，全天日程不提醒） |
-| `schedule_reminder_check_interval` | int | `5` | 日程提醒扫描间隔（分钟），建议设为提前量的 1/3~1/2（如提前10分钟则间隔3-5分钟），最小值2分钟 |
+| `schedule_reminder_check_interval` | int | `5` | 日程提醒扫描间隔（分钟），建议设为提前量的 1/3~1/2（如提前10分钟则间隔3-5分钟），最小值2分钟且不大于提前量 |
 
 ### 习惯提醒设置
 
@@ -160,12 +161,12 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 
 ### 外部服务设置
 
-| 配置项 | 类型 | 说明 |
-|--------|------|------|
-| `maton_api_key` | string | Maton API Key（Notion 功能必需） |
-| `notion_db_ids` | list | Notion 数据库 ID 列表，格式：`["事务:xxx", "阅读:yyy"]` |
-| `weather_api_key` | string | 心知天气 API Key（[seniverse.com](https://seniverse.com)） |
-| `weather_city` | string | 天气查询城市（默认：北京） |
+| 配置项 | 类型 | 默认 | 说明 |
+|--------|------|------|------|
+| `maton_api_key` | string | `""` | Maton API Key（Notion 功能必需） |
+| `notion_db_ids` | list | `[]` | Notion 数据库 ID 列表，格式：`["事务:xxx", "阅读:yyy"]` |
+| `weather_api_key` | string | `""` | 心知天气 API Key（[seniverse.com](https://seniverse.com)） |
+| `weather_city` | string | `北京` | 天气查询城市（默认：北京） |
 
 ### 消息渲染设置
 
@@ -248,10 +249,20 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 
 插件注册 4 个 LLM 工具，模型会自动判断何时调用，你只需用自然语言说需求：
 
+> ⏱️ **时间写法**：数字/ISO 格式（`2024-01-15 14:30`、`2024-01-15 09:00-11:00`、`2024-01-16`）或中文口语（「明天9点」「明天9点到11点」「明天全天」）；纯日期即全天。
+
 ```
 用户: 帮我加个明天早上9点开组会的日程
 🤖 → create_schedule(title=组会, datetime_str=明天9点)
     已创建日程「组会」，时间：08-17 09:00 ✅
+
+用户: 明天9点到11点开组会
+🤖 → create_schedule(title=组会, datetime_str=明天9点到11点)
+    已创建日程「组会」，时间：08-17 09:00-11:00 ✅
+
+用户: 后天全天团建
+🤖 → create_schedule(title=团建, datetime_str=后天全天)
+    已创建日程「团建」，时间：08-18 全天 ✅
 
 用户: 把下午3点的会议改到4点
 🤖 → update_schedule(title_keyword=会议, new_datetime=下午4点)
@@ -275,7 +286,8 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 | 参数 | 类型 | 说明 |
 |------|------|------|
 | `title` | string | **必填**，日程标题/内容 |
-| `datetime_str` | string | **必填**，支持自然语言时间，如「明天9点」「后天下午3点」「2024-01-15 14:30」 |
+| `datetime_str` | string | **必填**，数字/ISO 时间（`2024-01-15 14:30`、`2024-01-15 09:00-11:00`）或中文口语（「明天9点」「明天9点到11点」「明天全天」）；纯日期即全天 |
+| `end_datetime_str` | string? | 可选，区间日程的结束时间（如「11点」）；不填为单时间点（Apple 日历按开始后 1 小时） |
 | `description` | string? | 可选备注描述 |
 
 ### delete_schedule
@@ -301,7 +313,8 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 | `schedule_id` | string? | 日程 ID（精确匹配） |
 | `title_keyword` | string? | 标题关键词（模糊匹配） |
 | `new_title` | string? | 新标题 |
-| `new_datetime` | string? | 新时间，支持自然语言 |
+| `new_datetime` | string? | 新时间，写法同 `datetime_str` |
+| `new_end_datetime` | string? | 区间日程的新结束时间（如「11点」），需与 `new_datetime` 一起给 |
 | `new_description` | string? | 新备注 |
 
 ---

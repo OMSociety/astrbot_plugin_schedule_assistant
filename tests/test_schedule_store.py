@@ -6,6 +6,7 @@ plugin 的 KV API 用内存字典假对象替代，不依赖真实框架存储�
 import asyncio
 from datetime import datetime, timedelta
 
+from schedule_assistant.constants import SCHEDULES_KEY
 from schedule_assistant.schedule_store import ScheduleItem, ScheduleStore
 
 
@@ -26,13 +27,18 @@ def _store() -> ScheduleStore:
     return ScheduleStore(_FakeKVPlugin())
 
 
-def _evt(uid, title="事件", start=None):
-    return {
+def _evt(uid, title="事件", start=None, end=None, all_day=False):
+    evt = {
         "uid": uid,
         "summary": title,
         "start": start
         or (datetime.now() + timedelta(days=2)).strftime("%Y-%m-%dT%H:%M:%S"),
     }
+    if end:
+        evt["end"] = end
+    if all_day:
+        evt["all_day"] = True
+    return evt
 
 
 class TestSyncFromAppleCalendar:
@@ -102,6 +108,162 @@ class TestSyncFromAppleCalendar:
         stale = _evt("u1", start=(datetime.now() - timedelta(days=3)).isoformat())
         stats = asyncio.run(store.sync_from_apple_calendar("u", [stale]))
         assert stats["added"] == 0
+
+
+class TestSyncEndTimeAndReschedule:
+    """区间 / 全天同步与改期防重重置"""
+
+    def test_item_roundtrip_with_end_time(self):
+        item = ScheduleItem(
+            type="schedule",
+            title="组会",
+            time="2026-09-10 19:00",
+            end_time="2026-09-10 21:00",
+        )
+        revived = ScheduleItem.from_dict(item.to_dict())
+        assert revived == item
+        assert revived.end_time == "2026-09-10 21:00"
+
+    def test_end_time_stored(self):
+        store = _store()
+        start = (datetime.now() + timedelta(days=2)).replace(
+            hour=10, minute=0, second=0, microsecond=0
+        )
+        end = start + timedelta(hours=1, minutes=30)
+        asyncio.run(
+            store.sync_from_apple_calendar(
+                "u", [_evt("u1", start=start.isoformat(), end=end.isoformat())]
+            )
+        )
+        item = asyncio.run(store.list_all_items("u"))[0]
+        assert item.end_time == end.strftime("%Y-%m-%d %H:%M")
+
+    def test_all_day_stored_as_date_only(self):
+        """全天事件 time 存 date-only（与全天判定口径对齐）"""
+        store = _store()
+        day = datetime.now() + timedelta(days=2)
+        asyncio.run(
+            store.sync_from_apple_calendar(
+                "u",
+                [
+                    _evt(
+                        "u1",
+                        start=day.strftime("%Y-%m-%dT00:00:00"),
+                        end=(day + timedelta(days=1)).strftime("%Y-%m-%dT00:00:00"),
+                        all_day=True,
+                    )
+                ],
+            )
+        )
+        item = asyncio.run(store.list_all_items("u"))[0]
+        assert item.all_day is True
+        assert item.time == day.strftime("%Y-%m-%d")
+        assert item.end_time is None
+
+    def test_reschedule_resets_last_triggered(self):
+        store = _store()
+        asyncio.run(store.sync_from_apple_calendar("u", [_evt("u1")]))
+        item = asyncio.run(store.list_all_items("u"))[0]
+        item.last_triggered = datetime.now().isoformat()
+        asyncio.run(store.update_item("u", item))
+
+        new_start = (datetime.now() + timedelta(days=3)).strftime("%Y-%m-%dT10:00:00")
+        stats = asyncio.run(
+            store.sync_from_apple_calendar("u", [_evt("u1", start=new_start)])
+        )
+        assert stats["updated"] == 1
+        assert asyncio.run(store.list_all_items("u"))[0].last_triggered is None
+
+    def test_title_change_keeps_last_triggered(self):
+        store = _store()
+        asyncio.run(store.sync_from_apple_calendar("u", [_evt("u1")]))
+        item = asyncio.run(store.list_all_items("u"))[0]
+        item.last_triggered = datetime.now().isoformat()
+        asyncio.run(store.update_item("u", item))
+
+        stats = asyncio.run(
+            store.sync_from_apple_calendar("u", [_evt("u1", title="改名了")])
+        )
+        assert stats["updated"] == 1
+        assert asyncio.run(store.list_all_items("u"))[0].last_triggered is not None
+
+    def test_legacy_item_without_end_time_not_treated_as_reschedule(self):
+        """旧数据无 end_time 键时首轮补齐不算改期（避免升级后重复提醒）"""
+        store = _store()
+        start = (datetime.now() + timedelta(days=2)).replace(
+            hour=10, minute=0, second=0, microsecond=0
+        )
+        asyncio.run(
+            store.add_item(
+                "u",
+                ScheduleItem(
+                    type="schedule",
+                    title="事件",
+                    time=start.strftime("%Y-%m-%d %H:%M"),
+                    apple_uid="u1",
+                    last_triggered="2026-09-23T10:00:00",
+                ),
+            )
+        )
+
+        async def strip_end_time():
+            data = await store._load_user_data("u")
+            for s in data[SCHEDULES_KEY]:
+                s.pop("end_time", None)
+            await store._save_user_data("u", data)
+
+        asyncio.run(strip_end_time())
+
+        end = start + timedelta(hours=2)
+        stats = asyncio.run(
+            store.sync_from_apple_calendar(
+                "u", [_evt("u1", start=start.isoformat(), end=end.isoformat())]
+            )
+        )
+        assert stats["updated"] == 1
+        revived = asyncio.run(store.list_all_items("u"))[0]
+        assert revived.end_time == end.strftime("%Y-%m-%d %H:%M")
+        assert revived.last_triggered == "2026-09-23T10:00:00"
+
+    def test_unchanged_sync_skips_save(self):
+        """无变化的同步不写盘（扫描前每轮都会刷新同步）"""
+        store = _store()
+        asyncio.run(store.sync_from_apple_calendar("u", [_evt("u1")]))
+
+        saves = []
+        orig = store._save_user_data
+
+        async def counting(user_id, data):
+            saves.append(user_id)
+            return await orig(user_id, data)
+
+        store._save_user_data = counting
+        stats = asyncio.run(store.sync_from_apple_calendar("u", [_evt("u1")]))
+        assert stats == {"added": 0, "updated": 0, "deleted": 0}
+        assert saves == []
+
+    def test_duplicate_uid_out_of_window_not_resurrected(self):
+        """窗口外事件（含重复实例）不保留成员资格 → 本地对应条目被删除"""
+        store = _store()
+        asyncio.run(
+            store.add_item(
+                "u",
+                ScheduleItem(
+                    type="schedule",
+                    title="旧事件",
+                    time="2026-09-10 10:00",
+                    apple_uid="u1",
+                ),
+            )
+        )
+        far = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%S")
+        stats = asyncio.run(
+            store.sync_from_apple_calendar(
+                "u", [_evt("u1", start=far), _evt("u1", start=far)]
+            )
+        )
+        assert stats["deleted"] == 1
+        assert asyncio.run(store.list_all_items("u")) == []
 
 
 class TestFormatHistoryForPrompt:

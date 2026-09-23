@@ -13,12 +13,18 @@ from astrbot.api import logger
 from astrbot.core.agent.run_context import ContextWrapper
 from astrbot.core.agent.tool import FunctionTool
 from astrbot.core.astr_agent_context import AstrAgentContext
-from dateutil import parser as date_parser
-from dateutil.relativedelta import relativedelta
 from pydantic import Field
 from pydantic.dataclasses import dataclass
 
 from ..schedule_store import ScheduleItem
+from ..time_parser import (
+    format_item_when,
+    format_when_label,
+    is_all_day_event,
+    parse_item_time,
+    parse_range_end,
+    parse_schedule_time,
+)
 
 # ============ Tool 定义 ============
 
@@ -41,8 +47,18 @@ class CreateScheduleTool(FunctionTool[AstrAgentContext]):
                     "type": "string",
                     "description": (
                         "日期时间，格式如「2024-01-15 14:30」"
-                        "「明天9点」「后天下午3点」「今天晚上8点」"
+                        "「明天9点」「后天下午3点」「今天晚上8点」；"
+                        "也支持区间「明天9点到11点」与全天「明天全天」"
+                        "（纯日期如「明天」即全天）"
                     ),
+                },
+                "end_datetime_str": {
+                    "type": "string",
+                    "description": (
+                        "区间日程的结束时间，如「11点」「2024-01-15 16:30」；"
+                        "不填则为单时间点（Apple 日历按开始后 1 小时）"
+                    ),
+                    "nullable": True,
                 },
                 "description": {
                     "type": "string",
@@ -72,46 +88,24 @@ class CreateScheduleTool(FunctionTool[AstrAgentContext]):
         try:
             title = kwargs.get("title", "").strip()
             datetime_str = kwargs.get("datetime_str", "").strip()
+            end_datetime_str = (kwargs.get("end_datetime_str") or "").strip()
             description = kwargs.get("description", "").strip()
 
             if not title or not datetime_str:
                 return "请提供日程标题和时间"
 
-            now = datetime.now()
-            dt = None
-
-            if "明天" in datetime_str:
-                time_part = datetime_str.replace("明天", "").strip()
-                dt = now + relativedelta(days=1)
-                if time_part:
-                    t = datetime.strptime(
-                        time_part.replace("点", ":00").replace("：", ":"), "%H:%M"
-                    )
-                    dt = dt.replace(
-                        hour=t.hour, minute=t.minute, second=0, microsecond=0
-                    )
-            elif "后天" in datetime_str:
-                time_part = datetime_str.replace("后天", "").strip()
-                dt = now + relativedelta(days=2)
-                if time_part:
-                    t = datetime.strptime(
-                        time_part.replace("点", ":00").replace("：", ":"), "%H:%M"
-                    )
-                    dt = dt.replace(
-                        hour=t.hour, minute=t.minute, second=0, microsecond=0
-                    )
-            elif "今天" in datetime_str:
-                time_part = datetime_str.replace("今天", "").strip()
-                dt = now
-                if time_part:
-                    t = datetime.strptime(
-                        time_part.replace("点", ":00").replace("：", ":"), "%H:%M"
-                    )
-                    dt = dt.replace(
-                        hour=t.hour, minute=t.minute, second=0, microsecond=0
-                    )
-            else:
-                dt = date_parser.parse(datetime_str)
+            start, end, all_day = parse_schedule_time(datetime_str)
+            if start is None:
+                return (
+                    "时间格式无法解析，请使用如「2024-01-15 14:30」「明天9点」"
+                    "「明天9点到11点」（区间）「明天全天」（全天）"
+                )
+            if end_datetime_str and not all_day:
+                end = parse_range_end(end_datetime_str, start)
+                if end is None:
+                    return "结束时间格式无法解析，请使用如「11点」「2024-01-15 16:30」"
+            if end is not None and end <= start:
+                return "结束时间需要晚于开始时间"
 
             event = context.context.event
             user_id = str(event.get_sender_id() or "")
@@ -127,8 +121,16 @@ class CreateScheduleTool(FunctionTool[AstrAgentContext]):
             item = ScheduleItem(
                 type="schedule",
                 title=title,
-                time=dt.strftime("%Y-%m-%d %H:%M"),
+                time=(
+                    start.strftime("%Y-%m-%d")
+                    if all_day
+                    else start.strftime("%Y-%m-%d %H:%M")
+                ),
+                end_time=(
+                    None if all_day or end is None else end.strftime("%Y-%m-%d %H:%M")
+                ),
                 context=description,
+                all_day=all_day,
             )
 
             await self.store.add_item(user_id, item)
@@ -141,16 +143,25 @@ class CreateScheduleTool(FunctionTool[AstrAgentContext]):
                         self._plugin.config.get("enable_apple_calendar_sync")
                         and self._plugin.apple_calendar
                     ):
-                        await self._plugin.apple_calendar.create_event(
+                        created_uid = await self._plugin.apple_calendar.create_event(
                             summary=title,
-                            start=dt,
+                            start=start,
+                            end=end,
                             description=description,
+                            all_day=all_day,
                         )
+                        if created_uid:
+                            # 记录 UID：否则下次同步会把它当成新事件再入库一份
+                            item.apple_uid = created_uid
+                            await self.store.update_item(user_id, item)
                         apple_msg = "，已同步到 Apple 日历"
                 except Exception as e:
                     logger.warning(f"Apple 日历写入失败: {e}")
 
-            return f"已创建日程「{title}」，时间：{dt.strftime('%m-%d %H:%M')} ✅{apple_msg}"
+            return (
+                f"已创建日程「{title}」，"
+                f"时间：{format_when_label(start, end, all_day)} ✅{apple_msg}"
+            )
 
         except Exception as e:
             logger.error(f"创建日程失败: {e}")
@@ -261,7 +272,10 @@ class DeleteScheduleTool(FunctionTool[AstrAgentContext]):
                 else:
                     lines = ["找到多个匹配日程，请提供更具体的信息："]
                     for s in matches:
-                        lines.append(f"  [{s.id}] {s.title} @ {s.time}")
+                        lines.append(
+                            f"  [{s.id}] {s.title} · "
+                            f"{format_item_when(s, with_date=True)}"
+                        )
                     return "\n".join(lines)
 
             return "请提供日程ID或标题关键词"
@@ -329,13 +343,15 @@ class ListSchedulesTool(FunctionTool[AstrAgentContext]):
             for s in all_items:
                 if not s.time:
                     continue
-                try:
-                    dt = datetime.strptime(s.time, "%Y-%m-%d %H:%M")
-                    if now <= dt <= future:
-                        user_schedules.append((dt, s))
-                except Exception as e:
-                    logger.debug(f"日程时间解析失败，跳过: {s.time!r} err={e}")
+                dt = parse_item_time(s.time)
+                if not dt:
+                    logger.debug(f"日程时间解析失败，跳过: {s.time!r}")
                     continue
+                is_all_day = is_all_day_event(s)
+                if (now <= dt <= future) or (
+                    is_all_day and now.date() <= dt.date() <= future.date()
+                ):
+                    user_schedules.append((dt, s))
 
             if not user_schedules:
                 return f"最近{days}天没有日程安排~"
@@ -354,7 +370,7 @@ class ListSchedulesTool(FunctionTool[AstrAgentContext]):
                     ]
                     lines.append(f"━━━ {date_str} {weekday} ━━━")
 
-                lines.append(f"  ⏰ {dt.strftime('%H:%M')} │ {s.title}")
+                lines.append(f"  {format_item_when(s)} │ {s.title}")
                 if s.context:
                     lines.append(f"      📝 {s.context}")
 
@@ -392,7 +408,15 @@ class UpdateScheduleTool(FunctionTool[AstrAgentContext]):
                 },
                 "new_datetime": {
                     "type": "string",
-                    "description": "新时间，格式如「2024-01-15 14:30」「明天9点」",
+                    "description": (
+                        "新时间，格式如「2024-01-15 14:30」「明天9点」；"
+                        "也支持区间「明天9点到11点」与全天「明天全天」"
+                    ),
+                    "nullable": True,
+                },
+                "new_end_datetime": {
+                    "type": "string",
+                    "description": "区间日程的新结束时间，如「11点」，需与 new_datetime 一起给",
                     "nullable": True,
                 },
                 "new_description": {
@@ -420,12 +444,18 @@ class UpdateScheduleTool(FunctionTool[AstrAgentContext]):
             title_keyword = (kwargs.get("title_keyword") or "").strip()
             new_title = (kwargs.get("new_title") or "").strip()
             new_datetime = (kwargs.get("new_datetime") or "").strip()
+            new_end_datetime = (kwargs.get("new_end_datetime") or "").strip()
             new_description = (kwargs.get("new_description") or "").strip()
 
             if not schedule_id and not title_keyword:
                 return "请提供要修改的日程ID或标题关键词"
 
-            if not new_title and not new_datetime and not new_description:
+            if (
+                not new_title
+                and not new_datetime
+                and not new_end_datetime
+                and not new_description
+            ):
                 return "请提供要修改的内容（新标题/新时间/新备注）"
 
             event = context.context.event
@@ -458,26 +488,69 @@ class UpdateScheduleTool(FunctionTool[AstrAgentContext]):
             if len(matches) > 1:
                 lines = ["找到多个匹配日程，请提供更具体的信息："]
                 for s in matches:
-                    lines.append(f"  [{s.id}] {s.title} @ {s.time}")
+                    lines.append(
+                        f"  [{s.id}] {s.title} · {format_item_when(s, with_date=True)}"
+                    )
                 return "\n".join(lines)
 
             target = matches[0]
+
+            # 时间解析先行（出错时不落任何改动）
+            parsed = None
+            if new_end_datetime and not new_datetime:
+                return "请一并提供开始时间，或直接用「9点到11点」的区间写法"
+            if new_datetime:
+                start, end, all_day = parse_schedule_time(new_datetime)
+                if start is None:
+                    return (
+                        "时间格式无法解析，请使用如「明天9点」"
+                        "「明天9点到11点」（区间）「明天全天」（全天）"
+                    )
+                if new_end_datetime and not all_day:
+                    end = parse_range_end(new_end_datetime, start)
+                    if end is None:
+                        return (
+                            "结束时间格式无法解析，请使用如「11点」「2024-01-15 16:30」"
+                        )
+                if end is not None and end <= start:
+                    return "结束时间需要晚于开始时间"
+                parsed = (start, end, all_day)
 
             if new_title:
                 target.title = new_title
             if new_description:
                 target.context = new_description
-            if new_datetime:
-                dt = date_parser.parse(new_datetime)
-                target.time = dt.strftime("%Y-%m-%d %H:%M")
+
+            time_label = None
+            if parsed is not None:
+                start, end, all_day = parsed
+                new_time = (
+                    start.strftime("%Y-%m-%d")
+                    if all_day
+                    else start.strftime("%Y-%m-%d %H:%M")
+                )
+                new_end = (
+                    None if all_day or end is None else end.strftime("%Y-%m-%d %H:%M")
+                )
+                if (target.time, target.end_time, target.all_day) != (
+                    new_time,
+                    new_end,
+                    all_day,
+                ):
+                    target.time = new_time
+                    target.end_time = new_end
+                    target.all_day = all_day
+                    # 改期重新提醒（与 Apple 同步改期同口径）
+                    target.last_triggered = None
+                time_label = format_when_label(start, end, all_day)
 
             await self.store.update_item(user_id, target)
 
             changes = []
             if new_title:
                 changes.append(f"标题改为「{new_title}」")
-            if new_datetime:
-                changes.append(f"时间改为{new_datetime}")
+            if time_label:
+                changes.append(f"时间改为{time_label}")
             if new_description:
                 changes.append("备注已更新")
 

@@ -12,6 +12,7 @@ from astrbot.api import logger
 
 from ..constants import BROADCAST_MD_OVERRIDE, LOG_PREFIX
 from ..prompt_config import DEFAULT_PROMPT_SCHEDULE, render_prompt
+from ..time_parser import is_all_day_event, parse_item_time
 
 
 class ScheduleReminder:
@@ -35,10 +36,11 @@ class ScheduleReminder:
         item_context: str,
         minutes_ahead: int,
         conv_history: str,
+        item_end_time: str | None = None,
     ) -> str:
         """构建 LLM 提醒 prompt（config 化，默认自然口语模板）"""
 
-        time_label = self._format_time_label(item_time)
+        time_label = self._format_time_label(item_time, item_end_time)
         ahead_label = self._format_ahead_label(minutes_ahead)
         template = self.config.get("prompt_schedule") or DEFAULT_PROMPT_SCHEDULE
 
@@ -54,12 +56,15 @@ class ScheduleReminder:
         )
 
     @staticmethod
-    def _format_time_label(item_time: str) -> str:
-        """把 '2026-09-01 14:30' 转成 '14:30'，失败则原样返回"""
-        try:
-            return datetime.strptime(item_time, "%Y-%m-%d %H:%M").strftime("%H:%M")
-        except (ValueError, TypeError):
+    def _format_time_label(item_time: str, end_time: str | None = None) -> str:
+        """时间标签：区间为 '14:30-16:30'，单点为 '14:30'，解析失败则原样返回"""
+        start_dt = parse_item_time(item_time)
+        if not start_dt:
             return item_time or ""
+        end_dt = parse_item_time(end_time) if end_time else None
+        if end_dt:
+            return f"{start_dt.strftime('%H:%M')}-{end_dt.strftime('%H:%M')}"
+        return start_dt.strftime("%H:%M")
 
     @staticmethod
     def _format_ahead_label(minutes_ahead: int) -> str:
@@ -85,6 +90,7 @@ class ScheduleReminder:
         minutes_ahead: int = 10,
         conv_history: str | None = None,
         user_id: str | None = None,
+        item_end_time: str | None = None,
     ) -> str:
         """生成提醒文本（带 LLM fallback）"""
 
@@ -96,6 +102,7 @@ class ScheduleReminder:
             item_context=item_context,
             minutes_ahead=minutes_ahead,
             conv_history=conv_str,
+            item_end_time=item_end_time,
         )
 
         try:
@@ -113,42 +120,6 @@ class ScheduleReminder:
         return f"📅 提醒：「{item_title}」即将开始，记得准备哦~"
 
 
-def _parse_time(time_str: str) -> datetime | None:
-    """解析时间字符串为 datetime，支持 ISO 格式、时区后缀和普通格式"""
-    if not time_str:
-        return None
-    s = time_str.strip()
-    # 优先使用 fromisoformat（原生支持 ISO 8601，含时区）
-    try:
-        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
-        return dt.replace(tzinfo=None) if dt.tzinfo else dt
-    except (ValueError, TypeError):
-        pass
-    # 再尝试普通格式
-    for fmt in ["%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S", "%H:%M"]:
-        try:
-            return datetime.strptime(s, fmt)
-        except ValueError:
-            continue
-    return None
-
-
-def _is_all_day_event(item) -> bool:
-    """判断是否为全天事件"""
-    # 优先检查 all_day 标记
-    if getattr(item, "all_day", False):
-        return True
-    # 检查时间格式：YYYY-MM-DD 表示全天
-    t = (item.time or "").strip()
-    if len(t) == 10 and t.count("-") == 2:
-        try:
-            datetime.strptime(t, "%Y-%m-%d")
-            return True
-        except ValueError:
-            pass
-    return False
-
-
 async def check_and_trigger_schedule_reminder(
     schedule_store,
     llm_service,
@@ -161,10 +132,9 @@ async def check_and_trigger_schedule_reminder(
 
     habit 类型（洗澡/睡觉/喝水）由独立定时任务处理，不在此扫描，避免重复提醒。
 
-    提醒时机：
-    - 提前提醒：在日程开始前 minutes_before ±2 分钟时触发（可配置，0 表示关闭）
-    - 即将开始兜底：前 5 分钟内也会触发
-    - 全天事件不触发提前提醒
+    提醒时机：日程开始前 minutes_before 分钟内触发一次（窗口含上边界；<=0 时不触发）；
+    全天事件不触发提前提醒。防重标记 last_triggered 持久有效，事件改期时由同步层
+    （schedule_store.sync_from_apple_calendar）或工具层（update_schedule）重置。
     """
     # 复用调用方已创建的实例，避免每轮扫描重复构造
     reminder = reminder or ScheduleReminder(llm_service)
@@ -182,44 +152,25 @@ async def check_and_trigger_schedule_reminder(
             continue
 
         # 跳过全天事件（提前提醒不适用）
-        if _is_all_day_event(item):
+        if is_all_day_event(item):
             continue
 
-        item_dt = _parse_time(item.time)
+        item_dt = parse_item_time(item.time)
 
         if not item_dt:
             continue
 
         minutes_until = (item_dt - now).total_seconds() / 60
 
-        # 检查是否已触发过（1小时内避免重复）
-        if item.last_triggered:
-            try:
-                last_dt = datetime.fromisoformat(item.last_triggered)
-                if (now - last_dt).total_seconds() > 3600:
-                    item.last_triggered = None
-            except (ValueError, TypeError):
-                pass
-
+        # 防重：last_triggered 持久有效（改期由同步层/工具层重置），同一事件只提醒一次
         if item.last_triggered:
             continue
 
-        # 判断是否需要触发提醒
-        should_trigger = False
-        trigger_minutes = 0
-
-        # 1. 提前提醒：日程开始前 minutes_before ±2 分钟
-        if minutes_before > 0 and abs(minutes_until - minutes_before) <= 2:
-            should_trigger = True
-            trigger_minutes = int(minutes_until)
-
-        # 2. 即将开始兜底：前 5 分钟内
-        if not should_trigger and 0 <= minutes_until <= 5:
-            should_trigger = True
-            trigger_minutes = int(minutes_until)
-
-        if not should_trigger:
+        # 提前提醒窗口：开始前 minutes_before 分钟内（含上边界）
+        if not 0 < minutes_until <= minutes_before:
             continue
+
+        trigger_minutes = int(minutes_until)
 
         conv_history = schedule_store.format_history_for_prompt(
             await schedule_store.get_conversation_history(user_id)
@@ -232,6 +183,7 @@ async def check_and_trigger_schedule_reminder(
             minutes_ahead=trigger_minutes,
             conv_history=conv_history,
             user_id=user_id,
+            item_end_time=item.end_time,
         )
 
         triggered.append(

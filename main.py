@@ -19,6 +19,7 @@ from astrbot.api.event import filter
 from astrbot.api.star import Context, Star
 
 from .apple_calendar import AppleCalendar
+from .async_utils import try_lock
 from .constants import (
     DEFAULT_BATH_TIME,
     DEFAULT_SLEEP_TIME,
@@ -38,6 +39,7 @@ from .schedule_store import ScheduleItem, ScheduleStore
 from .services.llm import LLMService
 from .services.notion import NotionService
 from .services.weather import WeatherService
+from .time_parser import is_all_day_event, parse_item_time
 from .tools.schedule_tools import register_schedule_tools
 
 SCHEDULE_REMINDER_LOG_THROTTLE_SECONDS = 300  # seconds (5 minutes)
@@ -446,6 +448,22 @@ class ScheduleAssistant(Star):
         schedules_dict = await self.store.get_schedules(user_id)
         return schedules_dict.get(SCHEDULES_KEY, [])
 
+    @staticmethod
+    def _schedule_time_label(
+        start_dt: datetime, end_str: str | None, all_day: bool
+    ) -> str:
+        """今日日程时间标签：全天 / 15:00-16:30 / 15:00。
+
+        本地与 Apple 两路用同一格式，早安播报合并去重才能命中同一事件。
+        """
+        if all_day:
+            return "全天"
+        if end_str:
+            end_dt = parse_item_time(end_str)
+            if end_dt:
+                return f"{start_dt.strftime('%H:%M')}-{end_dt.strftime('%H:%M')}"
+        return start_dt.strftime("%H:%M")
+
     async def _get_today_local_schedules_text(
         self, user_id: str, limit: int = 8
     ) -> str:
@@ -456,25 +474,15 @@ class ScheduleAssistant(Star):
         for s in schedules:
             if not s.time:
                 continue
-            try:
-                dt = datetime.fromisoformat(s.time)
-            except Exception:
-                try:
-                    dt = datetime.strptime(s.time, "%Y-%m-%d %H:%M")
-                except Exception:
-                    logger.debug(f"{LOG_PREFIX} 日程时间格式无法解析: {s.time!r}")
-                    continue
-            if dt.date() == today:
-                today_items.append((dt, s.title))
+            dt = parse_item_time(s.time)
+            if not dt or dt.date() != today:
+                continue
+            time_label = self._schedule_time_label(dt, s.end_time, is_all_day_event(s))
+            today_items.append((dt, f"⏰ {time_label} │ {s.title}"))
         if not today_items:
             return "暂无"
         today_items.sort(key=lambda x: x[0])
-        return "\n".join(
-            [
-                f"⏰ {dt.strftime('%H:%M')} │ {title}"
-                for dt, title in today_items[:limit]
-            ]
-        )
+        return "\n".join([line for _, line in today_items[:limit]])
 
     async def _get_today_apple_calendar_text(self, limit: int = 8) -> str:
         """获取今日Apple日历文本"""
@@ -494,19 +502,17 @@ class ScheduleAssistant(Star):
 
                 if not start_str:
                     continue
-                try:
-                    start_dt = datetime.fromisoformat(start_str)
-                except Exception:
+                start_dt = parse_item_time(start_str)
+                if not start_dt:
                     logger.debug(
                         f"{LOG_PREFIX} Apple 事件时间格式无法解析: {start_str!r}"
                     )
                     continue
                 if start_dt.date() != today:
                     continue
-                if e.get("all_day"):
-                    time_label = "全天"
-                else:
-                    time_label = start_dt.strftime("%H:%M")
+                time_label = self._schedule_time_label(
+                    start_dt, e.get("end"), bool(e.get("all_day"))
+                )
                 rows.append((start_dt, f"⏰ {time_label} │ {summary}"))
 
             if not rows:
@@ -692,13 +698,10 @@ class ScheduleAssistant(Star):
         self._schedule_next_water_reminder(datetime.now() + timedelta(seconds=delay))
 
     async def _schedule_reminder_scan(self):
-        lock = self._schedule_reminder_scan_lock
-        try:
-            await asyncio.wait_for(lock.acquire(), timeout=0)
-        except asyncio.TimeoutError:
-            logger.debug(f"{LOG_PREFIX} 日程提醒扫描仍在运行，跳过本轮")
-            return
-        try:
+        async with try_lock(self._schedule_reminder_scan_lock) as acquired:
+            if not acquired:
+                logger.debug(f"{LOG_PREFIX} 日程提醒扫描仍在运行，跳过本轮")
+                return
             now_ts = time.monotonic()
             if (
                 now_ts - self._schedule_reminder_last_log_ts
@@ -710,6 +713,9 @@ class ScheduleAssistant(Star):
             await self._ensure_services()
             if not self.schedule_reminder:
                 return
+
+            # Apple 事件先入库再扫：手机侧新加/改期的事件也能被提前提醒
+            await self._apple_calendar_sync()
 
             try:
                 raw_minutes = self.config.get("schedule_reminder_minutes", 10)
@@ -744,17 +750,12 @@ class ScheduleAssistant(Star):
                             )
                 except Exception as e:
                     logger.warning(f"{LOG_PREFIX} 用户 {user_id} 日程提醒扫描失败: {e}")
-        finally:
-            lock.release()
 
     async def _apple_calendar_sync(self):
-        lock = self._apple_calendar_sync_lock
-        try:
-            await asyncio.wait_for(lock.acquire(), timeout=0)
-        except asyncio.TimeoutError:
-            logger.debug(f"{LOG_PREFIX} Apple 同步仍在运行，跳过本轮")
-            return
-        try:
+        async with try_lock(self._apple_calendar_sync_lock) as acquired:
+            if not acquired:
+                logger.debug(f"{LOG_PREFIX} Apple 同步仍在运行，跳过本轮")
+                return
             if not self.apple_calendar:
                 return
             try:
@@ -768,25 +769,24 @@ class ScheduleAssistant(Star):
                         f"{LOG_PREFIX} Apple Calendar 已读取 {len(events)} 个事件，但无可同步用户"
                     )
                     return
-                recent_events_added = False
+                events_changed = False
                 for user_id in user_ids:
                     stats = await self.store.sync_from_apple_calendar(user_id, events)
                     logger.debug(
                         f"{LOG_PREFIX} Apple→本地同步 user={user_id} "
                         f"added={stats['added']} updated={stats['updated']} deleted={stats['deleted']}"
                     )
-                    if stats.get("added", 0) > 0:
-                        recent_events_added = True
+                    if stats.get("added", 0) > 0 or stats.get("updated", 0) > 0:
+                        events_changed = True
 
-                # 如果新增了近期事件，触发一次即时扫描（30秒后）
-                if recent_events_added and self.config.get("enable_schedule_reminder"):
-                    self._delayed_task = asyncio.create_task(
-                        self._delayed_schedule_reminder_scan()
-                    )
+                # 新增或改期事件时，触发一次即时扫描（30秒后；已有排队任务则不重复挂）
+                if events_changed and self.config.get("enable_schedule_reminder"):
+                    if self._delayed_task is None or self._delayed_task.done():
+                        self._delayed_task = asyncio.create_task(
+                            self._delayed_schedule_reminder_scan()
+                        )
             except Exception as e:
                 logger.error(f"{LOG_PREFIX} Apple Calendar 同步失败: {e}")
-        finally:
-            lock.release()
 
     async def _delayed_schedule_reminder_scan(self):
         """延迟触发日程提醒扫描，用于 Apple 同步后补扫"""
