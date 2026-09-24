@@ -1,0 +1,15 @@
+# 统一行尾：文本文件入库与检出都用 LF。
+# 背景：仓库原先没有本文件，而本机 git 的 core.autocrlf=true 会在检出时把 LF 改写成 CRLF，
+# 于是每次 git 操作都提示 "LF will be replaced by CRLF"，将来还可能产生整文件 diff。
+# 仓库里的 blob 本来就是 LF，本文件只是把检出行为也一并固定成 LF。
+
+*.md   text eol=lf
+*.py   text eol=lf
+*.json text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.txt  text eol=lf
+
+LICENSE    text eol=lf
+.gitignore text eol=lf
