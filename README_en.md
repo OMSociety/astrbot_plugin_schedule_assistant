@@ -80,15 +80,9 @@ QQ native tables are automatically rendered as aligned rows, no extra configurat
 
 ### Step 1: Install Schedule Assistant
 
-**Option 1: Plugin marketplace**
-- AstrBot WebUI → Plugin marketplace → search for `schedule_assistant`
+AstrBot WebUI → Plugin marketplace → search for `schedule_assistant`
 
-**Option 2: Manual installation**
-1. Put the plugin folder into `/AstrBot/data/plugins/`
-2. Restart AstrBot
-3. Configure the parameters as needed in the admin panel
-
-> **Note:** Dependencies are declared in the plugin's `requirements.txt` (`apscheduler` / `aiohttp` / `python-dateutil`); AstrBot pre-checks and installs anything missing when loading or installing the plugin, so manual installation is normally unnecessary.
+> **Note:** Dependencies are declared in the plugin's `requirements.txt` (`apscheduler` / `aiohttp` / `python-dateutil`); AstrBot pre-checks and installs anything missing when loading or installing the plugin, so installing them manually is normally unnecessary.
 
 ### Step 2: Minimal Configuration (Get All Scheduled Reminders Running)
 
@@ -315,31 +309,19 @@ Modifies a schedule. Title, time, and description can be updated individually or
 | `new_end_datetime` | string? | New end time for a ranged schedule (e.g. "11am"); must be given together with `new_datetime` |
 | `new_description` | string? | New description |
 
----
-
 ## Changelog
 
 > **[View the full changelog →](CHANGELOG.md)**
 
----
-
-## Support This Project
+## Support & Acknowledgements
 
 If this plugin helps you, please consider giving it a Star. For questions and suggestions, feel free to open an [Issue](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/issues) or a [Pull Request](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/pulls).
-
-## Acknowledgements
 
 - [AstrBot](https://github.com/AstrBotDevs/AstrBot) open-source chatbot framework
 - Plugin logo from Pixiv Pid: [130776279](https://www.pixiv.net/artworks/130776279)
 
----
-
-## License
+## License & Author
 
 This project is licensed under the **MIT License**.
-
----
-
-## Author
 
 [@OMSociety](https://github.com/OMSociety)

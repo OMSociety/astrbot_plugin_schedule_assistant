@@ -82,13 +82,7 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 
 ### 第一步：安装日程提醒助手
 
-**方式一：插件市场**
-- AstrBot WebUI → 插件市场 → 搜索 `schedule_assistant`
-
-**方式二：手动安装**
-1. 将插件文件夹放入 `/AstrBot/data/plugins/`
-2. 重启 AstrBot
-3. 在管理面板按需配置各项参数
+AstrBot WebUI → 插件市场 → 搜索 `schedule_assistant`
 
 > **提示：**依赖声明在插件 `requirements.txt`（`apscheduler` / `aiohttp` / `python-dateutil`）：AstrBot 加载与安装插件时会自动预检并补齐缺失依赖，通常无需手动安装。
 
@@ -317,31 +311,19 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 | `new_end_datetime` | string? | 区间日程的新结束时间（如「11点」），需与 `new_datetime` 一起给 |
 | `new_description` | string? | 新备注 |
 
----
-
 ## 更新日志
 
 > **[查看完整更新日志 →](CHANGELOG.md)**
 
----
-
-## 支持本项目
+## 支持与致谢
 
 如果这个插件对你有帮助，欢迎点亮 Star，有问题和建议请提交 [Issue](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/issues) 或 [Pull Request](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/pulls)。
-
-## 致谢
 
 - [AstrBot](https://github.com/AstrBotDevs/AstrBot) 开源聊天机器人框架
 - 插件 Logo 来源于 Pixiv Pid: [130776279](https://www.pixiv.net/artworks/130776279)
 
----
-
-## 许可证
+## 许可证与作者
 
 本项目采用 **MIT License** 开源协议。
-
----
-
-## 作者
 
 [@OMSociety](https://github.com/OMSociety)

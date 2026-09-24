@@ -80,13 +80,7 @@
 
 ### Шаг 1: Установка Schedule Assistant
 
-**Способ 1: маркетплейс плагинов**
-- AstrBot WebUI → Маркетплейс плагинов → найдите `schedule_assistant`
-
-**Способ 2: ручная установка**
-1. Поместите папку плагина в `/AstrBot/data/plugins/`
-2. Перезапустите AstrBot
-3. Настройте параметры в панели управления по необходимости
+AstrBot WebUI → Маркетплейс плагинов → найдите `schedule_assistant`
 
 > **Примечание:** Зависимости указаны в `requirements.txt` плагина (`apscheduler` / `aiohttp` / `python-dateutil`): AstrBot сам проверяет и доустанавливает недостающие при загрузке и установке плагина, поэтому вручную устанавливать их обычно не нужно.
 
@@ -315,31 +309,19 @@ IDПлатформы:FriendMessage:UserID
 | `new_end_datetime` | string? | Новое время окончания для интервала (например «11»); указывается вместе с `new_datetime` |
 | `new_description` | string? | Новое описание |
 
----
-
 ## Журнал изменений
 
 > **[Полный журнал изменений →](CHANGELOG.md)**
 
----
-
-## Поддержать проект
+## Поддержка и благодарности
 
 Если плагин вам полезен, поставьте Star. За вопросами и предложениями обращайтесь в [Issue](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/issues) или [Pull Request](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/pulls).
-
-## Благодарности
 
 - [AstrBot](https://github.com/AstrBotDevs/AstrBot) фреймворк чат-ботов с открытым исходным кодом
 - Логотип плагина взят с Pixiv Pid: [130776279](https://www.pixiv.net/artworks/130776279)
 
----
-
-## Лицензия
+## Лицензия и автор
 
 Проект распространяется по лицензии **MIT License**.
-
----
-
-## Автор
 
 [@OMSociety](https://github.com/OMSociety)

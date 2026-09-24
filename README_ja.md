@@ -80,13 +80,7 @@ QQ のネイティブテーブルは整列された行として自動レンダ�
 
 ### ステップ 1：Schedule Assistant のインストール
 
-**方法 1：プラグインマーケット**
-- AstrBot WebUI → プラグインマーケット → `schedule_assistant` を検索
-
-**方法 2：手動インストール**
-1. プラグインフォルダーを `/AstrBot/data/plugins/` に入れる
-2. AstrBot を再起動
-3. 管理パネルで必要に応じて各パラメーターを設定
+AstrBot WebUI → プラグインマーケット → `schedule_assistant` を検索
 
 > **ヒント：**依存関係はプラグインの `requirements.txt`（`apscheduler` / `aiohttp` / `python-dateutil`）に記載されています。AstrBot がプラグインの読み込み・インストール時に不足分を自動で確認して導入するため、通常は手動インストール不要です。
 
@@ -315,31 +309,19 @@ WebUI の設定パネルで入力するか、以下の構造を参考にして�
 | `new_end_datetime` | string? | 時間帯の新しい終了時刻（例：「11 時」）。`new_datetime` と一緒に指定 |
 | `new_description` | string? | 新しいメモ |
 
----
-
 ## 更新履歴
 
 > **[更新履歴の全文を見る →](CHANGELOG.md)**
 
----
-
-## このプロジェクトを応援する
+## 応援と謝辞
 
 このプラグインが役に立ったら、Star をいただけると嬉しいです。質問や提案は [Issue](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/issues) または [Pull Request](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/pulls) へどうぞ。
-
-## 謝辞
 
 - [AstrBot](https://github.com/AstrBotDevs/AstrBot) オープンソースのチャットボットフレームワーク
 - プラグインのロゴは Pixiv Pid: [130776279](https://www.pixiv.net/artworks/130776279) から
 
----
-
-## ライセンス
+## ライセンスと作者
 
 このプロジェクトは **MIT License** で公開されています。
-
----
-
-## 作者
 
 [@OMSociety](https://github.com/OMSociety)
