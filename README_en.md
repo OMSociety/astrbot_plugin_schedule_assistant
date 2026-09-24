@@ -4,7 +4,7 @@
 
 <img src="https://raw.githubusercontent.com/OMSociety/astrbot_plugin_schedule_assistant/main/logo.png" width="120" alt="Schedule Assistant Logo" />
 
-# 🗓️ Schedule Assistant — Schedule Reminder Assistant
+# Schedule Assistant — Schedule Reminder Assistant
 
 **Your considerate schedule butler** — Morning broadcast · Habit reminders · LLM schedule management · Apple Calendar two-way sync · Notion to-do sync
 
@@ -16,24 +16,24 @@
 
 </div>
 
-> 🎨 This project was written by AI · Plugin logo from Pixiv Pid: [130776279](https://www.pixiv.net/artworks/130776279)
+> This project was written by AI · Plugin logo from Pixiv Pid: [130776279](https://www.pixiv.net/artworks/130776279)
 
 ---
 
-## ✨ Core Features
+## Core Features
 
 | Feature | Description |
 |------|------|
-| 🌤️ **Daily morning broadcast** | Weather + today's agenda + Notion to-dos + late-night detection — everything you need to get up in one message |
-| ⏰ **Smart habit reminders** | Scheduled reminders for showering / sleeping / drinking water; reminder times are configurable |
-| 🤖 **LLM schedule management** | Manage your schedule in natural language: add / delete / query / modify, with automatic time parsing |
-| 🔄 **Apple Calendar two-way sync** | iCloud CalDAV read + write, with automatic deduplication and incremental updates |
-| 📝 **Notion to-do sync** | DDL countdowns in the morning broadcast (N days left / due today / overdue) |
-| 🎨 **Multi-platform Markdown rendering** | Native tables on qq_official, automatic fallback to plain text on Onebot and other platforms |
+| **Daily morning broadcast** | Weather + today's agenda + Notion to-dos + late-night detection — everything you need to get up in one message |
+| **Smart habit reminders** | Scheduled reminders for showering / sleeping / drinking water; reminder times are configurable |
+| **LLM schedule management** | Manage your schedule in natural language: add / delete / query / modify, with automatic time parsing |
+| **Apple Calendar two-way sync** | iCloud CalDAV read + write, with automatic deduplication and incremental updates |
+| **Notion to-do sync** | DDL countdowns in the morning broadcast (N days left / due today / overdue) |
+| **Multi-platform Markdown rendering** | Native tables on qq_official, automatic fallback to plain text on Onebot and other platforms |
 
 ---
 
-## 📖 Feature Overview
+## Feature Overview
 
 ### Daily Morning Broadcast
 Automatically pushed every morning (time configurable), one message with everything you need to start the day:
@@ -44,10 +44,10 @@ Automatically pushed every morning (time configurable), one message with everyth
 
 | Habit | Default time | Description |
 |------|---------|------|
-| 🚿 Shower reminder | 22:00 | The reminder time is configurable |
-| 😴 Sleep reminder | 23:00 | Smart bedtime nudges, with extra teasing if you stay up too late |
-| 💧 Water reminder | Every 90 minutes | Reminds within the 9:30–21:30 window |
-| 📅 Smart schedule reminder | N minutes ahead | **LLM-generated** natural language reminders, with context |
+| Shower reminder | 22:00 | The reminder time is configurable |
+| Sleep reminder | 23:00 | Smart bedtime nudges, with extra teasing if you stay up too late |
+| Water reminder | Every 90 minutes | Reminds within the 9:30–21:30 window |
+| Smart schedule reminder | N minutes ahead | **LLM-generated** natural language reminders, with context |
 
 ### Apple iCloud Calendar Two-Way Sync
 
@@ -76,7 +76,7 @@ QQ native tables are automatically rendered as aligned rows, no extra configurat
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Step 1: Install Schedule Assistant
 
@@ -88,7 +88,7 @@ QQ native tables are automatically rendered as aligned rows, no extra configurat
 2. Restart AstrBot
 3. Configure the parameters as needed in the admin panel
 
-> 💡 Dependencies are declared in the plugin's `requirements.txt` (`apscheduler` / `aiohttp` / `python-dateutil`); AstrBot pre-checks and installs anything missing when loading or installing the plugin, so manual installation is normally unnecessary.
+> **Note:** Dependencies are declared in the plugin's `requirements.txt` (`apscheduler` / `aiohttp` / `python-dateutil`); AstrBot pre-checks and installs anything missing when loading or installing the plugin, so manual installation is normally unnecessary.
 
 ### Step 2: Minimal Configuration (Get All Scheduled Reminders Running)
 
@@ -105,11 +105,11 @@ The `PlatformID:SessionType:UserID` format (UMO format) — one line covers both
 1. Connect Notion on [Maton](https://www.maton.ai/) (via OAuth2) and generate a **Maton API Key**
 2. In the plugin config → **External Services**, fill in `maton_api_key` and set the databases to read via `notion_db_ids` (e.g. `work:xxx`, `reading:yyy`)
 
-> ⚠️ Notion todos are relayed through the third-party gateway `gateway.maton.ai` (not a direct call to the official Notion API): `maton_api_key` is sent to that third party as a request header, and it can read fields such as title, status and due date in the databases you specify.
+> **Warning:** Notion todos are relayed through the third-party gateway `gateway.maton.ai` (not a direct call to the official Notion API): `maton_api_key` is sent to that third party as a request header, and it can read fields such as title, status and due date in the databases you specify.
 
 ---
 
-## ⚙️ Configuration Reference
+## Configuration Reference
 
 ### Basic Settings
 
@@ -153,7 +153,7 @@ The `PlatformID:SessionType:UserID` format (UMO format) — one line covers both
 | `apple_calendar.calendar_id` | string | - | UUID of the target calendar; leave empty for the first one. Copy the UUID from the CalDAV server address of the Apple calendar (`…/calendars/<UUID>/`) |
 | `webcal_urls` | list | `[]` | WebCal shared calendar links |
 
-> 💡 **WebCal subscription security**: `webcal_urls` only accepts public `https://` subscription addresses (`webcal://` is automatically converted to `https://`). The plugin rejects addresses such as `localhost`, intranet addresses (e.g. `192.168.x` / `10.x`), and cloud metadata endpoints (`169.254.169.254`) to prevent SSRF. Do not enter intranet or local addresses.
+> **WebCal subscription security**: `webcal_urls` only accepts public `https://` subscription addresses (`webcal://` is automatically converted to `https://`). The plugin rejects addresses such as `localhost`, intranet addresses (e.g. `192.168.x` / `10.x`), and cloud metadata endpoints (`169.254.169.254`) to prevent SSRF. Do not enter intranet or local addresses.
 
 > Write sync is controlled by the top-level `enable_apple_calendar_sync`; when enabled, schedules created/deleted locally are automatically synced to Apple Calendar.
 
@@ -243,11 +243,11 @@ Fill it in via the WebUI configuration panel, or refer to the following structur
 
 ---
 
-## 🛠️ LLM-Callable Tools
+## LLM-Callable Tools
 
 The plugin registers 4 LLM tools; the model decides automatically when to call them — just state your needs in natural language:
 
-> ⏱️ **Time formats**: numeric/ISO forms ("2024-01-15 14:30", "2024-01-15 09:00-11:00", "2024-01-16") or Chinese natural language ("明天9点", "明天9点到11点", "明天全天"); a bare date means all-day.
+> **Time formats**: numeric/ISO forms ("2024-01-15 14:30", "2024-01-15 09:00-11:00", "2024-01-16") or Chinese natural language ("明天9点", "明天9点到11点", "明天全天"); a bare date means all-day.
 
 ```
 User: Add a schedule for a team meeting tomorrow at 9am
@@ -317,29 +317,29 @@ Modifies a schedule. Title, time, and description can be updated individually or
 
 ---
 
-## 📝 Changelog
+## Changelog
 
-> 📋 **[View the full changelog →](CHANGELOG.md)**
+> **[View the full changelog →](CHANGELOG.md)**
 
 ---
 
-## ⭐ Support This Project
+## Support This Project
 
-If this plugin helps you, please consider giving it a Star ⭐. For questions and suggestions, feel free to open an [Issue](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/issues) or a [Pull Request](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/pulls).
+If this plugin helps you, please consider giving it a Star. For questions and suggestions, feel free to open an [Issue](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/issues) or a [Pull Request](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/pulls).
 
-## 🙏 Acknowledgements
+## Acknowledgements
 
 - [AstrBot](https://github.com/AstrBotDevs/AstrBot) open-source chatbot framework
 - Plugin logo from Pixiv Pid: [130776279](https://www.pixiv.net/artworks/130776279)
 
 ---
 
-## 📜 License
+## License
 
 This project is licensed under the **MIT License**.
 
 ---
 
-## 👤 Author
+## Author
 
 [@OMSociety](https://github.com/OMSociety)

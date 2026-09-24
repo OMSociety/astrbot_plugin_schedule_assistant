@@ -4,7 +4,7 @@
 
 <img src="https://raw.githubusercontent.com/OMSociety/astrbot_plugin_schedule_assistant/main/logo.png" width="120" alt="Schedule Assistant Logo" />
 
-# 🗓️ Schedule Assistant 日程提醒助手
+# Schedule Assistant 日程提醒助手
 
 **你的贴心日程管家** —— 早安播报 · 习惯提醒 · LLM 日程管理 · Apple 日历双向同步 · Notion 待办同步
 
@@ -14,28 +14,28 @@
 [![Stars](https://img.shields.io/github/stars/OMSociety/astrbot_plugin_schedule_assistant)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/stargazers)
 [![Issues](https://img.shields.io/github/issues/OMSociety/astrbot_plugin_schedule_assistant)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/issues)
 
-[✨ 核心特性](#-核心特性) • [📖 功能概览](#-功能概览) • [🚀 快速开始](#-快速开始) • [⚙️ 配置项说明](#️-配置项说明) • [🛠️ LLM 可调用工具](#️-llm-可调用工具) • [📝 更新日志](CHANGELOG.md)
+[核心特性](#核心特性) • [功能概览](#功能概览) • [快速开始](#快速开始) • [配置项说明](#配置项说明) • [LLM 可调用工具](#llm-可调用工具) • [更新日志](CHANGELOG.md)
 
 </div>
 
-> 🎨 本项目由 AI 编写 · 插件 Logo 来源于 Pixiv Pid: [130776279](https://www.pixiv.net/artworks/130776279)
+> 本项目由 AI 编写 · 插件 Logo 来源于 Pixiv Pid: [130776279](https://www.pixiv.net/artworks/130776279)
 
 ---
 
-## ✨ 核心特性
+## 核心特性
 
 | 特性 | 说明 |
 |------|------|
-| 🌤️ **每日早安播报** | 天气 + 今日日程 + Notion 待办 + 熬夜检测，一条消息搞定起床信息 |
-| ⏰ **智能习惯提醒** | 洗澡 / 睡觉 / 喝水定时提醒，提醒时间可配置 |
-| 🤖 **LLM 日程管理** | 动嘴管日程：新增 / 删除 / 查询 / 修改，自然语言时间解析 |
-| 🔄 **Apple 日历双向同步** | iCloud CalDAV 读取 + 写入，自动去重与增量更新 |
-| 📝 **Notion 待办同步** | 早安播报中附 DDL 倒计时（还剩N天 / 今天截止 / 已逾期） |
-| 🎨 **多平台 Markdown 渲染** | QQ 官方原生表格，Onebot 等平台自动降级纯文本 |
+| **每日早安播报** | 天气 + 今日日程 + Notion 待办 + 熬夜检测，一条消息搞定起床信息 |
+| **智能习惯提醒** | 洗澡 / 睡觉 / 喝水定时提醒，提醒时间可配置 |
+| **LLM 日程管理** | 动嘴管日程：新增 / 删除 / 查询 / 修改，自然语言时间解析 |
+| **Apple 日历双向同步** | iCloud CalDAV 读取 + 写入，自动去重与增量更新 |
+| **Notion 待办同步** | 早安播报中附 DDL 倒计时（还剩N天 / 今天截止 / 已逾期） |
+| **多平台 Markdown 渲染** | QQ 官方原生表格，Onebot 等平台自动降级纯文本 |
 
 ---
 
-## 📖 功能概览
+## 功能概览
 
 ### 每日早安播报
 每天早上自动推送（可配置时间），一条消息搞定起床信息：
@@ -46,10 +46,10 @@
 
 | 习惯 | 默认时间 | 说明 |
 |------|---------|------|
-| 🚿 洗澡提醒 | 22:00 | 提醒时间可配置 |
-| 😴 睡觉提醒 | 23:00 | 智能催睡，超时带吐槽 |
-| 💧 喝水提醒 | 每90分钟 | 9:30–21:30 时段内循环提醒 |
-| 📅 日程智能提醒 | 提前 N 分钟 | **LLM 生成**自然语言提醒，结合上下文 |
+| 洗澡提醒 | 22:00 | 提醒时间可配置 |
+| 睡觉提醒 | 23:00 | 智能催睡，超时带吐槽 |
+| 喝水提醒 | 每90分钟 | 9:30–21:30 时段内循环提醒 |
+| 日程智能提醒 | 提前 N 分钟 | **LLM 生成**自然语言提醒，结合上下文 |
 
 ### Apple iCloud 日历双向同步
 
@@ -78,7 +78,7 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 
 ---
 
-## 🚀 快速开始
+## 快速开始
 
 ### 第一步：安装日程提醒助手
 
@@ -90,7 +90,7 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 2. 重启 AstrBot
 3. 在管理面板按需配置各项参数
 
-> 💡 依赖声明在插件 `requirements.txt`（`apscheduler` / `aiohttp` / `python-dateutil`）：AstrBot 加载与安装插件时会自动预检并补齐缺失依赖，通常无需手动安装。
+> **提示：**依赖声明在插件 `requirements.txt`（`apscheduler` / `aiohttp` / `python-dateutil`）：AstrBot 加载与安装插件时会自动预检并补齐缺失依赖，通常无需手动安装。
 
 ### 第二步：最小配置（跑通全部定时提醒）
 
@@ -107,11 +107,11 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 1. 在 [Maton](https://www.maton.ai/) 上接入 Notion（OAuth2 方式），生成 **Maton API Key**
 2. 插件配置 → **外部服务** 填入 `maton_api_key`，并用 `notion_db_ids` 指定要读取的数据库（如 `事务:xxx`、`阅读:yyy`）
 
-> ⚠️ Notion 待办经第三方网关 `gateway.maton.ai` 中转（非直连 Notion 官方 API）：`maton_api_key` 会作为请求头发送给该第三方，其可读取你指定数据库中的标题、状态与截止日期等字段。
+> **注意：**Notion 待办经第三方网关 `gateway.maton.ai` 中转（非直连 Notion 官方 API）：`maton_api_key` 会作为请求头发送给该第三方，其可读取你指定数据库中的标题、状态与截止日期等字段。
 
 ---
 
-## ⚙️ 配置项说明
+## 配置项说明
 
 ### 基础设置
 
@@ -155,7 +155,7 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 | `apple_calendar.calendar_id` | string | - | 目标日历 UUID，留空默认第一个；UUID 从 Apple 日历的 CalDAV 服务器地址（`…/calendars/<UUID>/`）里复制 |
 | `webcal_urls` | list | `[]` | WebCal 共享日历链接 |
 
-> 💡 **WebCal 订阅安全**：`webcal_urls` 只接受公网 `https://` 订阅地址（`webcal://` 自动转 `https://`）。插件会拒绝 `localhost`、内网（如 `192.168.x` / `10.x`）、云元数据（`169.254.169.254`）等地址（防 SSRF）。请勿填写内网或本机地址。
+> **WebCal 订阅安全**：`webcal_urls` 只接受公网 `https://` 订阅地址（`webcal://` 自动转 `https://`）。插件会拒绝 `localhost`、内网（如 `192.168.x` / `10.x`）、云元数据（`169.254.169.254`）等地址（防 SSRF）。请勿填写内网或本机地址。
 
 > 写入开关统一使用顶层的 `enable_apple_calendar_sync`，开启后本地创建/删除的日程会自动同步到 Apple 日历。
 
@@ -245,11 +245,11 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 
 ---
 
-## 🛠️ LLM 可调用工具
+## LLM 可调用工具
 
 插件注册 4 个 LLM 工具，模型会自动判断何时调用，你只需用自然语言说需求：
 
-> ⏱️ **时间写法**：数字/ISO 格式（`2024-01-15 14:30`、`2024-01-15 09:00-11:00`、`2024-01-16`）或中文口语（「明天9点」「明天9点到11点」「明天全天」）；纯日期即全天。
+> **时间写法**：数字/ISO 格式（`2024-01-15 14:30`、`2024-01-15 09:00-11:00`、`2024-01-16`）或中文口语（「明天9点」「明天9点到11点」「明天全天」）；纯日期即全天。
 
 ```
 用户: 帮我加个明天早上9点开组会的日程
@@ -319,29 +319,29 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 
 ---
 
-## 📝 更新日志
+## 更新日志
 
-> 📋 **[查看完整更新日志 →](CHANGELOG.md)**
+> **[查看完整更新日志 →](CHANGELOG.md)**
 
 ---
 
-## ⭐ 支持本项目
+## 支持本项目
 
-如果这个插件对你有帮助，欢迎点亮 Star ⭐，有问题和建议请提交 [Issue](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/issues) 或 [Pull Request](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/pulls)。
+如果这个插件对你有帮助，欢迎点亮 Star，有问题和建议请提交 [Issue](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/issues) 或 [Pull Request](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/pulls)。
 
-## 🙏 致谢
+## 致谢
 
 - [AstrBot](https://github.com/AstrBotDevs/AstrBot) 开源聊天机器人框架
 - 插件 Logo 来源于 Pixiv Pid: [130776279](https://www.pixiv.net/artworks/130776279)
 
 ---
 
-## 📜 许可证
+## 许可证
 
 本项目采用 **MIT License** 开源协议。
 
 ---
 
-## 👤 作者
+## 作者
 
 [@OMSociety](https://github.com/OMSociety)
