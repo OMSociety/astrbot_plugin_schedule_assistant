@@ -135,6 +135,11 @@ async def check_and_trigger_schedule_reminder(
     提醒时机：日程开始前 minutes_before 分钟内触发一次（窗口含上边界；<=0 时不触发）；
     全天事件不触发提前提醒。防重标记 last_triggered 持久有效，事件改期时由同步层
     （schedule_store.sync_from_apple_calendar）或工具层（update_schedule）重置。
+
+    防重标记的落盘由调用方在**确认提醒发送成功后**调用本模块的
+    ``mark_schedule_reminder_triggered`` 完成（见该函数 docstring）。
+    本函数只负责筛出到点的日程并生成文案：LLM 文案生成在落盘责任之外，
+    文案生成失败也不丢提醒。
     """
     # 复用调用方已创建的实例，避免每轮扫描重复构造
     reminder = reminder or ScheduleReminder(llm_service)
@@ -186,9 +191,12 @@ async def check_and_trigger_schedule_reminder(
             item_end_time=item.end_time,
         )
 
+        # 不在这里落 last_triggered：发送由调用方完成，先落盘会在发送失败时
+        # 让该日程本期（乃至永久）不再提醒
         triggered.append(
             {
                 "item_id": item.id,
+                "user_id": user_id,
                 "title": item.title,
                 "reminder_text": reminder_text,
                 "minutes_until": trigger_minutes,
@@ -196,7 +204,27 @@ async def check_and_trigger_schedule_reminder(
             }
         )
 
-        item.last_triggered = now.isoformat()
-        await schedule_store.update_item(user_id, item)
-
     return triggered
+
+
+async def mark_schedule_reminder_triggered(
+    schedule_store, user_id: str, item_id: str, triggered_at: datetime | None = None
+) -> bool:
+    """发送成功后落防重标记 last_triggered，返回是否写入成功。
+
+    调用方必须在**确认提醒已送达**之后再调用；标记写入失败（返回 False）
+    时该日程仍是未提醒状态，下轮扫描会重试——重复提醒优于永久丢失。
+
+    幂等：已有 last_triggered 时不覆盖（防重标记一旦成立即代表"已提醒过"，
+    重复调用不应把时间戳往前推；改期由同步层/工具层显式清空该字段重置）。
+    """
+    timestamp = (triggered_at or datetime.now()).isoformat()
+    for item in await schedule_store.list_all_items(user_id):
+        if item.id != item_id:
+            continue
+        if item.last_triggered:
+            return True
+        item.last_triggered = timestamp
+        return await schedule_store.update_item(user_id, item)
+    logger.warning(f"{LOG_PREFIX} 防重标记跳过：未找到日程 item_id={item_id}")
+    return False

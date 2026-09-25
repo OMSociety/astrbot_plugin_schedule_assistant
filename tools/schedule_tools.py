@@ -86,10 +86,12 @@ class CreateScheduleTool(FunctionTool[AstrAgentContext]):
 
     async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs):
         try:
-            title = kwargs.get("title", "").strip()
-            datetime_str = kwargs.get("datetime_str", "").strip()
+            # LLM 可能显式传 null：kwargs.get(key, "") 的默认值只在键缺失时生效，
+            # 故统一用 `or ""` 兜底（schema 已标 nullable）
+            title = (kwargs.get("title") or "").strip()
+            datetime_str = (kwargs.get("datetime_str") or "").strip()
             end_datetime_str = (kwargs.get("end_datetime_str") or "").strip()
-            description = kwargs.get("description", "").strip()
+            description = (kwargs.get("description") or "").strip()
 
             if not title or not datetime_str:
                 return "请提供日程标题和时间"
@@ -154,7 +156,14 @@ class CreateScheduleTool(FunctionTool[AstrAgentContext]):
                             # 记录 UID：否则下次同步会把它当成新事件再入库一份
                             item.apple_uid = created_uid
                             await self.store.update_item(user_id, item)
-                        apple_msg = "，已同步到 Apple 日历"
+                            apple_msg = "，已同步到 Apple 日历"
+                        else:
+                            # 没拿到 UID 说明 Apple 侧没写成（如 401/403）：
+                            # 不能回成功文案，否则本地条目会带着假 UID 被下轮同步删除
+                            logger.warning(
+                                f"Apple 日历写入未成功，本地日程不同步 user={user_id} "
+                                f"title={title}"
+                            )
                 except Exception as e:
                     logger.warning(f"Apple 日历写入失败: {e}")
 
@@ -208,7 +217,7 @@ class DeleteScheduleTool(FunctionTool[AstrAgentContext]):
         self._plugin = plugin_instance
 
     async def _sync_delete_to_apple(self, title: str):
-        """尝试从 Apple 日历中删除对应事件（静默失败）"""
+        """尝试从 Apple 日历中删除对应事件（失败只告警，不向用户谎报成功）"""
         if self._plugin is None:
             return
         try:
@@ -220,7 +229,16 @@ class DeleteScheduleTool(FunctionTool[AstrAgentContext]):
             for evt, cal_id in await self._plugin.apple_calendar.find_events_by_summary(
                 title
             ):
-                await self._plugin.apple_calendar.delete_event(evt["uid"], cal_id)
+                deleted = await self._plugin.apple_calendar.delete_event(
+                    evt["uid"], cal_id
+                )
+                if not deleted:
+                    # Apple 侧没删掉：下轮同步会按 UID 把这条日程拉回本地，
+                    # 必须留下可排查的告警（本地删除已完成，不阻塞用户操作）
+                    logger.warning(
+                        f"Apple 日历同步删除未成功，下轮同步可能恢复该日程: "
+                        f"title={title} uid={evt.get('uid')} calendar={cal_id}"
+                    )
         except Exception as e:
             logger.warning(f"Apple 日历同步删除失败: {e}")
 
@@ -316,9 +334,13 @@ class ListSchedulesTool(FunctionTool[AstrAgentContext]):
 
     async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs):
         try:
-            days = kwargs.get("days", 7)
-            if isinstance(days, str):
-                days = int(days)
+            # LLM 可能显式传 null（schema 标了 nullable）或数字字符串：
+            # timedelta(days=None) 抛 TypeError、timedelta(days="7") 同样不接受
+            days = kwargs.get("days") or 7
+            try:
+                days = int(str(days).strip() or 7)
+            except ValueError:
+                days = 7
 
             event = context.context.event
             user_id = str(event.get_sender_id() or "")
@@ -433,10 +455,64 @@ class UpdateScheduleTool(FunctionTool[AstrAgentContext]):
         super().__init__(**data)
         self.store = None
         self.default_user_id = None
+        self._plugin = None
 
     def inject_store(self, store, default_user_id):
         self.store = store
         self.default_user_id = default_user_id
+
+    def inject_plugin(self, plugin_instance):
+        """注入插件实例（用于 Apple 日历写回）"""
+        self._plugin = plugin_instance
+
+    async def _sync_update_to_apple(self, user_id: str, item: ScheduleItem) -> None:
+        """把改期/改标题写回 Apple 日历（同一 UID 的 CalDAV PUT 即更新）。
+
+        不写回的话，下轮 Apple→本地同步会按 apple_uid 用 Apple 旧值反写本地
+        （schedule_store.sync_from_apple_calendar）：用户的修改被静默还原，
+        且改期分支会重置 last_triggered 让旧时间再提醒一次。
+
+        写回失败时清空 apple_uid 让该条脱离 Apple 同步：本地已按用户意图改好，
+        保留 apple_uid 只会被 Apple 旧值覆盖回去；宁可该条不再与 Apple 同步
+        （代价：Apple 侧留一份旧事件，后续同步可能多入库一条本地日程），
+        也不能让用户的修改静默丢失。
+        """
+        if not item.apple_uid or self._plugin is None:
+            return
+        try:
+            if (
+                not self._plugin.config.get("enable_apple_calendar_sync")
+                or not self._plugin.apple_calendar
+            ):
+                return
+            start, end, all_day = parse_schedule_time(item.time)
+            if start is None:
+                return
+            if end is None and item.end_time:
+                end = parse_range_end(item.end_time, start)
+            new_uid = await self._plugin.apple_calendar.create_event(
+                summary=item.title,
+                start=start,
+                end=end,
+                description=item.context,
+                all_day=all_day,
+                uid=item.apple_uid,
+            )
+            if new_uid:
+                logger.debug(
+                    f"Apple 日历已更新: title={item.title} uid={new_uid} "
+                    f"time={item.time}"
+                )
+                return
+            logger.warning(
+                f"Apple 日历更新未成功，解除该条目的 Apple 同步关联: "
+                f"title={item.title} uid={item.apple_uid}"
+            )
+        except Exception as e:
+            logger.warning(f"Apple 日历更新失败: {e}")
+        # 写回失败：清空 UID 并落盘，避免下轮同步用 Apple 旧值覆盖本地修改
+        item.apple_uid = None
+        await self.store.update_item(user_id, item)
 
     async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs):
         try:
@@ -546,6 +622,9 @@ class UpdateScheduleTool(FunctionTool[AstrAgentContext]):
 
             await self.store.update_item(user_id, target)
 
+            # 带 apple_uid 的条目要把改动写回 Apple：否则下轮同步用 Apple 旧值反写本地
+            await self._sync_update_to_apple(user_id, target)
+
             changes = []
             if new_title:
                 changes.append(f"标题改为「{new_title}」")
@@ -584,6 +663,7 @@ def register_schedule_tools(plugin_instance) -> None:
     # 注入插件实例（用于 Apple 日历双向同步）
     create_tool.inject_plugin(plugin_instance)
     delete_tool.inject_plugin(plugin_instance)
+    update_tool.inject_plugin(plugin_instance)
 
     # 注册到 AstrBot
     plugin_instance.context.add_llm_tools(

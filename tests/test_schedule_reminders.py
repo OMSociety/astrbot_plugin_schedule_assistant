@@ -11,6 +11,7 @@ from schedule_assistant.reminders import schedule as schedule_module
 from schedule_assistant.reminders.schedule import (
     ScheduleReminder,
     check_and_trigger_schedule_reminder,
+    mark_schedule_reminder_triggered,
 )
 from schedule_assistant.schedule_store import ScheduleItem, ScheduleStore
 
@@ -69,6 +70,7 @@ def _add(store, user_id="u", **kw):
 
 
 def _scan(store, minutes_before=10, reminder=None, user_id="u"):
+    """只扫描生成文案，不落防重标记（与 main.py 的发送前阶段一致）"""
     return asyncio.run(
         check_and_trigger_schedule_reminder(
             schedule_store=store,
@@ -80,12 +82,20 @@ def _scan(store, minutes_before=10, reminder=None, user_id="u"):
     )
 
 
+def _send_and_mark(store, minutes_before=10, reminder=None, user_id="u"):
+    """模拟 main.py 全流程：扫描 → 发送成功 → 落防重标记"""
+    triggered = _scan(store, minutes_before, reminder, user_id)
+    for item in triggered:
+        asyncio.run(mark_schedule_reminder_triggered(store, user_id, item["item_id"]))
+    return triggered
+
+
 class TestScanWindow:
     def test_within_window_due_then_dedup(self):
         store = _store()
         item = _add(store, time=_at(5))
 
-        triggered = _scan(store, 10)
+        triggered = _send_and_mark(store, 10)
         assert len(triggered) == 1
         assert triggered[0]["item_id"] == item.id
         assert triggered[0]["reminder_text"] == "reminder:测试日程"
@@ -94,10 +104,60 @@ class TestScanWindow:
         # 防重：同一事件第二次扫描不再触发
         assert _scan(store, 10) == []
 
+    def test_mark_not_persisted_when_send_fails(self):
+        """发送失败不落盘：该日程仍在未提醒状态，下轮扫描会重试"""
+        store = _store()
+        item = _add(store, time=_at(5))
+
+        triggered = _scan(store, 10)  # 只生成文案，发送未确认
+        assert [t["item_id"] for t in triggered] == [item.id]
+        assert asyncio.run(store.list_all_items("u"))[0].last_triggered is None
+
+        # 下轮仍能触发（提醒没有丢），发送成功后才落标记
+        assert len(_send_and_mark(store, 10)) == 1
+        assert asyncio.run(store.list_all_items("u"))[0].last_triggered
+        assert _scan(store, 10) == []
+
+    def test_mark_failure_keeps_item_pending(self):
+        """标记写入失败时不视作已提醒（重复提醒优于永久丢失）"""
+        store = _store()
+        item = _add(store, time=_at(5))
+        _scan(store, 10)
+
+        async def _no_update(user_id, target):
+            return False
+
+        store.update_item = _no_update  # type: ignore[assignment]
+        assert (
+            asyncio.run(mark_schedule_reminder_triggered(store, "u", item.id)) is False
+        )
+        assert asyncio.run(store.list_all_items("u"))[0].last_triggered is None
+
+    def test_mark_is_idempotent(self):
+        """重复调用不推进时间戳：防重标记一旦成立即代表已提醒过"""
+        store = _store()
+        item = _add(store, time=_at(5))
+
+        first = datetime(2026, 1, 1, 0, 0, 0)
+        second = datetime(2026, 6, 6, 6, 6, 0)
+        assert asyncio.run(mark_schedule_reminder_triggered(store, "u", item.id, first))
+        assert (
+            asyncio.run(store.list_all_items("u"))[0].last_triggered
+            == first.isoformat()
+        )
+
+        assert asyncio.run(
+            mark_schedule_reminder_triggered(store, "u", item.id, second)
+        )
+        assert (
+            asyncio.run(store.list_all_items("u"))[0].last_triggered
+            == first.isoformat()
+        )
+
     def test_last_triggered_persisted(self):
         store = _store()
         _add(store, time=_at(5))
-        _scan(store, 10)
+        _send_and_mark(store, 10)
         assert asyncio.run(store.list_all_items("u"))[0].last_triggered
 
     def test_boundary_exact_and_one_second_over(self, monkeypatch):

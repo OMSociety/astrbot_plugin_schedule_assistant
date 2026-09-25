@@ -2,7 +2,11 @@
 
 from .briefing import BriefingReminder
 from .habits import BathReminder, HabitReminder, SleepReminder, WaterReminder
-from .schedule import ScheduleReminder, check_and_trigger_schedule_reminder
+from .schedule import (
+    ScheduleReminder,
+    check_and_trigger_schedule_reminder,
+    mark_schedule_reminder_triggered,
+)
 
 __all__ = [
     "BathReminder",
@@ -12,4 +16,5 @@ __all__ = [
     "SleepReminder",
     "WaterReminder",
     "check_and_trigger_schedule_reminder",
+    "mark_schedule_reminder_triggered",
 ]

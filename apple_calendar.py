@@ -64,7 +64,7 @@ class AppleCalendar:
         creds = f"{self.username}:{self.app_password}"
         return "Basic " + base64.b64encode(creds.encode()).decode()
 
-    async def _aiohttp_request(
+    async def _aiohttp_request_with_status(
         self,
         url: str,
         method: str = "GET",
@@ -72,8 +72,14 @@ class AppleCalendar:
         headers: dict | None = None,
         timeout: int = 30,
         retries: int = 3,
-    ) -> str | None:
-        """异步 HTTP 请求（aiohttp），带重试"""
+    ) -> tuple[str | None, int | None]:
+        """异步 HTTP 请求（aiohttp），带重试，返回 (响应体文本, 状态码)。
+
+        状态码语义（写操作调用方据此判定成败）：
+        - 收到 HTTP 响应：返回 (文本, 状态码)，**包括 4xx/5xx**——响应体可能非空，
+          光看"有没有响应"无法区分成功与鉴权失败/路径不存在；
+        - 传输层异常（ClientError / TimeoutError）且重试耗尽：返回 (None, None)。
+        """
         headers = dict(headers or {})
         headers.setdefault("User-Agent", "curl/7.88.1")
         last_error = None
@@ -89,13 +95,14 @@ class AppleCalendar:
                         timeout=aiohttp.ClientTimeout(total=timeout),
                     ) as resp,
                 ):
-                    if resp.status >= 500 and attempt < retries - 1:
+                    status = resp.status
+                    if status >= 500 and attempt < retries - 1:
                         await asyncio.sleep(1 * (attempt + 1))
                         last_error = aiohttp.ClientResponseError(
-                            resp.request_info, resp.history, status=resp.status
+                            resp.request_info, resp.history, status=status
                         )
                         continue
-                    return await resp.text(encoding="utf-8", errors="replace")
+                    return await resp.text(encoding="utf-8", errors="replace"), status
             except (aiohttp.ClientError, asyncio.TimeoutError) as e:
                 last_error = e
                 if attempt < retries - 1:
@@ -103,7 +110,41 @@ class AppleCalendar:
         logger.debug(
             f"[AppleCalendar] 请求异常 {url}: {type(last_error).__name__}: {last_error}"
         )
-        return None
+        return None, None
+
+    async def _aiohttp_request(
+        self,
+        url: str,
+        method: str = "GET",
+        data: bytes | None = None,
+        headers: dict | None = None,
+        timeout: int = 30,
+        retries: int = 3,
+    ) -> str | None:
+        """异步 HTTP 请求（aiohttp），带重试，只返回响应体文本。
+
+        调用方需要判定 HTTP 状态码（写操作）时改用 ``_aiohttp_request_with_status``。
+        注意：4xx/5xx 只要收到响应就返回响应体文本（可能与成功同样非空），
+        传输失败返回 None。
+        """
+        text, _status = await self._aiohttp_request_with_status(
+            url,
+            method=method,
+            data=data,
+            headers=headers,
+            timeout=timeout,
+            retries=retries,
+        )
+        return text
+
+    @staticmethod
+    def _truncate_for_log(text: str | None, limit: int = 200) -> str:
+        """截断响应体供日志使用：保留前 limit 个字符，够排障又不淹没日志。
+
+        iCloud 的错误页可能是整页 HTML，未截断会把大段无关内容打进日志。
+        """
+        raw = repr(text)
+        return raw if len(raw) <= limit else f"{raw[:limit]}…(truncated)"
 
     @staticmethod
     def _clean_href(raw: str) -> str:
@@ -173,7 +214,9 @@ class AppleCalendar:
             principal_href = self._extract_href(resp1, "current-user-principal")
             if not principal_href:
                 m = re.search(r"(/\d+/\w+)/?$", resp1)
-                principal_href = "/" + m.group(1) if m else None
+                # 捕获组自带前导 "/"，再拼一次会得到 "//…"；urljoin 把 "//host/path"
+                # 当网络路径引用（netloc=数字 ID），后续 PROPFIND 会打到错误主机
+                principal_href = "/" + m.group(1).lstrip("/") if m else None
             if not principal_href:
                 logger.debug("[AppleCalendar] 无法解析 principal URL")
                 return False
@@ -205,7 +248,8 @@ class AppleCalendar:
                 else:
                     m = re.search(r"/(\d+/calendars/?)", resp2)
                     if m:
-                        cal_home_href = "/" + m.group(1).rstrip("/")
+                        # 同上：统一 lstrip("/") 后再补一个前导 "/"，避免 "//…"
+                        cal_home_href = "/" + m.group(1).lstrip("/").rstrip("/")
             if not cal_home_href:
                 logger.debug("[AppleCalendar] 无法解析 calendar home set URL")
                 return False
@@ -624,7 +668,28 @@ class AppleCalendar:
         calendar_id: str | None = None,
         description: str = "",
         all_day: bool = False,
+        uid: str | None = None,
     ) -> str | None:
+        """创建事件；``uid`` 给定时按 CalDAV 语义更新同一 UID 的事件（同 URL PUT）。
+
+        ``uid`` 语义两种取值：
+        - ``None``（缺省）：每次生成新 UID，即新建事件；
+        - 非空字符串：更新该 UID 的事件（同 URL PUT 覆盖）。
+        其余取值（空串/纯空白/非字符串的假值）非法——它们既不是"新建"也不是
+        可用的 URL 段，却会被 ``uid or str(uuid.uuid4())`` 静默当成新建，
+        让调用方以为在更新（例如误传空的 ``apple_uid`` 会写出第二条事件）。
+        故直接拒绝并告警：这是 API 卫生约束，避免"更新"被静默降级成"新建"。
+
+        Returns:
+            成功（2xx，CalDAV PUT 成功为 201）返回 UID；失败或 uid 非法返回 None。
+        """
+        # 判据与下面的赋值保持同一口径（`uid or …`）：只要不是 None 就必须有非空内容
+        if uid is not None and not (isinstance(uid, str) and uid.strip()):
+            logger.warning(
+                f"[AppleCalendar] create_event 收到非法 uid，拒绝执行（非 None 的空值"
+                f"既非新建也非有效更新）: summary={summary} uid={uid!r}"
+            )
+            return None
         if not await self._discover():
             logger.error("[AppleCalendar] CalDAV 未连接，无法创建事件")
             return None
@@ -640,7 +705,7 @@ class AppleCalendar:
                 f"[AppleCalendar] 未找到指定日历，使用第一个: {resolved_id[:8]}..."
             )
         cal_url = f"{self._caldav_base_url}/{resolved_id}/"
-        uid = str(uuid.uuid4())
+        uid = uid or str(uuid.uuid4())
         dtstart_fmt = start.strftime("%Y%m%dT%H%M%S")
         created = datetime.now().strftime("%Y%m%dT%H%M%S")
         if all_day:
@@ -671,7 +736,7 @@ class AppleCalendar:
         lines.append("END:VCALENDAR")
         vevent = ("\r\n".join(lines) + "\r\n").encode()
         event_url = f"{cal_url}{uid}.ics"
-        resp = await self._aiohttp_request(
+        resp, status = await self._aiohttp_request_with_status(
             event_url,
             method="PUT",
             data=vevent,
@@ -680,13 +745,23 @@ class AppleCalendar:
                 "Content-Type": "text/calendar",
             },
         )
-        if resp is not None:
-            logger.info(f"[AppleCalendar] 创建事件成功: {summary} (UID={uid})")
+        # CalDAV 写操作必须看状态码：4xx（鉴权失败/路径不存在）与重试耗尽的 5xx
+        # 同样会带回响应体，只判断"有没有响应"会把失败当成成功，
+        # 进而把不存在的 UID 写进本地库（下轮同步按 UID 差集静默删除该日程）。
+        if status is not None and 200 <= status < 300:
+            logger.info(
+                f"[AppleCalendar] 创建事件成功: {summary} (UID={uid}, status={status})"
+            )
             return uid
-        logger.error("[AppleCalendar] 创建事件失败（请检查网络）")
+        logger.warning(
+            f"[AppleCalendar] 创建事件失败: {summary} (UID={uid}, "
+            f"status={status if status is not None else '无响应'}, "
+            f"body={self._truncate_for_log(resp)})"
+        )
         return None
 
     async def delete_event(self, uid: str, calendar_id: str | None = None) -> bool:
+        """删除事件，仅在 2xx（CalDAV DELETE 成功为 204）时返回 True。"""
         if not await self._discover():
             return False
         calendars = await self._list_calendars()
@@ -695,12 +770,18 @@ class AppleCalendar:
         resolved_id = calendar_id or self._calendar_id or calendars[0]["id"]
         cal_url = f"{self._caldav_base_url}/{resolved_id}/"
         event_url = f"{cal_url}{uid}.ics"
-        resp = await self._aiohttp_request(
+        resp, status = await self._aiohttp_request_with_status(
             event_url, method="DELETE", headers={"Authorization": self._auth_header()}
         )
-        if resp is not None:
-            logger.info(f"[AppleCalendar] 删除事件成功: UID={uid}")
+        # DELETE 成功响应体为空串，与 4xx 的响应体都可能为 ""，必须按状态码判定
+        if status is not None and 200 <= status < 300:
+            logger.info(f"[AppleCalendar] 删除事件成功: UID={uid} (status={status})")
             return True
+        logger.warning(
+            f"[AppleCalendar] 删除事件失败: UID={uid}, "
+            f"status={status if status is not None else '无响应'}, "
+            f"body={self._truncate_for_log(resp)}"
+        )
         return False
 
     async def close(self):

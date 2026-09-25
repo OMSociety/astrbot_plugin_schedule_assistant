@@ -34,7 +34,11 @@ from .messaging import MessagingService
 from .notion_client import NotionClient
 from .reminders.briefing import BriefingReminder
 from .reminders.habits import BathReminder, SleepReminder, WaterReminder
-from .reminders.schedule import ScheduleReminder, check_and_trigger_schedule_reminder
+from .reminders.schedule import (
+    ScheduleReminder,
+    check_and_trigger_schedule_reminder,
+    mark_schedule_reminder_triggered,
+)
 from .schedule_store import ScheduleItem, ScheduleStore
 from .services.llm import LLMService
 from .services.notion import NotionService
@@ -744,9 +748,43 @@ class ScheduleAssistant(Star):
                         reminder=self.schedule_reminder,
                     )
                     for item in triggered:
-                        if item.get("reminder_text"):
-                            await self.messaging.send_to_user(
-                                user_id, item["reminder_text"]
+                        if not item.get("reminder_text"):
+                            # 文案为空也要落标记：否则该日程每轮都进 triggered 却
+                            # 永远不发，防重标记永不成立 → 每轮空转
+                            logger.warning(
+                                f"{LOG_PREFIX} 提醒文案为空，跳过发送并落防重标记避免空转 "
+                                f"user={user_id} item_id={item['item_id']}"
+                            )
+                            await mark_schedule_reminder_triggered(
+                                self.store, user_id, item["item_id"]
+                            )
+                            continue
+                        # 只有确认送达才落防重标记：MessagingService.send_to_user
+                        # 的失败主通道是返回 False（平台不可用 continue、
+                        # 发送异常被吞成 warning、所有平台均失败），
+                        # 只对异常敏感会漏判，标记一落该日程就不再提醒
+                        delivered = await self.messaging.send_to_user(
+                            user_id, item["reminder_text"]
+                        )
+                        # 只把显式 False 判为未送达（MessagingService.send_to_user
+                        # 声明 -> bool 且所有失败路径都 return False）；
+                        # 返回 None 的自定义实现按"未报错"处理，避免误判成失败后
+                        # 反复重发同一条提醒
+                        if delivered is False:
+                            logger.warning(
+                                f"{LOG_PREFIX} 提醒未送达，不落防重标记，下轮重试 "
+                                f"user={user_id} item_id={item['item_id']}"
+                            )
+                            continue
+                        # 发送成功后才落防重标记：先落盘会在发送失败时
+                        # 让该日程本期（乃至永久）不再提醒
+                        marked = await mark_schedule_reminder_triggered(
+                            self.store, user_id, item["item_id"]
+                        )
+                        if not marked:
+                            logger.warning(
+                                f"{LOG_PREFIX} 防重标记未写入，该日程下轮会重试提醒 "
+                                f"user={user_id} item_id={item['item_id']}"
                             )
                 except Exception as e:
                     logger.warning(f"{LOG_PREFIX} 用户 {user_id} 日程提醒扫描失败: {e}")
