@@ -53,15 +53,15 @@
 
 ### Apple iCloud 日历双向同步
 
-**读取（Apple → 本地）：**
+**读取（Apple → 本地）**：
 - 定时拉取 iCloud 日历事件到本地存储
 - 自动同步新增 / 修改 / 删除，以 Apple 日历为准
 
-**写入（本地 → Apple）：**
+**写入（本地 → Apple）**：
 - 通过机器人添加的日程自动写入指定 Apple 日历
 - 记录事件 UID，支持后续同步识别与去重
 
-**接入所需：**
+**接入所需**：
 - `username` — Apple ID 邮箱（如 `xxx@icloud.com`）
 - `app_password` — **App 专用密码**（在 [appleid.apple.com](https://appleid.apple.com) 生成，不是登录密码）
 - `calendar_id` — 目标日历 UUID，留空默认第一个。UUID 可从 Apple 日历的 CalDAV 服务器地址里复制：地址形如 `…/calendars/<UUID>/`，取其中 UUID 段填入

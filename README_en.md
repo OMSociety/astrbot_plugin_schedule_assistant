@@ -51,15 +51,15 @@ Automatically pushed every morning (time configurable), one message with everyth
 
 ### Apple iCloud Calendar Two-Way Sync
 
-**Read (Apple → local):**
+**Read (Apple → local)**:
 - Periodically pulls iCloud calendar events into local storage
 - Automatically syncs additions / changes / deletions, with Apple Calendar as the source of truth
 
-**Write (local → Apple):**
+**Write (local → Apple)**:
 - Schedules added through the bot are automatically written to the specified Apple calendar
 - Event UIDs are recorded for later sync identification and deduplication
 
-**What you need to connect:**
+**What you need to connect**:
 - `username` — Apple ID email (e.g. `xxx@icloud.com`)
 - `app_password` — an **app-specific password** (generated at [appleid.apple.com](https://appleid.apple.com), not your login password)
 - `calendar_id` — UUID of the target calendar; leave empty for the first one. The UUID can be copied from the CalDAV server address of the Apple calendar: the address looks like `…/calendars/<UUID>/`, take the UUID segment and fill it in

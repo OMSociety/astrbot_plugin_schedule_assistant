@@ -51,15 +51,15 @@
 
 ### Apple iCloud カレンダー双方向同期
 
-**読み取り（Apple → ローカル）：**
+**読み取り（Apple → ローカル）**：
 - iCloud カレンダーの予定を定期的にローカルストレージへ取得
 - 追加 / 変更 / 削除を自動同期。Apple カレンダーを正とする
 
-**書き込み（ローカル → Apple）：**
+**書き込み（ローカル → Apple）**：
 - ボットで追加した予定を指定の Apple カレンダーへ自動書き込み
 - 予定の UID を記録し、以後の同期識別と重複排除に対応
 
-**接続に必要なもの：**
+**接続に必要なもの**：
 - `username` — Apple ID のメールアドレス（例：`xxx@icloud.com`）
 - `app_password` — **アプリ専用パスワード**（[appleid.apple.com](https://appleid.apple.com) で生成します。ログインパスワードではありません）
 - `calendar_id` — 対象カレンダーの UUID。空欄なら先頭のカレンダー。UUID は Apple カレンダーの CalDAV サーバーアドレス（`…/calendars/<UUID>/` の形式）からコピーして入力します
