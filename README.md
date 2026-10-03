@@ -84,7 +84,7 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 
 AstrBot WebUI → 插件市场 → 搜索 `schedule_assistant`
 
-> **提示：**依赖声明在插件 `requirements.txt`（`apscheduler` / `aiohttp` / `python-dateutil`）：AstrBot 加载与安装插件时会自动预检并补齐缺失依赖，通常无需手动安装。
+> **提示**：依赖声明在插件 `requirements.txt`（`apscheduler` / `aiohttp` / `python-dateutil`）：AstrBot 加载与安装插件时会自动预检并补齐缺失依赖，通常无需手动安装。
 
 ### 第二步：最小配置（跑通全部定时提醒）
 
@@ -101,7 +101,7 @@ AstrBot WebUI → 插件市场 → 搜索 `schedule_assistant`
 1. 在 [Maton](https://www.maton.ai/) 上接入 Notion（OAuth2 方式），生成 **Maton API Key**
 2. 插件配置 → **外部服务** 填入 `maton_api_key`，并用 `notion_db_ids` 指定要读取的数据库（如 `事务:xxx`、`阅读:yyy`）
 
-> **注意：**Notion 待办经第三方网关 `gateway.maton.ai` 中转（非直连 Notion 官方 API）：`maton_api_key` 会作为请求头发送给该第三方，其可读取你指定数据库中的标题、状态与截止日期等字段。
+> **注意**：Notion 待办经第三方网关 `gateway.maton.ai` 中转（非直连 Notion 官方 API）：`maton_api_key` 会作为请求头发送给该第三方，其可读取你指定数据库中的标题、状态与截止日期等字段。
 
 ---
 

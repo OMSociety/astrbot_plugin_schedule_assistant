@@ -82,7 +82,7 @@ QQ のネイティブテーブルは整列された行として自動レンダ�
 
 AstrBot WebUI → プラグインマーケット → `schedule_assistant` を検索
 
-> **ヒント：**依存関係はプラグインの `requirements.txt`（`apscheduler` / `aiohttp` / `python-dateutil`）に記載されています。AstrBot がプラグインの読み込み・インストール時に不足分を自動で確認して導入するため、通常は手動インストール不要です。
+> **ヒント**：依存関係はプラグインの `requirements.txt`（`apscheduler` / `aiohttp` / `python-dateutil`）に記載されています。AstrBot がプラグインの読み込み・インストール時に不足分を自動で確認して導入するため、通常は手動インストール不要です。
 
 ### ステップ 2：最小構成（すべての定時リマインダーを動かす）
 
@@ -99,7 +99,7 @@ WebUI のプラグイン設定 → **基本設定** → `user_ids` に 1 行入�
 1. [Maton](https://www.maton.ai/) で Notion を接続（OAuth2 方式）し、**Maton API Key** を生成
 2. プラグイン設定 → **外部サービス** に `maton_api_key` を入力し、`notion_db_ids` で読み取るデータベースを指定（例：`仕事:xxx`、`読書:yyy`）
 
-> **注意：**Notion ToDo はサードパーティのゲートウェイ `gateway.maton.ai` 経由で取得します（Notion 公式 API への直接接続ではありません）：`maton_api_key` はリクエストヘッダーとしてこのサードパーティに送信され、指定したデータベースのタイトル・ステータス・期限などのフィールドを読み取ることができます。
+> **注意**：Notion ToDo はサードパーティのゲートウェイ `gateway.maton.ai` 経由で取得します（Notion 公式 API への直接接続ではありません）：`maton_api_key` はリクエストヘッダーとしてこのサードパーティに送信され、指定したデータベースのタイトル・ステータス・期限などのフィールドを読み取ることができます。
 
 ---
 

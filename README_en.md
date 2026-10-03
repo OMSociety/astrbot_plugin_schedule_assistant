@@ -82,7 +82,7 @@ QQ native tables are automatically rendered as aligned rows, no extra configurat
 
 AstrBot WebUI → Plugin marketplace → search for `schedule_assistant`
 
-> **Note:** Dependencies are declared in the plugin's `requirements.txt` (`apscheduler` / `aiohttp` / `python-dateutil`); AstrBot pre-checks and installs anything missing when loading or installing the plugin, so installing them manually is normally unnecessary.
+> **Note**: Dependencies are declared in the plugin's `requirements.txt` (`apscheduler` / `aiohttp` / `python-dateutil`); AstrBot pre-checks and installs anything missing when loading or installing the plugin, so installing them manually is normally unnecessary.
 
 ### Step 2: Minimal Configuration (Get All Scheduled Reminders Running)
 
@@ -99,7 +99,7 @@ The `PlatformID:SessionType:UserID` format (UMO format) — one line covers both
 1. Connect Notion on [Maton](https://www.maton.ai/) (via OAuth2) and generate a **Maton API Key**
 2. In the plugin config → **External Services**, fill in `maton_api_key` and set the databases to read via `notion_db_ids` (e.g. `work:xxx`, `reading:yyy`)
 
-> **Warning:** Notion todos are relayed through the third-party gateway `gateway.maton.ai` (not a direct call to the official Notion API): `maton_api_key` is sent to that third party as a request header, and it can read fields such as title, status and due date in the databases you specify.
+> **Warning**: Notion todos are relayed through the third-party gateway `gateway.maton.ai` (not a direct call to the official Notion API): `maton_api_key` is sent to that third party as a request header, and it can read fields such as title, status and due date in the databases you specify.
 
 ---
 
