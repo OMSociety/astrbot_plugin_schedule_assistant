@@ -232,14 +232,18 @@ class ScheduleAssistant(Star):
                 app_password = apple_conf.get("app_password") if apple_conf else None
                 if username and app_password:
                     cal_id = apple_conf.get("calendar_id", "").strip() or None
+                    caldav_host = (apple_conf.get("caldav_host") or "").strip()
                     self.apple_calendar = AppleCalendar(
                         username=username,
                         app_password=app_password,
                         calendar_id=cal_id,
                         webcal_urls=conf.get("webcal_urls", []) or [],
+                        caldav_host=caldav_host,
                     )
                     logger.info(
-                        f"{LOG_PREFIX} Apple Calendar 已配置: {username[:3]}***, calendar_id={cal_id}"
+                        f"{LOG_PREFIX} Apple Calendar 已配置: {username[:3]}***, "
+                        f"calendar_id={cal_id}, "
+                        f"caldav_host={caldav_host or 'caldav.icloud.com'}"
                     )
                 else:
                     logger.warning(

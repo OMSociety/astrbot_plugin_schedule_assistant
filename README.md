@@ -8,7 +8,7 @@
 
 **你的贴心日程管家** —— 早安播报 · 习惯提醒 · LLM 日程管理 · Apple 日历双向同步 · Notion 待办同步
 
-[![Version](https://img.shields.io/badge/version-1.2.1-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/OMSociety/astrbot_plugin_schedule_assistant)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/stargazers)
@@ -64,7 +64,8 @@
 **接入所需**：
 - `username` — Apple ID 邮箱（如 `xxx@icloud.com`）
 - `app_password` — **App 专用密码**（在 [appleid.apple.com](https://appleid.apple.com) 生成，不是登录密码）
-- `calendar_id` — 目标日历 UUID，留空默认第一个。UUID 可从 Apple 日历的 CalDAV 服务器地址里复制：地址形如 `…/calendars/<UUID>/`，取其中 UUID 段填入
+- `calendar_id` — 目标日历 UUID，留空默认第一个。可用值见日志里的「可用日历」清单（形如 `工作日 → UUID`），也可从 CalDAV 地址 `…/calendars/<UUID>/` 里取 UUID 段
+- `caldav_host` — CalDAV 服务器地址，留空用 `caldav.icloud.com`。中国大陆区账号被拒绝认证时可填 `caldav.icloud.com.cn`；若该地址仍不通，填网页版 iCloud 日历共享链接里自己的主机，形如 `pXX-caldav.icloud.com.cn`
 
 ### Notion 待办同步
 Notion 待办会在每日早安播报中列出，并附 DDL 倒计时（还剩 N 天 / 今天截止 / 已逾期）。需先配置 Maton Gateway 作为中间层接入。
@@ -146,7 +147,8 @@ AstrBot WebUI → 插件市场 → 搜索 `schedule_assistant`
 | `apple_calendar_sync_interval` | int | `30` | Apple 日历同步间隔（分钟） |
 | `apple_calendar.username` | string | - | Apple ID 邮箱 |
 | `apple_calendar.app_password` | string | - | **App 专用密码**（非登录密码） |
-| `apple_calendar.calendar_id` | string | - | 目标日历 UUID，留空默认第一个；UUID 从 Apple 日历的 CalDAV 服务器地址（`…/calendars/<UUID>/`）里复制 |
+| `apple_calendar.caldav_host` | string | - | CalDAV 服务器地址，留空用 `caldav.icloud.com`；国区账号可填 `caldav.icloud.com.cn`，或分区主机 `pXX-caldav.icloud.com.cn` |
+| `apple_calendar.calendar_id` | string | - | 目标日历 UUID，留空默认第一个；可用值见日志的「可用日历」清单（`工作日 → UUID`） |
 | `webcal_urls` | list | `[]` | WebCal 共享日历链接 |
 
 > **WebCal 订阅安全**：`webcal_urls` 只接受公网 `https://` 订阅地址（`webcal://` 自动转 `https://`）。插件会拒绝 `localhost`、内网（如 `192.168.x` / `10.x`）、云元数据（`169.254.169.254`）等地址（防 SSRF）。请勿填写内网或本机地址。
@@ -213,7 +215,12 @@ AstrBot WebUI → 插件市场 → 搜索 `schedule_assistant`
   "calendar_sync_settings": {
     "enable_apple_calendar_sync": false,
     "apple_calendar_sync_interval": 30,
-    "apple_calendar": { "username": "", "app_password": "", "calendar_id": "" },
+    "apple_calendar": {
+      "username": "",
+      "app_password": "",
+      "caldav_host": "",
+      "calendar_id": ""
+    },
     "webcal_urls": []
   },
   "external_services_settings": {

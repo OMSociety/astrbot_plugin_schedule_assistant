@@ -8,7 +8,7 @@
 
 **あなたの頼れるスケジュール執事** — 朝の配信 · 習慣リマインダー · LLM によるスケジュール管理 · Apple カレンダー双方向同期 · Notion ToDo 同期
 
-[![Version](https://img.shields.io/badge/version-1.2.1-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/OMSociety/astrbot_plugin_schedule_assistant)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/stargazers)
@@ -62,7 +62,8 @@
 **接続に必要なもの**：
 - `username` — Apple ID のメールアドレス（例：`xxx@icloud.com`）
 - `app_password` — **アプリ専用パスワード**（[appleid.apple.com](https://appleid.apple.com) で生成します。ログインパスワードではありません）
-- `calendar_id` — 対象カレンダーの UUID。空欄なら先頭のカレンダー。UUID は Apple カレンダーの CalDAV サーバーアドレス（`…/calendars/<UUID>/` の形式）からコピーして入力します
+- `calendar_id` — 対象カレンダーの UUID。空欄なら先頭のカレンダー。入力できる値は、カレンダー検出時にログへ一度だけ出力される一覧（`名前 → UUID`）で確認できます。CalDAV アドレス `…/calendars/<UUID>/` から UUID 部分を取得することもできます
+- `caldav_host` — CalDAV サーバーのアドレス。空欄なら `caldav.icloud.com`。中国本土のアカウントで認証を拒否された場合は `caldav.icloud.com.cn`、それでも通らない場合は iCloud ウェブ版カレンダーの共有リンクにある自分のホスト（例：`pXX-caldav.icloud.com.cn`）を入力します
 
 ### Notion ToDo 同期
 Notion のタスクは毎朝の配信で DDL カウントダウン付き（残り N 日 / 今日が締め切り / 期限超過）で一覧表示されます。事前に Maton Gateway を中継層として設定する必要があります。
@@ -144,7 +145,8 @@ WebUI のプラグイン設定 → **基本設定** → `user_ids` に 1 行入�
 | `apple_calendar_sync_interval` | int | `30` | Apple カレンダーの同期間隔（分） |
 | `apple_calendar.username` | string | - | Apple ID のメールアドレス |
 | `apple_calendar.app_password` | string | - | **アプリ専用パスワード**（ログインパスワードではありません） |
-| `apple_calendar.calendar_id` | string | - | 対象カレンダーの UUID。空欄なら先頭。UUID は Apple カレンダーの CalDAV サーバーアドレス（`…/calendars/<UUID>/`）からコピー |
+| `apple_calendar.caldav_host` | string | - | CalDAV サーバーのアドレス。空欄なら `caldav.icloud.com`。中国本土のアカウントは `caldav.icloud.com.cn` や分区ホスト `pXX-caldav.icloud.com.cn` を利用できます |
+| `apple_calendar.calendar_id` | string | - | 対象カレンダーの UUID。空欄なら先頭。入力できる値はログのカレンダー一覧（`名前 → UUID`）で確認できます |
 | `webcal_urls` | list | `[]` | WebCal 共有カレンダーのリンク |
 
 > **WebCal 購読のセキュリティ**：`webcal_urls` は公開の `https://` 購読アドレスのみを受け付けます（`webcal://` は自動的に `https://` に変換）。プラグインは `localhost`、内部ネットワーク（`192.168.x` / `10.x` など）、クラウドメタデータ（`169.254.169.254`）などのアドレスを拒否します（SSRF 対策）。内部ネットワークやローカルのアドレスは入力しないでください。
@@ -211,7 +213,12 @@ WebUI の設定パネルで入力するか、以下の構造を参考にして�
   "calendar_sync_settings": {
     "enable_apple_calendar_sync": false,
     "apple_calendar_sync_interval": 30,
-    "apple_calendar": { "username": "", "app_password": "", "calendar_id": "" },
+    "apple_calendar": {
+      "username": "",
+      "app_password": "",
+      "caldav_host": "",
+      "calendar_id": ""
+    },
     "webcal_urls": []
   },
   "external_services_settings": {

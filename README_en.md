@@ -8,7 +8,7 @@
 
 **Your considerate schedule butler** — Morning broadcast · Habit reminders · LLM schedule management · Apple Calendar two-way sync · Notion to-do sync
 
-[![Version](https://img.shields.io/badge/version-1.2.1-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/OMSociety/astrbot_plugin_schedule_assistant)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/stargazers)
@@ -62,7 +62,8 @@ Automatically pushed every morning (time configurable), one message with everyth
 **What you need to connect**:
 - `username` — Apple ID email (e.g. `xxx@icloud.com`)
 - `app_password` — an **app-specific password** (generated at [appleid.apple.com](https://appleid.apple.com), not your login password)
-- `calendar_id` — UUID of the target calendar; leave empty for the first one. The UUID can be copied from the CalDAV server address of the Apple calendar: the address looks like `…/calendars/<UUID>/`, take the UUID segment and fill it in
+- `calendar_id` — UUID of the target calendar; leave empty for the first one. Valid values are listed once in the log when calendars are discovered (shown as `name → UUID`); you can also take the UUID segment from a CalDAV address `…/calendars/<UUID>/`
+- `caldav_host` — CalDAV server address; empty means `caldav.icloud.com`. Mainland China accounts that get refused authentication can use `caldav.icloud.com.cn`; if that still fails, use your own host from the iCloud web calendar sharing link, e.g. `pXX-caldav.icloud.com.cn`
 
 ### Notion To-Do Sync
 Notion to-dos are listed in the daily morning broadcast with DDL countdowns (N days left / due today / overdue). Requires configuring Maton Gateway as the intermediate layer first.
@@ -144,7 +145,8 @@ The `PlatformID:SessionType:UserID` format (UMO format) — one line covers both
 | `apple_calendar_sync_interval` | int | `30` | Apple Calendar sync interval (minutes) |
 | `apple_calendar.username` | string | - | Apple ID email |
 | `apple_calendar.app_password` | string | - | **App-specific password** (not your login password) |
-| `apple_calendar.calendar_id` | string | - | UUID of the target calendar; leave empty for the first one. Copy the UUID from the CalDAV server address of the Apple calendar (`…/calendars/<UUID>/`) |
+| `apple_calendar.caldav_host` | string | - | CalDAV server address; empty means `caldav.icloud.com`; Mainland China accounts may use `caldav.icloud.com.cn` or a partition host `pXX-caldav.icloud.com.cn` |
+| `apple_calendar.calendar_id` | string | - | UUID of the target calendar; leave empty for the first one; valid values come from the discovered-calendars log list (`name → UUID`) |
 | `webcal_urls` | list | `[]` | WebCal shared calendar links |
 
 > **WebCal subscription security**: `webcal_urls` only accepts public `https://` subscription addresses (`webcal://` is automatically converted to `https://`). The plugin rejects addresses such as `localhost`, intranet addresses (e.g. `192.168.x` / `10.x`), and cloud metadata endpoints (`169.254.169.254`) to prevent SSRF. Do not enter intranet or local addresses.
@@ -211,7 +213,12 @@ Fill it in via the WebUI configuration panel, or refer to the following structur
   "calendar_sync_settings": {
     "enable_apple_calendar_sync": false,
     "apple_calendar_sync_interval": 30,
-    "apple_calendar": { "username": "", "app_password": "", "calendar_id": "" },
+    "apple_calendar": {
+      "username": "",
+      "app_password": "",
+      "caldav_host": "",
+      "calendar_id": ""
+    },
     "webcal_urls": []
   },
   "external_services_settings": {

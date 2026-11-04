@@ -10,6 +10,42 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-11-04
+
+### 新增
+
+- **CalDAV 服务器地址可配置**（`calendar_sync_settings.apple_calendar.caldav_host`）：留空使用 `caldav.icloud.com`，可填 `caldav.icloud.com.cn`，或账号自己的分区主机（`pXX-caldav.icloud.com.cn`）。
+- **默认入口被拒绝认证时自动回退中国大陆区入口**：同一份凭据会再试 `caldav.icloud.com.cn` 一次，生效的入口写进日志；自行指定了 `caldav_host` 时不回退。
+- **日志给出可用日历清单**：发现成功后按「日历名 → UUID」列出一次，`calendar_id` 照此填写即可。
+
+### 修复
+
+- **CalDAV 写入失败的提示改为按状态码给出可行动原因**：凭据被拒（403 且响应体为空）、网络不通与响应异常此前报出的都是同一句「CalDAV 未连接，无法创建事件」，发现阶段还会误报「未配置 Apple 日历」。现按 401（凭据未填全）/ 403（App 专用密码错误或失效）/ 无法连接网络 / 响应中没有 principal URL 分别说明，同一原因只报一次 ERROR。
+- **发现路径只认 207 状态码**：带错误页正文的 4xx 响应不再被正则降级当成发现成功。
+- **列出日历失败时记录状态码**：`_list_calendars` 在非 207 响应下不再静默返回空列表。
+
+### 变更
+
+- 创建日程时的「CalDAV 未连接，无法创建事件」由 ERROR 降为 WARNING（原因已在发现阶段以 ERROR 报出）。
+- `apple_calendar.calendar_id` 的填写说明改指向日志里的日历清单。
+
+### Added
+
+- **Configurable CalDAV server address** (`calendar_sync_settings.apple_calendar.caldav_host`): leave blank for `caldav.icloud.com`, set `caldav.icloud.com.cn`, or your account's partition host (`pXX-caldav.icloud.com.cn`).
+- **Automatic fallback to the Mainland China entry point** when the default entry refuses authentication: the same credentials are retried once against `caldav.icloud.com.cn`, and the entry in effect is written to the log; a user-specified `caldav_host` is never switched.
+- **Calendar list in the log**: once calendars are discovered, each is listed as `name → UUID`, which is what `calendar_id` takes.
+
+### Fixed
+
+- **CalDAV write failures now report an actionable reason derived from the status code**: a refused credential (403 with an empty body), an unreachable network and an unexpected response all produced the same `CalDAV 未连接，无法创建事件` line before, while discovery misreported it as `未配置 Apple 日历`. Reasons are now distinguished per 401 (credentials incomplete) / 403 (app-specific password wrong or expired) / network unreachable / no principal URL in the response, and the same reason is logged as ERROR only once.
+- **Discovery accepts nothing but status 207**: a 4xx response whose body happens to contain a principal path is no longer downgraded into a successful discovery.
+- **Listing calendars now logs the status code**: `_list_calendars` no longer returns an empty list silently on a non-207 response.
+
+### Changed
+
+- The `CalDAV 未连接，无法创建事件` line on event creation is now a WARNING (the reason itself is reported as ERROR during discovery).
+- The `apple_calendar.calendar_id` hint now points at the calendar list in the log.
+
 ## [1.2.1] - 2026-09-25
 
 ### 修复

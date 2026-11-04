@@ -102,9 +102,13 @@
           "description": "Apple app-specific password",
           "hint": "Not your login password! Go to appleid.apple.com → Security → Generate an app-specific password."
         },
+        "caldav_host": {
+          "description": "CalDAV server address",
+          "hint": "Leave blank to use caldav.icloud.com. If a Mainland China account is refused authentication, use caldav.icloud.com.cn; if that still fails, use your own host from the iCloud web calendar sharing link, e.g. pXX-caldav.icloud.com.cn."
+        },
         "calendar_id": {
           "description": "Target calendar ID",
-          "hint": "Only a calendar UUID is supported; leave blank to default to the first calendar. The UUID can be copied from the CalDAV server address of Apple Calendar: the address looks like …/calendars/<UUID>/ — take the UUID segment and fill it in."
+          "hint": "Only a calendar UUID is supported; leave blank to default to the first calendar. Valid values are listed once in the log when calendars are discovered (shown as name → UUID); you can also take the UUID segment from a CalDAV address …/calendars/<UUID>/."
         }
       },
       "webcal_urls": {

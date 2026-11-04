@@ -17,6 +17,11 @@ from astrbot.api import logger
 
 __all__ = ["AppleCalendar"]
 
+# CalDAV 发现入口：PROPFIND 打到该地址取回当前用户的 principal URL。
+CALDAV_ENTRY_URL = "https://caldav.icloud.com/"
+# 中国大陆区（云上贵州运营）的 iCloud 入口，凭据被 .com 拒绝时回退到这里。
+CALDAV_CN_ENTRY_URL = "https://caldav.icloud.com.cn/"
+
 
 def _escape_ics_text(text: str) -> str:
     """按 RFC 5545 转义 TEXT 值（反斜杠、分号、逗号、换行）。"""
@@ -41,6 +46,7 @@ class AppleCalendar:
         app_password: str | None = None,
         webcal_urls: list[str] | None = None,
         calendar_id: str | None = None,
+        caldav_host: str | None = None,
     ):
         self.username = username
         self.app_password = app_password
@@ -59,6 +65,20 @@ class AppleCalendar:
         self._last_ics_discovery_log_ts = 0.0
         self._last_ics_discovery_count: int | None = None
         self._calendar_id = calendar_id
+        self._last_discover_reason: str | None = None
+        self._caldav_host = (caldav_host or "").strip()
+        self._caldav_entry_url = self._normalize_entry_url(self._caldav_host)
+        self._calendars_logged = False
+
+    @staticmethod
+    def _normalize_entry_url(host: str) -> str:
+        """把配置的 CalDAV 主机规范成 PROPFIND 入口 URL；空值用默认入口。"""
+        host = (host or "").strip()
+        if not host:
+            return CALDAV_ENTRY_URL
+        if "://" not in host:
+            host = "https://" + host
+        return host.rstrip("/") + "/"
 
     def _auth_header(self) -> str:
         creds = f"{self.username}:{self.app_password}"
@@ -178,6 +198,33 @@ class AppleCalendar:
         return None
 
     @staticmethod
+    def _extract_calendar_names(xml_text: str) -> dict[str, str]:
+        """从 multistatus 里取出 {日历路径: 显示名}。
+
+        displayname 是日历在 Apple 端的名称，用户据此认出要填哪个 UUID。
+        """
+        names: dict[str, str] = {}
+        if not xml_text:
+            return names
+        try:
+            root = ET.fromstring(xml_text)
+        except ET.ParseError:
+            return names
+        for resp in root.iter():
+            if not resp.tag.endswith("response"):
+                continue
+            href = None
+            displayname = ""
+            for child in resp.iter():
+                if href is None and child.tag.endswith("href") and child.text:
+                    href = AppleCalendar._clean_href(child.text)
+                elif child.tag.endswith("displayname") and child.text:
+                    displayname = child.text.strip()
+            if href:
+                names.setdefault(href, displayname)
+        return names
+
+    @staticmethod
     def _to_absolute_url(base: str, href: str) -> str | None:
         href = AppleCalendar._clean_href(href)
         if not href:
@@ -191,6 +238,32 @@ class AppleCalendar:
             return None
         return candidate
 
+    def _describe_http_failure(self, status: int | None, body: str | None) -> str:
+        """把 PROPFIND 的失败翻译成用户能照着做的说明。
+
+        状态码是唯一可靠判据：iCloud 在凭据被拒时返回 403 且响应体为空，
+        仅凭响应体是否为空无法区分鉴权失败、路径不存在与传输层失败。
+        """
+        if status is None:
+            return "无法连接 Apple 服务器（网络不通或被拦截），请检查本机网络与代理"
+        if status == 401:
+            return "Apple 未接受凭据（HTTP 401），请确认 Apple ID 邮箱与 App 专用密码都已填写"
+        if status == 403:
+            return (
+                "Apple 拒绝认证（HTTP 403）：App 专用密码错误或已失效。"
+                "需在 appleid.apple.com 重新生成「App 专用密码」，不能用 iCloud 登录密码；"
+                "若刚生成仍失败，请把这一行反馈给插件作者"
+            )
+        return f"PROPFIND 返回 HTTP {status}: {self._truncate_for_log(body)}"
+
+    def _report_discover_failure(self, reason: str) -> None:
+        """同一条失败原因只报一次 ERROR，之后降为 DEBUG，避免每轮同步刷屏。"""
+        if reason == self._last_discover_reason:
+            logger.debug(f"[AppleCalendar] CalDAV 发现失败：{reason}")
+            return
+        self._last_discover_reason = reason
+        logger.error(f"[AppleCalendar] CalDAV 发现失败：{reason}")
+
     async def _discover(self) -> bool:
         """发现 principal URL 和 calendar home set URL"""
         if self._discovered or not self.username or not self.app_password:
@@ -199,17 +272,42 @@ class AppleCalendar:
             if self._discovered:
                 return True
             body1 = b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:"><D:prop><D:current-user-principal/></D:prop></D:propfind>'
-            resp1 = await self._aiohttp_request(
-                "https://caldav.icloud.com/",
+            headers = {
+                "Authorization": self._auth_header(),
+                "Content-Type": "text/xml",
+            }
+            resp1, status1 = await self._aiohttp_request_with_status(
+                self._caldav_entry_url,
                 method="PROPFIND",
                 data=body1,
-                headers={
-                    "Authorization": self._auth_header(),
-                    "Content-Type": "text/xml",
-                },
+                headers=headers,
             )
-            if not resp1:
-                logger.debug("[AppleCalendar] CalDAV 发现失败，未配置 Apple 日历")
+            if status1 == 403 and self._caldav_entry_url == CALDAV_ENTRY_URL:
+                # 中国大陆区的 iCloud 由云上贵州运营，入口在 caldav.icloud.com.cn：
+                # .com 拒绝凭据时再试一次国区入口，通了就后续请求都走它。
+                cn_resp, cn_status = await self._aiohttp_request_with_status(
+                    CALDAV_CN_ENTRY_URL,
+                    method="PROPFIND",
+                    data=body1,
+                    headers=headers,
+                )
+                if cn_status == 207:
+                    self._caldav_entry_url = CALDAV_CN_ENTRY_URL
+                    resp1, status1 = cn_resp, cn_status
+                    logger.info(
+                        "[AppleCalendar] caldav.icloud.com 拒绝凭据，"
+                        f"已改用中国大陆区入口 {CALDAV_CN_ENTRY_URL}"
+                    )
+                else:
+                    self._report_discover_failure(
+                        self._describe_http_failure(cn_status, cn_resp)
+                        + f"（已同时尝试中国大陆区入口 {CALDAV_CN_ENTRY_URL}）"
+                    )
+                    return False
+            if status1 != 207:
+                self._report_discover_failure(
+                    self._describe_http_failure(status1, resp1)
+                )
                 return False
             principal_href = self._extract_href(resp1, "current-user-principal")
             if not principal_href:
@@ -218,27 +316,26 @@ class AppleCalendar:
                 # 当网络路径引用（netloc=数字 ID），后续 PROPFIND 会打到错误主机
                 principal_href = "/" + m.group(1).lstrip("/") if m else None
             if not principal_href:
-                logger.debug("[AppleCalendar] 无法解析 principal URL")
+                self._report_discover_failure("响应中没有 principal URL（HTTP 207）")
                 return False
             self._principal_url = self._to_absolute_url(
-                "https://caldav.icloud.com", principal_href
+                self._caldav_entry_url.rstrip("/"), principal_href
             )
             if not self._principal_url:
-                logger.debug("[AppleCalendar] principal URL 组装失败")
+                self._report_discover_failure("principal URL 组装失败")
                 return False
             logger.debug(f"[AppleCalendar] principal URL: {self._principal_url}")
             body2 = b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop><C:calendar-home-set/></D:prop></D:propfind>'
-            resp2 = await self._aiohttp_request(
+            resp2, status2 = await self._aiohttp_request_with_status(
                 self._principal_url,
                 method="PROPFIND",
                 data=body2,
-                headers={
-                    "Authorization": self._auth_header(),
-                    "Content-Type": "text/xml",
-                },
+                headers=headers,
             )
-            if not resp2:
-                logger.debug("[AppleCalendar] principal URL 无响应，跳过日历发现")
+            if status2 != 207:
+                self._report_discover_failure(
+                    self._describe_http_failure(status2, resp2)
+                )
                 return False
             cal_home_href = self._extract_href(resp2, "calendar-home-set")
             if not cal_home_href:
@@ -251,18 +348,22 @@ class AppleCalendar:
                         # 同上：统一 lstrip("/") 后再补一个前导 "/"，避免 "//…"
                         cal_home_href = "/" + m.group(1).lstrip("/").rstrip("/")
             if not cal_home_href:
-                logger.debug("[AppleCalendar] 无法解析 calendar home set URL")
+                self._report_discover_failure(
+                    "响应中没有 calendar home set URL（HTTP 207）"
+                )
                 return False
             self._caldav_base_url = self._to_absolute_url(
                 self._principal_url, cal_home_href
             )
             if not self._caldav_base_url:
-                logger.debug("[AppleCalendar] calendar home set URL 组装失败")
+                self._report_discover_failure("calendar home set URL 组装失败")
                 return False
             self._caldav_base_domain = urlparse(self._caldav_base_url).netloc
             self._discovered = True
-            logger.debug(
-                f"[AppleCalendar] CalDAV 发现成功: base={self._caldav_base_url}"
+            self._last_discover_reason = None
+            logger.info(
+                f"[AppleCalendar] CalDAV 已连接: {self._caldav_entry_url.rstrip('/')}"
+                f" (base={self._caldav_base_url})"
             )
             return True
 
@@ -332,18 +433,24 @@ class AppleCalendar:
             return list(self._calendars_cache)
         if not await self._discover():
             return []
-        resp = await self._aiohttp_request(
+        resp, status = await self._aiohttp_request_with_status(
             self._caldav_base_url + "/",
             method="PROPFIND",
-            data=b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:"><D:prop><D:href/></D:prop></D:propfind>',
+            data=b'<?xml version="1.0" encoding="UTF-8"?><D:propfind xmlns:D="DAV:"><D:prop><D:href/><D:displayname/></D:prop></D:propfind>',
             headers={
                 "Authorization": self._auth_header(),
                 "Content-Type": "text/xml",
                 "Depth": "1",
             },
         )
-        if not resp:
+        if status != 207:
+            logger.warning(
+                f"[AppleCalendar] 列出日历失败: "
+                f"status={status if status is not None else '无响应'}, "
+                f"body={self._truncate_for_log(resp)}"
+            )
             return []
+        names = AppleCalendar._extract_calendar_names(resp)
         calendars = []
         seen_uuids = set()  # 去重
         for m in re.findall(r"<(?:D:)?href[^>]*>([^<]+)</(?:D:)?href>", resp):
@@ -367,11 +474,24 @@ class AppleCalendar:
                     # 相对路径，使用 base_url 拼接
                     cal_url = f"{self._caldav_base_url.rstrip('/')}/{cal_uuid}"
                 calendars.append(
-                    {"href": href, "url": cal_url, "id": cal_uuid, "name": ""}
+                    {
+                        "href": href,
+                        "url": cal_url,
+                        "id": cal_uuid,
+                        "name": names.get(href, ""),
+                    }
                 )
         self._calendars_cache = list(calendars)
         self._calendars_ts = time.monotonic()
         logger.debug(f"[AppleCalendar] 发现 {len(calendars)} 个日历")
+        if calendars and not self._calendars_logged:
+            self._calendars_logged = True
+            logger.info(
+                "[AppleCalendar] 可用日历（calendar_id 可填下列 UUID）:\n"
+                + "\n".join(
+                    f"  {c['name'] or '(未命名)'} → {c['id']}" for c in calendars
+                )
+            )
         return calendars
 
     async def find_events_by_summary(self, summary: str) -> list[tuple[dict, str]]:
@@ -691,7 +811,8 @@ class AppleCalendar:
             )
             return None
         if not await self._discover():
-            logger.error("[AppleCalendar] CalDAV 未连接，无法创建事件")
+            # 失败原因已由 _discover 以 ERROR 报出，这里只记录本次动作被跳过
+            logger.warning("[AppleCalendar] CalDAV 未连接，无法创建事件")
             return None
         calendars = await self._list_calendars()
         if not calendars:

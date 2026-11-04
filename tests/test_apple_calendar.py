@@ -2,7 +2,11 @@
 
 覆盖：create_event 只在 2xx 返回 UID（401/403/404/重试耗尽的 500 不返回）、
 delete_event 只在 2xx 返回 True、传输层异常视为失败、非法 uid 拒绝、
-失败日志截断，以及 _discover 两条正则降级路径拼出的 URL 主机正确。
+失败日志截断，_discover 两条正则降级路径拼出的 URL 主机正确，
+以及 _discover / _list_calendars 按 HTTP 状态码判定失败并以 ERROR / WARNING
+报出可行动原因（同一原因只报一次，故不再出现"未配置 Apple 日历"这类误报）。
+CalDAV 入口主机可配置，默认入口被 403 拒绝时回退中国大陆区入口；
+_list_calendars 解析 displayname，并一次性列出「日历名 → UUID」。
 aiohttp 会话用最小替身，不产生真实网络请求。
 """
 
@@ -270,3 +274,296 @@ class TestRequestWrapper:
         _FakeSession.raise_error = apple_module.aiohttp.ClientError("boom")
         assert asyncio.run(caldav._aiohttp_request("https://x/y")) is None
         assert _FakeSession.calls and len(_FakeSession.calls) == 3  # 重试耗尽
+
+
+class TestDiscoverFailureDiagnostics:
+    """_discover 以 HTTP 状态码判定失败，并把可行动的原因报到 ERROR"""
+
+    def test_403_empty_body_reports_actionable_reason(self, discoverable, caplog):
+        """iCloud 凭据被拒时是 403 + 空响应体，原因只能来自状态码"""
+        _FakeSession.statuses = [403, 403]
+        _FakeSession.responses = ["", ""]
+
+        # 插件日志走 astrbot 命名空间，其自身级别默认高于 DEBUG，需显式放开
+        with caplog.at_level("DEBUG", logger="astrbot"):
+            assert asyncio.run(discoverable._discover()) is False
+
+        errors = [r.message for r in caplog.records if r.levelname == "ERROR"]
+        assert len(errors) == 1
+        assert "403" in errors[0]
+        assert "App 专用密码" in errors[0]
+        # 凭据已填写却报"未配置 Apple 日历"是本次误报的根源，不得再出现
+        assert not [r for r in caplog.records if "未配置 Apple 日历" in r.message]
+
+    def test_403_with_principal_body_is_not_treated_as_success(
+        self, discoverable, caplog
+    ):
+        """失败响应体里带着看似合法的 principal 路径时，不得据此认定发现成功"""
+        # 入口由配置指定，就不触发中国大陆区回退，一次响应即可判定
+        discoverable._caldav_entry_url = "https://p01-caldav.icloud.com.cn/"
+        _FakeSession.statuses = [403]
+        _FakeSession.responses = [
+            '<D:multistatus xmlns:D="DAV:"><D:current-user-principal>'
+            "<D:href>/1234567890/principal/</D:href>"
+            "</D:current-user-principal></D:multistatus>"
+        ]
+
+        # 插件日志走 astrbot 命名空间，其自身级别默认高于 DEBUG，需显式放开
+        with caplog.at_level("DEBUG", logger="astrbot"):
+            assert asyncio.run(discoverable._discover()) is False
+
+        # fail-closed：不再发起第二个 PROPFIND
+        assert len(_FakeSession.calls) == 1
+        assert any(
+            r.levelname == "ERROR" and "403" in r.message for r in caplog.records
+        )
+
+    def test_same_reason_reports_error_once(self, discoverable, caplog):
+        """同一原因只报一次 ERROR，之后降为 DEBUG（避免每轮同步刷屏）"""
+        _FakeSession.statuses = [403, 403, 403, 403]
+        _FakeSession.responses = ["", "", "", ""]
+
+        # 插件日志走 astrbot 命名空间，其自身级别默认高于 DEBUG，需显式放开
+        with caplog.at_level("DEBUG", logger="astrbot"):
+            assert asyncio.run(discoverable._discover()) is False
+            assert asyncio.run(discoverable._discover()) is False
+
+        errors = [r.message for r in caplog.records if r.levelname == "ERROR"]
+        assert len(errors) == 1
+        assert (
+            len(
+                [
+                    r
+                    for r in caplog.records
+                    if r.levelname == "DEBUG" and "CalDAV 发现失败" in r.message
+                ]
+            )
+            == 1
+        )
+
+    def test_transport_failure_reports_network_reason(
+        self, discoverable, caplog, monkeypatch
+    ):
+        monkeypatch.setattr(apple_module.asyncio, "sleep", _no_sleep)
+        _FakeSession.raise_error = apple_module.aiohttp.ClientError("boom")
+
+        # 插件日志走 astrbot 命名空间，其自身级别默认高于 DEBUG，需显式放开
+        with caplog.at_level("DEBUG", logger="astrbot"):
+            assert asyncio.run(discoverable._discover()) is False
+
+        errors = [r.message for r in caplog.records if r.levelname == "ERROR"]
+        assert len(errors) == 1
+        assert "网络" in errors[0]
+
+    def test_207_without_principal_reports_parse_failure(self, discoverable, caplog):
+        _FakeSession.statuses = [207]
+        _FakeSession.responses = ['<D:multistatus xmlns:D="DAV:"></D:multistatus>']
+
+        # 插件日志走 astrbot 命名空间，其自身级别默认高于 DEBUG，需显式放开
+        with caplog.at_level("DEBUG", logger="astrbot"):
+            assert asyncio.run(discoverable._discover()) is False
+
+        errors = [r.message for r in caplog.records if r.levelname == "ERROR"]
+        assert len(errors) == 1
+        assert "principal URL" in errors[0]
+
+    def test_success_after_failure_clears_reason(self, discoverable, caplog):
+        """先失败后成功：失败态清空，同一原因下次再失败会重新报 ERROR"""
+        # 指定入口主机则不回退，失败只需一次响应
+        discoverable._caldav_entry_url = "https://p01-caldav.icloud.com.cn/"
+        _FakeSession.statuses = [403, 207, 207]
+        _FakeSession.responses = [
+            "",
+            '<D:multistatus xmlns:D="DAV:"><D:current-user-principal>'
+            "<D:href>/1234567890/principal/</D:href>"
+            "</D:current-user-principal></D:multistatus>",
+            '<D:multistatus xmlns:D="DAV:"><D:calendar-home-set>'
+            "<D:href>/1234567890/calendars/</D:href>"
+            "</D:calendar-home-set></D:multistatus>",
+        ]
+
+        # 插件日志走 astrbot 命名空间，其自身级别默认高于 DEBUG，需显式放开
+        with caplog.at_level("DEBUG", logger="astrbot"):
+            assert asyncio.run(discoverable._discover()) is False
+            assert asyncio.run(discoverable._discover()) is True
+
+        assert discoverable._last_discover_reason is None
+        assert discoverable._caldav_base_url == (
+            "https://p01-caldav.icloud.com.cn/1234567890/calendars"
+        )
+
+    def test_create_event_pairs_reason_error_with_skip_warning(
+        self, discoverable, caplog
+    ):
+        """用户可见两条：原因 ERROR（来自 _discover）+ 本次动作被跳过的 WARNING"""
+        _FakeSession.statuses = [403, 403]
+        _FakeSession.responses = ["", ""]
+
+        # 插件日志走 astrbot 命名空间，其自身级别默认高于 DEBUG，需显式放开
+        with caplog.at_level("DEBUG", logger="astrbot"):
+            assert (
+                asyncio.run(
+                    discoverable.create_event("组会", datetime(2026, 9, 10, 9, 0))
+                )
+                is None
+            )
+
+        errors = [r.message for r in caplog.records if r.levelname == "ERROR"]
+        warnings = [r.message for r in caplog.records if r.levelname == "WARNING"]
+        assert len(errors) == 1 and "403" in errors[0]
+        assert warnings == ["[AppleCalendar] CalDAV 未连接，无法创建事件"]
+
+
+class TestListCalendarsDiagnostics:
+    """_list_calendars 失败时报出状态码，而不是静默返回空列表"""
+
+    def test_non_207_is_reported_with_status(self, discoverable, caplog):
+        discoverable._discovered = True
+        discoverable._caldav_base_url = "https://caldav.icloud.com/123/calendars"
+        _FakeSession.statuses = [403]
+        _FakeSession.responses = [""]
+
+        with caplog.at_level("WARNING"):
+            assert asyncio.run(discoverable._list_calendars()) == []
+
+        warnings = [r.message for r in caplog.records if "列出日历失败" in r.message]
+        assert len(warnings) == 1
+        assert "403" in warnings[0]
+
+
+_PRINCIPAL_XML = (
+    '<D:multistatus xmlns:D="DAV:"><D:current-user-principal>'
+    "<D:href>/1234567890/principal/</D:href>"
+    "</D:current-user-principal></D:multistatus>"
+)
+
+_HOME_XML = (
+    '<D:multistatus xmlns:D="DAV:"><D:calendar-home-set>'
+    "<D:href>/1234567890/calendars/</D:href>"
+    "</D:calendar-home-set></D:multistatus>"
+)
+
+_UUID_A = "D6B0E7A1-1111-2222-3333-444455556666"
+_UUID_B = "0A1B2C3D-AAAA-BBBB-CCCC-DDDDEEEEFFFF"
+
+_CALENDARS_XML = (
+    '<D:multistatus xmlns:D="DAV:">'
+    f"<D:response><D:href>/1234567890/calendars/{_UUID_A}/</D:href>"
+    "<D:propstat><D:prop><D:displayname>工作日</D:displayname></D:prop></D:propstat>"
+    "</D:response>"
+    f"<D:response><D:href>/1234567890/calendars/{_UUID_B}/</D:href>"
+    "<D:propstat><D:prop><D:displayname>中国节假日</D:displayname></D:prop>"
+    "</D:propstat></D:response>"
+    "</D:multistatus>"
+)
+
+
+class TestCaldavHostConfig:
+    """CalDAV 入口主机可配置；默认入口被 403 拒绝时回退中国大陆区入口"""
+
+    @pytest.mark.parametrize(
+        ("host", "expected"),
+        [
+            ("", apple_module.CALDAV_ENTRY_URL),
+            ("   ", apple_module.CALDAV_ENTRY_URL),
+            ("caldav.icloud.com.cn", "https://caldav.icloud.com.cn/"),
+            ("https://p01-caldav.icloud.com.cn", "https://p01-caldav.icloud.com.cn/"),
+            ("https://p01-caldav.icloud.com.cn/", "https://p01-caldav.icloud.com.cn/"),
+        ],
+    )
+    def test_entry_url_is_normalized(self, host, expected):
+        assert AppleCalendar._normalize_entry_url(host) == expected
+
+    def test_configured_host_is_used(self, discoverable):
+        discoverable._caldav_entry_url = AppleCalendar._normalize_entry_url(
+            "p01-caldav.icloud.com.cn"
+        )
+        _FakeSession.statuses = [207, 207]
+        _FakeSession.responses = [_PRINCIPAL_XML, _HOME_XML]
+
+        assert asyncio.run(discoverable._discover()) is True
+        assert [c["url"] for c in _FakeSession.calls] == [
+            "https://p01-caldav.icloud.com.cn/",
+            "https://p01-caldav.icloud.com.cn/1234567890/principal",
+        ]
+
+    def test_default_entry_403_falls_back_to_cn(self, discoverable, caplog):
+        """默认入口 403：同一份凭据再试国区入口，并在日志里写明生效入口"""
+        _FakeSession.statuses = [403, 207, 207]
+        _FakeSession.responses = ["", _PRINCIPAL_XML, _HOME_XML]
+
+        # 插件日志走 astrbot 命名空间，其自身级别默认高于 DEBUG，需显式放开
+        with caplog.at_level("DEBUG", logger="astrbot"):
+            assert asyncio.run(discoverable._discover()) is True
+
+        assert discoverable._caldav_entry_url == apple_module.CALDAV_CN_ENTRY_URL
+        assert [c["url"] for c in _FakeSession.calls] == [
+            apple_module.CALDAV_ENTRY_URL,
+            apple_module.CALDAV_CN_ENTRY_URL,
+            "https://caldav.icloud.com.cn/1234567890/principal",
+        ]
+        assert any(
+            r.levelname == "INFO" and "中国大陆区" in r.message for r in caplog.records
+        )
+
+    def test_configured_host_403_does_not_fall_back(self, discoverable):
+        """入口由用户指定时不再替他改主机，只报失败"""
+        discoverable._caldav_entry_url = AppleCalendar._normalize_entry_url(
+            "p01-caldav.icloud.com.cn"
+        )
+        _FakeSession.statuses = [403]
+        _FakeSession.responses = [""]
+
+        assert asyncio.run(discoverable._discover()) is False
+        assert len(_FakeSession.calls) == 1
+
+    def test_both_entries_403_reports_both_tried(self, discoverable, caplog):
+        _FakeSession.statuses = [403, 403]
+        _FakeSession.responses = ["", ""]
+
+        # 插件日志走 astrbot 命名空间，其自身级别默认高于 DEBUG，需显式放开
+        with caplog.at_level("DEBUG", logger="astrbot"):
+            assert asyncio.run(discoverable._discover()) is False
+
+        assert len(_FakeSession.calls) == 2
+        errors = [r.message for r in caplog.records if r.levelname == "ERROR"]
+        assert len(errors) == 1
+        assert "403" in errors[0]
+        assert "中国大陆区" in errors[0]
+
+
+class TestCalendarsListing:
+    """列出日历时解析 displayname，并在首次列出时给出「日历名 → UUID」对照"""
+
+    @staticmethod
+    def _ready(cal):
+        cal._discovered = True
+        cal._caldav_base_url = "https://caldav.icloud.com/1234567890/calendars"
+
+    def test_displayname_is_attached_to_uuid(self, discoverable):
+        self._ready(discoverable)
+        _FakeSession.statuses = [207]
+        _FakeSession.responses = [_CALENDARS_XML]
+
+        calendars = asyncio.run(discoverable._list_calendars())
+
+        assert [c["id"] for c in calendars] == [_UUID_A, _UUID_B]
+        assert [c["name"] for c in calendars] == ["工作日", "中国节假日"]
+
+    def test_uuid_listing_is_logged_once(self, discoverable, caplog):
+        self._ready(discoverable)
+        _FakeSession.statuses = [207, 207]
+        _FakeSession.responses = [_CALENDARS_XML, _CALENDARS_XML]
+
+        # 插件日志走 astrbot 命名空间，其自身级别默认高于 DEBUG，需显式放开
+        with caplog.at_level("DEBUG", logger="astrbot"):
+            asyncio.run(discoverable._list_calendars())
+            # 绕过日历缓存再列一次：对照清单仍只应出现一次
+            discoverable._calendars_cache = []
+            discoverable._calendars_ts = 0.0
+            asyncio.run(discoverable._list_calendars())
+
+        listings = [r.message for r in caplog.records if "可用日历" in r.message]
+        assert len(listings) == 1
+        assert "工作日" in listings[0]
+        assert _UUID_A in listings[0]

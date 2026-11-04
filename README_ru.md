@@ -8,7 +8,7 @@
 
 **Ваш заботливый помощник расписания** — Утренняя рассылка · Напоминания о привычках · Управление расписанием через LLM · Двусторонняя синхронизация с календарём Apple · Синхронизация задач Notion
 
-[![Version](https://img.shields.io/badge/version-1.2.1-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/OMSociety/astrbot_plugin_schedule_assistant)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/stargazers)
@@ -62,7 +62,8 @@
 **Что нужно для подключения**:
 - `username` — почта Apple ID (например, `xxx@icloud.com`)
 - `app_password` — **пароль приложения** (создаётся на [appleid.apple.com](https://appleid.apple.com), это не пароль для входа)
-- `calendar_id` — UUID целевого календаря; если оставить пустым, берётся первый. UUID можно скопировать из адреса CalDAV-сервера календаря Apple: адрес имеет вид `…/calendars/<UUID>/`, возьмите сегмент UUID и вставьте его
+- `calendar_id` — UUID целевого календаря; если оставить пустым, берётся первый. Доступные значения один раз выводятся в журнал при обнаружении календарей (`имя → UUID`); UUID также можно взять из адреса CalDAV `…/calendars/<UUID>/`
+- `caldav_host` — адрес сервера CalDAV; пусто означает `caldav.icloud.com`. Для аккаунтов материкового Китая с отказом в аутентификации — `caldav.icloud.com.cn`; если и он не подходит, свой хост из ссылки общего доступа календаря в веб-версии iCloud, например `pXX-caldav.icloud.com.cn`
 
 ### Синхронизация задач Notion
 Задачи Notion перечисляются в ежедневной утренней рассылке с обратным отсчётом до дедлайна (осталось N дней / истекает сегодня / просрочено). Требуется предварительно настроить Maton Gateway как промежуточный слой.
@@ -144,7 +145,8 @@ IDПлатформы:FriendMessage:UserID
 | `apple_calendar_sync_interval` | int | `30` | Интервал синхронизации с календарём Apple (в минутах) |
 | `apple_calendar.username` | string | - | Почта Apple ID |
 | `apple_calendar.app_password` | string | - | **Пароль приложения** (не пароль для входа) |
-| `apple_calendar.calendar_id` | string | - | UUID целевого календаря; если пусто, берётся первый; UUID копируется из адреса CalDAV-сервера календаря Apple (`…/calendars/<UUID>/`) |
+| `apple_calendar.caldav_host` | string | - | Адрес сервера CalDAV; пусто означает `caldav.icloud.com`; для аккаунтов материкового Китая — `caldav.icloud.com.cn` или хост своего раздела `pXX-caldav.icloud.com.cn` |
+| `apple_calendar.calendar_id` | string | - | UUID целевого календаря; если пусто, берётся первый; доступные значения — в списке обнаруженных календарей в журнале (`имя → UUID`) |
 | `webcal_urls` | list | `[]` | Ссылки на общие календари WebCal |
 
 > **Безопасность подписки WebCal**: `webcal_urls` принимает только публичные адреса подписки `https://` (`webcal://` автоматически преобразуется в `https://`). Плагин отклоняет адреса вроде `localhost`, внутренней сети (например, `192.168.x` / `10.x`) и облачных метаданных (`169.254.169.254`) для защиты от SSRF. Не указывайте внутренние или локальные адреса.
@@ -211,7 +213,12 @@ IDПлатформы:FriendMessage:UserID
   "calendar_sync_settings": {
     "enable_apple_calendar_sync": false,
     "apple_calendar_sync_interval": 30,
-    "apple_calendar": { "username": "", "app_password": "", "calendar_id": "" },
+    "apple_calendar": {
+      "username": "",
+      "app_password": "",
+      "caldav_host": "",
+      "calendar_id": ""
+    },
     "webcal_urls": []
   },
   "external_services_settings": {

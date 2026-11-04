@@ -102,9 +102,13 @@
           "description": "Apple アプリ用パスワード",
           "hint": "ログインパスワードではありません！appleid.apple.com → セキュリティ → アプリ用パスワードを生成 で作成します。"
         },
+        "caldav_host": {
+          "description": "CalDAV サーバーのアドレス",
+          "hint": "空欄の場合は caldav.icloud.com を使用します。中国本土のアカウントで認証を拒否された場合は caldav.icloud.com.cn を、それでも通らない場合は iCloud ウェブ版カレンダーの共有リンクにある自分のホスト（例：pXX-caldav.icloud.com.cn）を入力します。"
+        },
         "calendar_id": {
           "description": "対象カレンダーの ID",
-          "hint": "カレンダーの UUID のみに対応します。空欄の場合は最初のカレンダーが既定になります。UUID は Apple カレンダーの CalDAV サーバーアドレスからコピーできます：アドレスは …/calendars/<UUID>/ の形式なので、その UUID 部分を取得して入力します。"
+          "hint": "カレンダーの UUID のみに対応します。空欄の場合は最初のカレンダーが既定になります。入力できる値は、カレンダーを検出したときにログへ一度だけ出力される一覧（名前 → UUID）で確認できます。CalDAV アドレス …/calendars/<UUID>/ から UUID 部分を取得することもできます。"
         }
       },
       "webcal_urls": {

@@ -102,9 +102,13 @@
           "description": "Apple App 专用密码",
           "hint": "不是登录密码！去 appleid.apple.com → 安全性 → 生成 App 专用密码。"
         },
+        "caldav_host": {
+          "description": "CalDAV 服务器地址",
+          "hint": "留空使用 caldav.icloud.com。中国大陆区账号若被拒绝认证，可填 caldav.icloud.com.cn；若该地址仍不通，填网页版 iCloud 日历共享链接里自己的主机，形如 pXX-caldav.icloud.com.cn。"
+        },
         "calendar_id": {
           "description": "目标日历 ID",
-          "hint": "仅支持日历 UUID，留空默认第一个日历。UUID 可从 Apple 日历的 CalDAV 服务器地址里复制：地址形如 …/calendars/<UUID>/，取其中 UUID 段填入。"
+          "hint": "仅支持日历 UUID，留空默认第一个日历。可用值见日志里的「可用日历」清单（形如 工作日 → UUID），也可从 CalDAV 地址 …/calendars/<UUID>/ 中取 UUID 段。"
         }
       },
       "webcal_urls": {
