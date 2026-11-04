@@ -283,8 +283,16 @@ class ScheduleStore:
         return default_time
 
     async def sync_from_apple_calendar(
-        self, user_id: str, apple_events: list[dict]
+        self, user_id: str, apple_events: list[dict], *, allow_delete: bool
     ) -> dict[str, int]:
+        """把 Apple 日历事件并入本地日程。
+
+        Args:
+            allow_delete: 是否允许把"本轮事件列表里没出现"的本地日程删掉。
+                只有当调用方确认本轮读取完整（没有发现失败、抓取失败）时才可
+                传 True——读取不完整时，缺席的 UID 与"事件已被删除"无法区分，
+                传 False 表示只做新增与更新。
+        """
         # 防御：API 返回空列表时（可能是失败），不执行删除，避免误删
         if not apple_events:
             logger.debug(f"{LOG_PREFIX} Apple 日历返回空事件列表，跳过同步")
@@ -383,13 +391,16 @@ class ScheduleStore:
                     ).to_dict()
                 )
                 stats["added"] += 1
-        before_count = len(schedules)
-        schedules = [
-            s
-            for s in schedules
-            if not s.get("apple_uid") or s["apple_uid"] in apple_uids
-        ]
-        stats["deleted"] = before_count - len(schedules)
+        if allow_delete:
+            before_count = len(schedules)
+            schedules = [
+                s
+                for s in schedules
+                if not s.get("apple_uid") or s["apple_uid"] in apple_uids
+            ]
+            stats["deleted"] = before_count - len(schedules)
+        else:
+            logger.debug(f"{LOG_PREFIX} 未获删除授权，本轮保留本地日程")
         # 无变化不写盘（提醒扫描前每轮都会刷新同步，避免无谓 IO）
         if stats["added"] or stats["updated"] or stats["deleted"]:
             data[SCHEDULES_KEY] = schedules

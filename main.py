@@ -93,6 +93,7 @@ class ScheduleAssistant(Star):
         self._tools_registered = False
         self._schedule_reminder_scan_lock = asyncio.Lock()
         self._apple_calendar_sync_lock = asyncio.Lock()
+        self._last_apple_read_issue: str | None = None
         self._schedule_reminder_last_log_ts = 0.0
 
         self._init_task: asyncio.Task | None = None
@@ -497,7 +498,7 @@ class ScheduleAssistant(Star):
         if not self.apple_calendar:
             return "暂无"
         try:
-            events = await self.apple_calendar.get_all_events(days=1)
+            events, _ = await self.apple_calendar.get_all_events(days=1)
             today = datetime.now().date()
             logger.debug(
                 f"{LOG_PREFIX} Apple日历获取到 {len(events)} 个事件，开始筛选今日({today})事件..."
@@ -801,7 +802,22 @@ class ScheduleAssistant(Star):
             if not self.apple_calendar:
                 return
             try:
-                events = await self.apple_calendar.get_all_events(days=7)
+                events, issues = await self.apple_calendar.get_all_events(days=7)
+                # 读取不完整时，缺席的 UID 与"事件已被删除"无法区分：只做新增与更新
+                if issues:
+                    reason = "；".join(issues)
+                    if reason != self._last_apple_read_issue:
+                        self._last_apple_read_issue = reason
+                        logger.warning(
+                            f"{LOG_PREFIX} Apple 日历读取不完整（{reason}），"
+                            "本轮只做新增与更新，不删除本地日程"
+                        )
+                    else:
+                        logger.debug(
+                            f"{LOG_PREFIX} Apple 日历读取仍不完整（{reason}），继续不删除"
+                        )
+                else:
+                    self._last_apple_read_issue = None
                 if not events:
                     logger.debug(f"{LOG_PREFIX} Apple Calendar 无事件，跳过同步")
                     return
@@ -813,7 +829,9 @@ class ScheduleAssistant(Star):
                     return
                 events_changed = False
                 for user_id in user_ids:
-                    stats = await self.store.sync_from_apple_calendar(user_id, events)
+                    stats = await self.store.sync_from_apple_calendar(
+                        user_id, events, allow_delete=not issues
+                    )
                     logger.debug(
                         f"{LOG_PREFIX} Apple→本地同步 user={user_id} "
                         f"added={stats['added']} updated={stats['updated']} deleted={stats['deleted']}"

@@ -344,6 +344,7 @@ class TestCreateScheduleTool:
                         "end": end.isoformat(),
                     }
                 ],
+                allow_delete=True,
             )
         )
 
@@ -530,6 +531,7 @@ class TestUpdateScheduleAppleWriteBack:
                         "start": old_dt.isoformat(),
                     }
                 ],
+                allow_delete=True,
             )
         )
         assert stats["added"] == 1

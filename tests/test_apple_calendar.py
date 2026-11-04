@@ -3,10 +3,12 @@
 覆盖：create_event 只在 2xx 返回 UID（401/403/404/重试耗尽的 500 不返回）、
 delete_event 只在 2xx 返回 True、传输层异常视为失败、非法 uid 拒绝、
 失败日志截断，_discover 两条正则降级路径拼出的 URL 主机正确，
-以及 _discover / _list_calendars 按 HTTP 状态码判定失败并以 ERROR / WARNING
-报出可行动原因（同一原因只报一次，故不再出现"未配置 Apple 日历"这类误报）。
+以及 _discover / _list_calendars_with_status 按 HTTP 状态码判定失败并以 ERROR /
+WARNING 报出可行动原因（同一原因只报一次，故不再出现"未配置 Apple 日历"这类误报）。
 CalDAV 入口主机可配置，默认入口被 403 拒绝时回退中国大陆区入口；
-_list_calendars 解析 displayname，并一次性列出「日历名 → UUID」。
+_list_calendars_with_status 解析 displayname，并一次性列出「日历名 → UUID」。
+读取完整性：get_all_events 交回（事件列表, 问题列表），任何一处没读全都记入问题
+列表，供调用方判定"本轮不得删除本地日程"。
 aiohttp 会话用最小替身，不产生真实网络请求。
 """
 
@@ -86,10 +88,13 @@ def caldav(monkeypatch):
     cal._discovered = True
     cal._caldav_base_url = "https://caldav.icloud.com/123/calendars"
 
-    async def _list_calendars():
-        return [{"id": "cal-uuid", "url": "https://x/cal-uuid", "href": "", "name": ""}]
+    async def _list_calendars_with_status():
+        return (
+            [{"id": "cal-uuid", "url": "https://x/cal-uuid", "href": "", "name": ""}],
+            None,
+        )
 
-    monkeypatch.setattr(cal, "_list_calendars", _list_calendars)
+    monkeypatch.setattr(cal, "_list_calendars_with_status", _list_calendars_with_status)
     return cal
 
 
@@ -413,9 +418,38 @@ class TestDiscoverFailureDiagnostics:
         assert len(errors) == 1 and "403" in errors[0]
         assert warnings == ["[AppleCalendar] CalDAV 未连接，无法创建事件"]
 
+    def test_401_reports_missing_credentials(self, discoverable, caplog):
+        """401 的文案指向"邮箱/App 专用密码是否填全"，且不触发国区回退"""
+        _FakeSession.statuses = [401]
+        _FakeSession.responses = [""]
+
+        # 插件日志走 astrbot 命名空间，其自身级别默认高于 DEBUG，需显式放开
+        with caplog.at_level("DEBUG", logger="astrbot"):
+            assert asyncio.run(discoverable._discover()) is False
+
+        errors = [r.message for r in caplog.records if r.levelname == "ERROR"]
+        assert len(errors) == 1
+        assert "401" in errors[0] and "凭据" in errors[0]
+        # 只有 403 才回退中国大陆区入口
+        assert len(_FakeSession.calls) == 1
+
+    def test_other_status_reports_status_and_body(self, discoverable, caplog):
+        """其余状态码走泛化文案：带上状态码与被截断的响应体"""
+        _FakeSession.statuses = [404]
+        _FakeSession.responses = ["<html>not found</html>"]
+
+        # 插件日志走 astrbot 命名空间，其自身级别默认高于 DEBUG，需显式放开
+        with caplog.at_level("DEBUG", logger="astrbot"):
+            assert asyncio.run(discoverable._discover()) is False
+
+        errors = [r.message for r in caplog.records if r.levelname == "ERROR"]
+        assert len(errors) == 1
+        assert "PROPFIND 返回 HTTP 404" in errors[0]
+        assert "not found" in errors[0]
+
 
 class TestListCalendarsDiagnostics:
-    """_list_calendars 失败时报出状态码，而不是静默返回空列表"""
+    """_list_calendars 失败时报出状态码，并把失败原因交回调用方"""
 
     def test_non_207_is_reported_with_status(self, discoverable, caplog):
         discoverable._discovered = True
@@ -424,8 +458,10 @@ class TestListCalendarsDiagnostics:
         _FakeSession.responses = [""]
 
         with caplog.at_level("WARNING"):
-            assert asyncio.run(discoverable._list_calendars()) == []
+            calendars, issue = asyncio.run(discoverable._list_calendars_with_status())
 
+        assert calendars == []
+        assert issue and "403" in issue
         warnings = [r.message for r in caplog.records if "列出日历失败" in r.message]
         assert len(warnings) == 1
         assert "403" in warnings[0]
@@ -545,8 +581,9 @@ class TestCalendarsListing:
         _FakeSession.statuses = [207]
         _FakeSession.responses = [_CALENDARS_XML]
 
-        calendars = asyncio.run(discoverable._list_calendars())
+        calendars, issue = asyncio.run(discoverable._list_calendars_with_status())
 
+        assert issue is None
         assert [c["id"] for c in calendars] == [_UUID_A, _UUID_B]
         assert [c["name"] for c in calendars] == ["工作日", "中国节假日"]
 
@@ -557,13 +594,167 @@ class TestCalendarsListing:
 
         # 插件日志走 astrbot 命名空间，其自身级别默认高于 DEBUG，需显式放开
         with caplog.at_level("DEBUG", logger="astrbot"):
-            asyncio.run(discoverable._list_calendars())
+            asyncio.run(discoverable._list_calendars_with_status())
             # 绕过日历缓存再列一次：对照清单仍只应出现一次
             discoverable._calendars_cache = []
             discoverable._calendars_ts = 0.0
-            asyncio.run(discoverable._list_calendars())
+            asyncio.run(discoverable._list_calendars_with_status())
 
         listings = [r.message for r in caplog.records if "可用日历" in r.message]
         assert len(listings) == 1
         assert "工作日" in listings[0]
         assert _UUID_A in listings[0]
+
+
+_CAL_ONE = {
+    "id": _UUID_A,
+    "url": "https://p01-caldav.icloud.com.cn/1/calendars/x",
+    "href": "",
+    "name": "日程",
+}
+
+_ICS_LIST_XML = (
+    '<D:multistatus xmlns:D="DAV:">'
+    "<D:response><D:href>/1/calendars/x/a.ics</D:href></D:response>"
+    "<D:response><D:href>/1/calendars/x/b.ics</D:href></D:response>"
+    "</D:multistatus>"
+)
+
+_ICS_BODY = (
+    "BEGIN:VCALENDAR\r\n"
+    "BEGIN:VEVENT\r\n"
+    "UID:ics-a\r\n"
+    "SUMMARY:组会\r\n"
+    "DTSTART:20300101T120000Z\r\n"
+    "DTEND:20300101T130000Z\r\n"
+    "END:VEVENT\r\n"
+    "END:VCALENDAR\r\n"
+)
+
+
+class TestReadCompleteness:
+    """读取完整性：任何一处没读全都要进问题列表，供调用方判定本轮不得删除"""
+
+    @staticmethod
+    def _patch(monkeypatch, cal, calendars, list_issue, fetch_result):
+        async def _listing():
+            return calendars, list_issue
+
+        async def _fetch(cal_url):
+            return fetch_result
+
+        monkeypatch.setattr(cal, "_list_calendars_with_status", _listing)
+        monkeypatch.setattr(cal, "_caldav_fetch_with_status", _fetch)
+
+    def test_clean_read_has_no_issues(self, discoverable, monkeypatch):
+        evt = {"uid": "u1", "summary": "组会"}
+        self._patch(monkeypatch, discoverable, [_CAL_ONE], None, ([evt], None))
+
+        events, issues = asyncio.run(discoverable.get_all_events(days=1))
+
+        assert [e["uid"] for e in events] == ["u1"]
+        assert issues == []
+
+    def test_listing_failure_is_reported(self, discoverable, monkeypatch):
+        self._patch(monkeypatch, discoverable, [], "CalDAV 未连接", ([], None))
+
+        events, issues = asyncio.run(discoverable.get_all_events(days=1))
+
+        assert events == []
+        assert issues == ["CalDAV 未连接"]
+
+    def test_calendar_fetch_failure_is_prefixed_with_calendar_name(
+        self, discoverable, monkeypatch
+    ):
+        """局部失败也要点名是哪个日历，日志里能直接定位"""
+        evt = {"uid": "u1", "summary": "组会"}
+        self._patch(
+            monkeypatch,
+            discoverable,
+            [_CAL_ONE],
+            None,
+            ([evt], "抓取日历事件失败（status=403）"),
+        )
+
+        events, issues = asyncio.run(discoverable.get_all_events(days=1))
+
+        # 已读到的事件仍然交回，只是标记本轮不完整
+        assert [e["uid"] for e in events] == ["u1"]
+        assert issues == ["日程: 抓取日历事件失败（status=403）"]
+
+    def test_empty_calendar_is_not_an_issue(self, discoverable, monkeypatch):
+        """日历确实是空的（207、零事件文件）不算读取不完整"""
+        self._patch(monkeypatch, discoverable, [_CAL_ONE], None, ([], None))
+
+        events, issues = asyncio.run(discoverable.get_all_events(days=1))
+
+        assert events == []
+        assert issues == []
+
+    def test_webcal_failure_is_reported(self, discoverable, monkeypatch):
+        self._patch(monkeypatch, discoverable, [_CAL_ONE], None, ([], None))
+
+        async def _webcal(url):
+            return [], "WebCal 读取失败"
+
+        monkeypatch.setattr(discoverable, "fetch_webcal_with_status", _webcal)
+        discoverable.webcal_urls = ["https://example.com/cal.ics"]
+
+        events, issues = asyncio.run(discoverable.get_all_events(days=1))
+
+        assert events == []
+        assert issues == ["WebCal 读取失败"]
+
+    def test_issues_are_cached_for_next_round(self, discoverable, monkeypatch):
+        """问题列表随事件一起进缓存：30 分钟内重复调用不会误判为读干净了"""
+        calls = []
+
+        async def _listing():
+            return [_CAL_ONE], None
+
+        async def _fetch(cal_url):
+            calls.append(cal_url)
+            return [], "抓取日历事件失败（status=403）"
+
+        monkeypatch.setattr(discoverable, "_list_calendars_with_status", _listing)
+        monkeypatch.setattr(discoverable, "_caldav_fetch_with_status", _fetch)
+
+        first_events, first_issues = asyncio.run(discoverable.get_all_events(days=1))
+        second_events, second_issues = asyncio.run(discoverable.get_all_events(days=1))
+
+        assert first_events == second_events == []
+        assert second_issues == first_issues == ["日程: 抓取日历事件失败（status=403）"]
+        assert len(calls) == 1
+
+    def test_discover_failure_makes_listing_report_not_connected(self, discoverable):
+        """未连接时列日历交回原因，而不是静默空列表"""
+        _FakeSession.statuses = [403, 403]
+        _FakeSession.responses = ["", ""]
+
+        calendars, issue = asyncio.run(discoverable._list_calendars_with_status())
+
+        assert calendars == []
+        assert issue == "CalDAV 未连接"
+
+    def test_calendar_propfind_non_207_reports_status(self, discoverable):
+        _FakeSession.statuses = [403]
+        _FakeSession.responses = [""]
+
+        events, issue = asyncio.run(
+            discoverable._caldav_fetch_with_status("https://x/1/calendars/x")
+        )
+
+        assert events == []
+        assert issue == "抓取日历事件失败（status=403）"
+
+    def test_single_ics_failure_counts_as_incomplete(self, discoverable):
+        """一个 .ics 拉到、另一个没拉到：仍有事件可用，但必须标记不完整"""
+        _FakeSession.statuses = [207, 200, 200]
+        _FakeSession.responses = [_ICS_LIST_XML, _ICS_BODY, ""]
+
+        events, issue = asyncio.run(
+            discoverable._caldav_fetch_with_status("https://x/1/calendars/x")
+        )
+
+        assert [e["uid"] for e in events] == ["ics-a"]
+        assert issue == "1/2 个事件文件未拉到"

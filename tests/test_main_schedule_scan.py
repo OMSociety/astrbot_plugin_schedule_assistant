@@ -59,6 +59,7 @@ def _plugin(store, messaging):
     plugin._schedule_reminder_last_log_ts = 0.0
     plugin._schedule_reminder_scan_lock = asyncio.Lock()
     plugin._apple_calendar_sync_lock = asyncio.Lock()
+    plugin._last_apple_read_issue = None
 
     async def _noop_ensure_services():
         return None
@@ -196,6 +197,83 @@ def test_two_package_aliases_do_not_share_classes():
 
     assert real_store.ScheduleItem is not ScheduleItem
     assert real_store.ScheduleStore is not ScheduleStore
+
+
+class _FakeAppleCalendar:
+    """get_all_events 替身：交回 (事件, 问题)"""
+
+    def __init__(self, events, issues):
+        self._events = events
+        self._issues = issues
+        self.calls = 0
+
+    async def get_all_events(self, days=1):
+        self.calls += 1
+        return list(self._events), list(self._issues)
+
+
+class _RecordingStore:
+    """记录 allow_delete 的同步替身"""
+
+    def __init__(self):
+        self.calls = []
+
+    async def sync_from_apple_calendar(self, user_id, apple_events, *, allow_delete):
+        self.calls.append(allow_delete)
+        return {"added": 0, "updated": 0, "deleted": 0}
+
+
+def _sync_plugin(apple_calendar):
+    store = _RecordingStore()
+    plugin = _plugin(store, _FakeMessaging())
+    plugin.apple_calendar = apple_calendar
+    return plugin, store
+
+
+def test_clean_read_allows_deletion():
+    """读取完整时照旧允许删除，同步行为不变"""
+    plugin, store = _sync_plugin(_FakeAppleCalendar([{"uid": "u1"}], []))
+
+    asyncio.run(plugin._apple_calendar_sync())
+
+    assert store.calls == [True]
+    assert plugin._last_apple_read_issue is None
+
+
+def test_incomplete_read_forbids_deletion_and_warns_once(caplog):
+    """读取不完整：不允许删除，且同一原因只提示一次（30 分钟一轮不至于刷屏）"""
+    issues = ["日程: 抓取日历事件失败（status=403）"]
+    plugin, store = _sync_plugin(_FakeAppleCalendar([{"uid": "u1"}], issues))
+
+    with caplog.at_level("WARNING", logger="astrbot"):
+        asyncio.run(plugin._apple_calendar_sync())
+
+    assert store.calls == [False]
+    assert plugin._last_apple_read_issue == issues[0]
+    warnings = [r.message for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warnings) == 1
+    assert "读取不完整" in warnings[0] and "403" in warnings[0]
+
+    # 第二轮的同一原因不再重复 WARNING，但依然不允许删除
+    caplog.clear()
+    with caplog.at_level("WARNING", logger="astrbot"):
+        asyncio.run(plugin._apple_calendar_sync())
+
+    assert store.calls == [False, False]
+    assert [r for r in caplog.records if r.levelname == "WARNING"] == []
+
+
+def test_clean_read_after_incomplete_round_resets_state():
+    """恢复正常后要复位，否则下次真删除时会被旧原因挡住"""
+    plugin, store = _sync_plugin(_FakeAppleCalendar([{"uid": "u1"}], ["CalDAV 未连接"]))
+    asyncio.run(plugin._apple_calendar_sync())
+    assert plugin._last_apple_read_issue == "CalDAV 未连接"
+
+    plugin.apple_calendar = _FakeAppleCalendar([{"uid": "u1"}], [])
+    asyncio.run(plugin._apple_calendar_sync())
+
+    assert store.calls == [False, True]
+    assert plugin._last_apple_read_issue is None
 
 
 def test_triggered_dict_shape():

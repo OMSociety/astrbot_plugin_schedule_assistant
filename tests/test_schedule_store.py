@@ -51,7 +51,7 @@ class TestSyncFromAppleCalendar:
             type="schedule", title="已有", time="2026-09-10 10:00", apple_uid="u1"
         )
         asyncio.run(store.add_item("u", item))
-        stats = asyncio.run(store.sync_from_apple_calendar("u", []))
+        stats = asyncio.run(store.sync_from_apple_calendar("u", [], allow_delete=True))
         assert stats == {"added": 0, "updated": 0, "deleted": 0}
         assert len(asyncio.run(store.list_all_items("u"))) == 1
 
@@ -59,7 +59,9 @@ class TestSyncFromAppleCalendar:
         """Apple 返回重复 RRULE 实例：同一 UID 只添加一次，且不因重复被误删"""
         store = _store()
         events = [_evt("u1"), _evt("u1")]
-        stats = asyncio.run(store.sync_from_apple_calendar("u", events))
+        stats = asyncio.run(
+            store.sync_from_apple_calendar("u", events, allow_delete=True)
+        )
         assert stats["added"] == 1
         assert stats["deleted"] == 0
         items = asyncio.run(store.list_all_items("u"))
@@ -70,16 +72,22 @@ class TestSyncFromAppleCalendar:
         """同一批事件同步两次：第二次无新增、无更新、无删除"""
         store = _store()
         events = [_evt("u1"), _evt("u2")]
-        asyncio.run(store.sync_from_apple_calendar("u", events))
-        stats = asyncio.run(store.sync_from_apple_calendar("u", events))
+        asyncio.run(store.sync_from_apple_calendar("u", events, allow_delete=True))
+        stats = asyncio.run(
+            store.sync_from_apple_calendar("u", events, allow_delete=True)
+        )
         assert stats == {"added": 0, "updated": 0, "deleted": 0}
         assert len(asyncio.run(store.list_all_items("u"))) == 2
 
     def test_changed_event_updated(self):
         store = _store()
-        asyncio.run(store.sync_from_apple_calendar("u", [_evt("u1")]))
+        asyncio.run(
+            store.sync_from_apple_calendar("u", [_evt("u1")], allow_delete=True)
+        )
         stats = asyncio.run(
-            store.sync_from_apple_calendar("u", [_evt("u1", title="改名了")])
+            store.sync_from_apple_calendar(
+                "u", [_evt("u1", title="改名了")], allow_delete=True
+            )
         )
         assert stats["updated"] == 1
         assert asyncio.run(store.list_all_items("u"))[0].title == "改名了"
@@ -89,16 +97,52 @@ class TestSyncFromAppleCalendar:
         store = _store()
         asyncio.run(store.add_item("u", ScheduleItem(title="a", apple_uid="gone")))
         asyncio.run(store.add_item("u", ScheduleItem(title="b")))
-        stats = asyncio.run(store.sync_from_apple_calendar("u", [_evt("keep")]))
+        stats = asyncio.run(
+            store.sync_from_apple_calendar("u", [_evt("keep")], allow_delete=True)
+        )
         assert stats["deleted"] == 1
         titles = {i.title for i in asyncio.run(store.list_all_items("u"))}
         assert titles == {"b", "事件"}
+
+    def test_missing_from_apple_kept_without_delete_permission(self):
+        """读取不完整时不得删除：缺席的 UID 与"事件已被删除"无法区分"""
+        store = _store()
+        asyncio.run(store.add_item("u", ScheduleItem(title="a", apple_uid="u1")))
+
+        stats = asyncio.run(
+            store.sync_from_apple_calendar("u", [_evt("keep")], allow_delete=False)
+        )
+
+        assert stats == {"added": 1, "updated": 0, "deleted": 0}
+        titles = {i.title for i in asyncio.run(store.list_all_items("u"))}
+        assert titles == {"a", "事件"}
+
+        # 下一轮读全了（allow_delete=True）才删除
+        stats = asyncio.run(
+            store.sync_from_apple_calendar("u", [_evt("keep")], allow_delete=True)
+        )
+        assert stats["deleted"] == 1
+
+    def test_kept_items_logged_at_debug(self, caplog):
+        """不删除时留一条 DEBUG：排查"日程怎么没被删掉"时能看出是有意保留"""
+        store = _store()
+        asyncio.run(store.add_item("u", ScheduleItem(title="a", apple_uid="u1")))
+
+        # 插件日志走 astrbot 命名空间，其自身级别默认高于 DEBUG，需显式放开
+        with caplog.at_level("DEBUG", logger="astrbot"):
+            asyncio.run(
+                store.sync_from_apple_calendar("u", [_evt("keep")], allow_delete=False)
+            )
+
+        assert any("未获删除授权" in r.message for r in caplog.records)
 
     def test_far_future_event_skipped(self):
         """超过 7 天窗口的远期事件不入库"""
         store = _store()
         far = _evt("u1", start=(datetime.now() + timedelta(days=30)).isoformat())
-        stats = asyncio.run(store.sync_from_apple_calendar("u", [far]))
+        stats = asyncio.run(
+            store.sync_from_apple_calendar("u", [far], allow_delete=True)
+        )
         assert stats["added"] == 0
         assert asyncio.run(store.list_all_items("u")) == []
 
@@ -106,7 +150,9 @@ class TestSyncFromAppleCalendar:
         """比 1 天前更早的过期事件不入库"""
         store = _store()
         stale = _evt("u1", start=(datetime.now() - timedelta(days=3)).isoformat())
-        stats = asyncio.run(store.sync_from_apple_calendar("u", [stale]))
+        stats = asyncio.run(
+            store.sync_from_apple_calendar("u", [stale], allow_delete=True)
+        )
         assert stats["added"] == 0
 
 
@@ -132,7 +178,9 @@ class TestSyncEndTimeAndReschedule:
         end = start + timedelta(hours=1, minutes=30)
         asyncio.run(
             store.sync_from_apple_calendar(
-                "u", [_evt("u1", start=start.isoformat(), end=end.isoformat())]
+                "u",
+                [_evt("u1", start=start.isoformat(), end=end.isoformat())],
+                allow_delete=True,
             )
         )
         item = asyncio.run(store.list_all_items("u"))[0]
@@ -153,6 +201,7 @@ class TestSyncEndTimeAndReschedule:
                         all_day=True,
                     )
                 ],
+                allow_delete=True,
             )
         )
         item = asyncio.run(store.list_all_items("u"))[0]
@@ -162,27 +211,35 @@ class TestSyncEndTimeAndReschedule:
 
     def test_reschedule_resets_last_triggered(self):
         store = _store()
-        asyncio.run(store.sync_from_apple_calendar("u", [_evt("u1")]))
+        asyncio.run(
+            store.sync_from_apple_calendar("u", [_evt("u1")], allow_delete=True)
+        )
         item = asyncio.run(store.list_all_items("u"))[0]
         item.last_triggered = datetime.now().isoformat()
         asyncio.run(store.update_item("u", item))
 
         new_start = (datetime.now() + timedelta(days=3)).strftime("%Y-%m-%dT10:00:00")
         stats = asyncio.run(
-            store.sync_from_apple_calendar("u", [_evt("u1", start=new_start)])
+            store.sync_from_apple_calendar(
+                "u", [_evt("u1", start=new_start)], allow_delete=True
+            )
         )
         assert stats["updated"] == 1
         assert asyncio.run(store.list_all_items("u"))[0].last_triggered is None
 
     def test_title_change_keeps_last_triggered(self):
         store = _store()
-        asyncio.run(store.sync_from_apple_calendar("u", [_evt("u1")]))
+        asyncio.run(
+            store.sync_from_apple_calendar("u", [_evt("u1")], allow_delete=True)
+        )
         item = asyncio.run(store.list_all_items("u"))[0]
         item.last_triggered = datetime.now().isoformat()
         asyncio.run(store.update_item("u", item))
 
         stats = asyncio.run(
-            store.sync_from_apple_calendar("u", [_evt("u1", title="改名了")])
+            store.sync_from_apple_calendar(
+                "u", [_evt("u1", title="改名了")], allow_delete=True
+            )
         )
         assert stats["updated"] == 1
         assert asyncio.run(store.list_all_items("u"))[0].last_triggered is not None
@@ -217,7 +274,9 @@ class TestSyncEndTimeAndReschedule:
         end = start + timedelta(hours=2)
         stats = asyncio.run(
             store.sync_from_apple_calendar(
-                "u", [_evt("u1", start=start.isoformat(), end=end.isoformat())]
+                "u",
+                [_evt("u1", start=start.isoformat(), end=end.isoformat())],
+                allow_delete=True,
             )
         )
         assert stats["updated"] == 1
@@ -228,7 +287,9 @@ class TestSyncEndTimeAndReschedule:
     def test_unchanged_sync_skips_save(self):
         """无变化的同步不写盘（扫描前每轮都会刷新同步）"""
         store = _store()
-        asyncio.run(store.sync_from_apple_calendar("u", [_evt("u1")]))
+        asyncio.run(
+            store.sync_from_apple_calendar("u", [_evt("u1")], allow_delete=True)
+        )
 
         saves = []
         orig = store._save_user_data
@@ -238,7 +299,9 @@ class TestSyncEndTimeAndReschedule:
             return await orig(user_id, data)
 
         store._save_user_data = counting
-        stats = asyncio.run(store.sync_from_apple_calendar("u", [_evt("u1")]))
+        stats = asyncio.run(
+            store.sync_from_apple_calendar("u", [_evt("u1")], allow_delete=True)
+        )
         assert stats == {"added": 0, "updated": 0, "deleted": 0}
         assert saves == []
 
@@ -259,7 +322,7 @@ class TestSyncEndTimeAndReschedule:
         far = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%S")
         stats = asyncio.run(
             store.sync_from_apple_calendar(
-                "u", [_evt("u1", start=far), _evt("u1", start=far)]
+                "u", [_evt("u1", start=far), _evt("u1", start=far)], allow_delete=True
             )
         )
         assert stats["deleted"] == 1

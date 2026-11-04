@@ -10,6 +10,34 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2026-11-04
+
+### 新增
+
+- **读取不完整时不再删除本地日程**：读取日历事件这一步会一并交回问题列表，日历发现失败、列出日历返回非 207、某个日历抓取失败、单个事件文件没拉到、WebCal 订阅读取失败都会记入其中；只有问题列表为空（这一轮确实读全了）才允许删除 Apple 端已不存在的本地日程。
+- **读取不完整的提示**：同一原因只报一次 WARNING（写明本轮只做新增与更新、不删除本地日程），之后降为 DEBUG。
+
+### 变更
+
+- 本地日程的删除最多推迟一轮同步（默认 30 分钟）：等待下一轮读取完整再删。
+
+### 修复
+
+- **读取不完整时的静默删除**：此前某个日历抓取失败（或同时配置了 WebCal）会让该日历下带 Apple UID 的本地日程被判为「Apple 端已删除」并静默移除，用户只能看到日程消失。
+
+### Added
+
+- **Local schedules are no longer deleted when a read is incomplete**: the event read now also returns a list of problems — a failed discovery, a non-207 calendar listing, a failed per-calendar fetch, an individual event file that could not be retrieved, or a failed WebCal subscription read all land in it. Deletion of local schedules whose Apple event is gone happens only when that list is empty (the round really read everything).
+- **A notice for incomplete reads**: the same reason is logged as WARNING once (stating that this round only adds and updates, without deleting local schedules), then downgraded to DEBUG.
+
+### Changed
+
+- Deleting a local schedule is postponed by at most one sync round (30 minutes by default) while waiting for a complete read.
+
+### Fixed
+
+- **Silent deletion on an incomplete read**: a failed per-calendar fetch (or a configured WebCal feed) used to make local schedules carrying an Apple UID look like events deleted on the Apple side, and they were removed silently — the user only saw the schedule disappear.
+
 ## [1.3.0] - 2026-11-04
 
 ### 新增
