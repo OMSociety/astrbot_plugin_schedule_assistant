@@ -865,6 +865,7 @@ class ScheduleAssistant(Star):
 
     @filter.event_message_type(filter.EventMessageType.PRIVATE_MESSAGE)
     async def handle_private_message(self, event: Any):
+        """私聊消息入口：记录平台、会话与昵称，交给后续指令与提醒处理。"""
         user_id = str(event.get_sender_id())
         msg_text = event.message_str.strip()
 
