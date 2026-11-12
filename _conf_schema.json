@@ -224,8 +224,8 @@
    "qq_markdown_enabled": {
     "type": "bool",
     "description": "QQ 官方平台原生 Markdown",
-    "hint": "开启=QQ 直发原生 md（含表格）；关闭=QQ 强制纯文本。不配置本项则跟随全局开关 markdown_enabled。",
-    "default": null
+    "hint": "开启=QQ 直发原生 md（含表格）；关闭=QQ 强制纯文本。",
+    "default": true
    }
   }
  },

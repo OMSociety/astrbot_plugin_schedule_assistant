@@ -166,7 +166,7 @@ WebUI のプラグイン設定 → **基本設定** → `user_ids` に 1 行入�
 |--------|------|------|------|
 | `markdown_enabled` | bool | `true` | グローバルの Markdown レンダリングスイッチ。オフにするとプレーンテキストへフォールバック |
 | `markdown_native_platforms` | list | `[]` | Markdown をネイティブ解析するプラットフォーム型名の追加（インスタンス ID は無効） |
-| `qq_markdown_enabled` | bool | 空欄 | QQ プラットフォームのスイッチ：空欄ならグローバル設定に従う。`false` で QQ はネイティブ md を強制オフ |
+| `qq_markdown_enabled` | bool | `true` | QQ プラットフォームのスイッチ：`true` で QQ はネイティブ md を直送。`false` で強制オフ |
 
 ### リマインダー Prompt テンプレート
 
@@ -228,7 +228,7 @@ WebUI の設定パネルで入力するか、以下の構造を参考にして�
   "message_render_settings": {
     "markdown_enabled": true,
     "markdown_native_platforms": [],
-    "qq_markdown_enabled": null
+    "qq_markdown_enabled": true
   },
   "prompt_settings": {
     "prompt_morning": "",

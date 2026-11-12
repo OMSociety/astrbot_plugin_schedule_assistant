@@ -168,7 +168,7 @@ AstrBot WebUI → 插件市场 → 搜索 `schedule_assistant`
 |--------|------|------|------|
 | `markdown_enabled` | bool | `true` | 全局 Markdown 渲染开关，关闭后降级为纯文本 |
 | `markdown_native_platforms` | list | `[]` | 额外追加原生解析 Markdown 的平台类型名（填实例 ID 无效） |
-| `qq_markdown_enabled` | bool | 留空 | QQ 平台开关：留空跟随全局；`false` 强制 QQ 不走原生 md |
+| `qq_markdown_enabled` | bool | `true` | QQ 平台开关：`true` 直发原生 md；`false` 强制 QQ 不走原生 md |
 
 ### 提醒 Prompt 模板
 
@@ -230,7 +230,7 @@ AstrBot WebUI → 插件市场 → 搜索 `schedule_assistant`
   "message_render_settings": {
     "markdown_enabled": true,
     "markdown_native_platforms": [],
-    "qq_markdown_enabled": null
+    "qq_markdown_enabled": true
   },
   "prompt_settings": {
     "prompt_morning": "",

@@ -166,7 +166,7 @@ The `PlatformID:SessionType:UserID` format (UMO format) — one line covers both
 |--------|------|------|------|
 | `markdown_enabled` | bool | `true` | Global Markdown rendering toggle; when off, falls back to plain text |
 | `markdown_native_platforms` | list | `[]` | Additional platform type names that parse Markdown natively (instance IDs have no effect) |
-| `qq_markdown_enabled` | bool | Leave empty | QQ platform toggle: leave empty to follow the global setting; `false` forces QQ to skip native md |
+| `qq_markdown_enabled` | bool | `true` | QQ platform toggle: `true` sends native md on QQ; `false` forces QQ to skip native md |
 
 ### Reminder Prompt Templates
 
@@ -228,7 +228,7 @@ Fill it in via the WebUI configuration panel, or refer to the following structur
   "message_render_settings": {
     "markdown_enabled": true,
     "markdown_native_platforms": [],
-    "qq_markdown_enabled": null
+    "qq_markdown_enabled": true
   },
   "prompt_settings": {
     "prompt_morning": "",

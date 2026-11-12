@@ -166,7 +166,7 @@ IDПлатформы:FriendMessage:UserID
 |--------|------|------|------|
 | `markdown_enabled` | bool | `true` | Глобальный переключатель рендеринга Markdown; при выключении откат к обычному тексту |
 | `markdown_native_platforms` | list | `[]` | Дополнительные названия типов платформ с нативным разбором Markdown (ID экземпляров не работают) |
-| `qq_markdown_enabled` | bool | Пусто | Переключатель для QQ: пусто — следовать глобальной настройке; `false` — принудительно отключить нативный md для QQ |
+| `qq_markdown_enabled` | bool | `true` | Переключатель для QQ: `true` — отправлять нативный md; `false` — принудительно отключить нативный md |
 
 ### Шаблоны промптов напоминаний
 
@@ -228,7 +228,7 @@ IDПлатформы:FriendMessage:UserID
   "message_render_settings": {
     "markdown_enabled": true,
     "markdown_native_platforms": [],
-    "qq_markdown_enabled": null
+    "qq_markdown_enabled": true
   },
   "prompt_settings": {
     "prompt_morning": "",
