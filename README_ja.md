@@ -2,9 +2,7 @@
 
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/OMSociety/astrbot_plugin_schedule_assistant/main/logo.png" width="120" alt="Schedule Assistant Logo" />
-
-# Schedule Assistant — スケジュールリマインダー
+<h1><img src="https://raw.githubusercontent.com/OMSociety/astrbot_plugin_schedule_assistant/main/logo.png" width="192" alt="Schedule Assistant Logo"><br>Schedule Assistant — スケジュールリマインダー</h1>
 
 **あなたの頼れるスケジュール執事** — 朝の配信 · 習慣リマインダー · LLM によるスケジュール管理 · Apple カレンダー双方向同期 · Notion ToDo 同期
 

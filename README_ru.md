@@ -2,9 +2,7 @@
 
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/OMSociety/astrbot_plugin_schedule_assistant/main/logo.png" width="120" alt="Schedule Assistant Logo" />
-
-# Schedule Assistant — помощник напоминаний о расписании
+<h1><img src="https://raw.githubusercontent.com/OMSociety/astrbot_plugin_schedule_assistant/main/logo.png" width="192" alt="Schedule Assistant Logo"><br>Schedule Assistant — помощник напоминаний о расписании</h1>
 
 **Ваш заботливый помощник расписания** — Утренняя рассылка · Напоминания о привычках · Управление расписанием через LLM · Двусторонняя синхронизация с календарём Apple · Синхронизация задач Notion
 
