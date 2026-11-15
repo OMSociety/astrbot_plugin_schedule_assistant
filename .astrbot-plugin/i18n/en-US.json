@@ -6,34 +6,22 @@
   "config": {
     "basic_settings": {
       "description": "Basic settings",
-      "hint": "Broadcast persona, form of address, and recipient users.",
-      "persona_id": {
-        "description": "Persona used for broadcasts",
-        "hint": "The persona used for morning broadcasts and habit reminders. Leave blank to take it from the session automatically."
-      },
-      "user_nickname": {
-        "description": "User nickname",
-        "hint": "How the user is addressed in broadcasts. Leave blank to use 'Master'."
-      },
-      "user_ids": {
-        "description": "List of recipient user IDs",
-        "hint": "One per line: the user IDs that receive automatic reminders (QQ number or platform UID, UMO format supported)."
+      "hint": "Sessions that receive scheduled pushes, one full UMO per line, e.g. qq:FriendMessage:123456789.",
+      "user_umos": {
+        "description": "Session UMO list",
+        "hint": "Format: platform:message_type:session. Send /sid in the target session to get its UMO; malformed entries are skipped with a startup warning."
       }
     },
     "schedule_reminder_settings": {
       "description": "Schedule reminders",
-      "hint": "Smart reminder toggle, lead time, and scan frequency for schedules.",
+      "hint": "Reminder toggle and lead time for upcoming schedules.",
       "enable_schedule_reminder": {
-        "description": "Enable LLM smart schedule reminders",
-        "hint": "When enabled, the AI generates a natural-language reminder as a schedule item approaches, using the conversation context."
+        "description": "Enable schedule reminders",
+        "hint": "When enabled, the main agent writes a reminder in the session persona and sends it as the schedule approaches."
       },
       "schedule_reminder_minutes": {
         "description": "Reminder lead time (minutes)",
         "hint": "How many minutes before a schedule item starts to remind. All-day events do not get a reminder."
-      },
-      "schedule_reminder_check_interval": {
-        "description": "Schedule reminder scan interval (minutes)",
-        "hint": "Scan frequency; 1/3 to 1/2 of the lead time is recommended (e.g. 3-5 when the lead time is 10 minutes). Minimum 2 minutes, and no greater than the lead time."
       }
     },
     "habit_reminder_settings": {
@@ -41,7 +29,7 @@
       "hint": "Scheduled reminders for morning greeting, bathing, sleep, drinking water, and more.",
       "enable_morning_report": {
         "description": "Enable morning broadcast",
-        "hint": "Pushes a morning broadcast at a fixed time every day, including weather, today's schedule, and Notion to-dos."
+        "hint": "Pushes a morning briefing each day with weather, the next 24 hours of schedules and Notion tasks."
       },
       "morning_report_time": {
         "description": "Morning broadcast time",
@@ -136,44 +124,28 @@
         "hint": "Enter a city name, e.g. Beijing, Hangzhou, Shanghai."
       }
     },
-    "message_render_settings": {
-      "description": "Message rendering",
-      "hint": "How reminder and broadcast messages are rendered as Markdown.",
-      "markdown_enabled": {
-        "description": "Enable Markdown rendering for reminders/broadcasts",
-        "hint": "When enabled, the platform decides automatically: native platforms receive raw md text, others fall back to plain text."
-      },
-      "markdown_native_platforms": {
-        "description": "Additional platform type names with native Markdown support",
-        "hint": "One platform type name per line (e.g. qq_official, discord); entering an instance ID has no effect. Common platforms are built in by default."
-      },
-      "qq_markdown_enabled": {
-        "description": "Native Markdown on QQ Official platform",
-        "hint": "On = QQ sends native md directly (tables included); Off = QQ is forced to plain text. If this item is not configured, it follows the global markdown_enabled switch."
-      }
-    },
     "prompt_settings": {
       "description": "Reminder prompt templates",
-      "hint": "LLM prompt templates for each reminder. Leave blank to use the built-in default; fill them in to customize the reminder tone. {placeholder} variables are supported.",
+      "hint": "Leave empty to use the built-in template; filling it replaces the built-in template entirely (both writing and output requirements).",
       "prompt_morning": {
         "description": "Morning broadcast template",
-        "hint": "Placeholders: {username} {date} {weekday} {weather_current} {weather_forecast} {agenda} {notion_todos} {late_night}"
+        "hint": "Placeholders: {date} {weekday} {weather_current} {weather_forecast} {agenda} {notion_todos}"
       },
       "prompt_bath": {
         "description": "Bathing reminder template",
-        "hint": "Placeholders: {current_time} {default_time} {history}"
+        "hint": "Placeholders: {current_time} {default_time}"
       },
       "prompt_sleep": {
         "description": "Sleep reminder template",
-        "hint": "Placeholders: {current_time} {default_time} {is_late} {history}"
+        "hint": "Placeholders: {current_time} {default_time}"
       },
       "prompt_water": {
         "description": "Water reminder template",
-        "hint": "Placeholders: {current_time} {history}"
+        "hint": "Placeholders: {current_time}"
       },
       "prompt_schedule": {
         "description": "Schedule reminder template",
-        "hint": "Placeholders: {item_title} {time_label} {ahead_label} {item_context} {conv_history}"
+        "hint": "Placeholders: {item_title} {time_label} {ahead_label} {item_context}"
       }
     }
   }

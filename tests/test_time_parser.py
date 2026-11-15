@@ -45,6 +45,22 @@ class TestParseScheduleTime:
         assert end is None
         assert all_day is False
 
+    def test_evening_midnight_is_next_day(self):
+        now = datetime(2026, 9, 10, 9, 0)
+        start, end, all_day = parse_schedule_time("晚上12点", now=now)
+        assert start == datetime(2026, 9, 11, 0, 0)
+        assert end is None
+        assert all_day is False
+
+    def test_noon_and_early_midnight_stay_same_day(self):
+        now = datetime(2026, 9, 10, 9, 0)
+        assert parse_schedule_time("中午12点", now=now)[0] == datetime(
+            2026, 9, 10, 12, 0
+        )
+        assert parse_schedule_time("凌晨12点", now=now)[0] == datetime(
+            2026, 9, 10, 0, 0
+        )
+
     def test_point_relative(self):
         start, end, all_day = parse_schedule_time("明天9点")
         assert start is not None

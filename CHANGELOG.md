@@ -10,6 +10,58 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-11-15
+
+### 新增
+
+- 定时提醒改由 AstrBot 主动 Agent 投递：插件只登记调度、组装任务说明，主 Agent 按目标会话的人格与历史生成正文，再经 `send_message_to_user` 发送。
+- 时区跟随宿主全局 `timezone` 配置，插件不再硬编码 `Asia/Shanghai`；Apple 日历读写按该时区换算。
+- 配置项 `user_umos`：填写完整 UMO，支持私聊与群聊；群聊按独立会话共享日程并接收全部推送。
+- 启动时清理全部前缀任务并按配置重新注册，一次性推送任务不持久化。
+
+### 变更
+
+- 提醒统一为纯文本，移除 Markdown 渲染与按平台降级。
+- 自定义提示词整段接管写作要求与输出要求；内置模板重写，早安保留写作要求与示例，其余四类只保留数据段与输出要求。
+- 日程提醒改为每分钟扫描，全天日程不提醒。
+- 配置项 `user_ids` 改为 `user_umos`，只接受完整 UMO；非法项启动告警一次并跳过，删除私聊绑定与已知用户回退。
+- 喝水提醒按当天时刻预注册，不再自续期。
+- 早安待办区分「未配置」「获取失败」「暂无」；Notion 查询失败会记录 WARNING。
+- 「晚上12点」解析为次日 00:00。
+- README 四种语言按新的推送方式与配置重写。
+
+### 移除
+
+- 配置项 `persona_id`、`user_nickname`、`message_render_settings`、`schedule_reminder_check_interval`。
+- 自建对话历史、昵称、已知用户索引、习惯存储与防重时间戳。
+- 私聊绑定监听与 `user_platform_<uid>` 存储。
+- 依赖 `apscheduler`。
+
+### Added
+
+- Scheduled reminders are delivered by AstrBot's proactive Agent: the plugin registers schedules and assembles a task note, while the main Agent writes the text with the target session's persona and history and sends it through `send_message_to_user`.
+- The plugin follows the host's global `timezone` instead of hardcoding `Asia/Shanghai`; Apple Calendar reads and writes are converted with that timezone.
+- `user_umos` config: full UMOs, private chats and groups; a group is an independent session with one shared schedule list and receives every push.
+- Startup removes all prefixed jobs and re-registers them from config; one-shot push jobs are not persisted.
+
+### Changed
+
+- All reminders are plain text; Markdown rendering and per-platform fallback are gone.
+- A custom prompt takes over both the writing and output requirements. The built-in prompts were rewritten: the morning prompt keeps its writing requirement and example, while the other four keep only the data block and output requirement.
+- Schedule reminders tick every minute; all-day schedules are skipped.
+- `user_ids` is now `user_umos` and accepts full UMOs only; malformed entries are skipped with one startup warning. Private-chat binding and the known-user fallback were removed.
+- Water reminders are pre-registered for the day's time slots instead of rescheduling themselves.
+- The morning Notion section distinguishes not configured, failed and empty; Notion query failures log a WARNING.
+- "晚上12点" now resolves to 00:00 the next day.
+- All four READMEs were rewritten for the new delivery model and configuration.
+
+### Removed
+
+- Config keys `persona_id`, `user_nickname`, `message_render_settings`, `schedule_reminder_check_interval`.
+- The plugin's own conversation history, nickname store, known-user index, habit storage and deduplication timestamps.
+- The private-chat binding listener and `user_platform_<uid>` storage.
+- The `apscheduler` dependency.
+
 ## [1.3.1] - 2026-11-04
 
 ### 新增

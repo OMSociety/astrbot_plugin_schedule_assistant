@@ -87,6 +87,7 @@ def parse_clock(text: str) -> tuple[int, int] | None:
     if not s:
         return None
     period = None
+    evening = False
     for kw, p in (
         ("凌晨", "am"),
         ("上午", "am"),
@@ -97,9 +98,12 @@ def parse_clock(text: str) -> tuple[int, int] | None:
         ("傍晚", "pm"),
         ("晚上", "pm"),
         ("晚间", "pm"),
+        ("夜里", "pm"),
+        ("夜间", "pm"),
     ):
         if kw in s:
             period = p
+            evening = kw in ("晚上", "晚间", "夜里", "夜间")
             s = s.replace(kw, "")
             break
     s = (
@@ -121,6 +125,9 @@ def parse_clock(text: str) -> tuple[int, int] | None:
         hour += 12
     elif period == "am" and hour == 12:
         hour = 0
+    elif evening and hour == 12:
+        # 「晚上12点」是当天 24:00，即次日 00:00；日期后移由 parse_when 处理
+        hour = 0
     if hour > 23:
         return None
     return hour, minute
@@ -134,10 +141,11 @@ def split_date_clock(text: str) -> tuple[str, str]:
     return (text or "").strip(), ""
 
 
-def parse_date_part(text: str) -> datetime | None:
+def parse_date_part(text: str, now: datetime | None = None) -> datetime | None:
     """解析日期部分为当天 0 点：今天/明天/后天/周X/X月X日/YYYY-MM-DD 等"""
     s = (text or "").strip()
-    today0 = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    base = now or datetime.now()
+    today0 = base.replace(hour=0, minute=0, second=0, microsecond=0)
     if not s:
         return today0
     rel_days = {"今天": 0, "明天": 1, "后天": 2}
@@ -174,7 +182,7 @@ def parse_date_part(text: str) -> datetime | None:
     return None
 
 
-def parse_when(text: str) -> tuple[datetime | None, bool]:
+def parse_when(text: str, now: datetime | None = None) -> tuple[datetime | None, bool]:
     """解析单个时间表达式，返回 (datetime, 是否带时刻)。
 
     纯日期（「明天」「2026-09-10」）返回当天 0 点且 has_time=False；
@@ -184,7 +192,7 @@ def parse_when(text: str) -> tuple[datetime | None, bool]:
     if not s:
         return None, False
     date_part, clock_part = split_date_clock(s)
-    date0 = parse_date_part(date_part)
+    date0 = parse_date_part(date_part, now)
     if date0 is None:
         return None, False
     if not clock_part:
@@ -192,7 +200,14 @@ def parse_when(text: str) -> tuple[datetime | None, bool]:
     clock = parse_clock(clock_part)
     if clock is None:
         return None, False
-    return date0.replace(hour=clock[0], minute=clock[1]), True
+    when = date0.replace(hour=clock[0], minute=clock[1])
+    if (
+        clock[0] == 0
+        and "12" in clock_part
+        and any(kw in clock_part for kw in ("晚上", "晚间", "夜里", "夜间"))
+    ):
+        when += timedelta(days=1)
+    return when, True
 
 
 def is_clock_only(text: str) -> bool:
@@ -200,9 +215,11 @@ def is_clock_only(text: str) -> bool:
     return not split_date_clock(text or "")[0]
 
 
-def parse_range_end(text: str, start: datetime) -> datetime | None:
+def parse_range_end(
+    text: str, start: datetime, now: datetime | None = None
+) -> datetime | None:
     """解析区间结束时间：只给时刻时继承开始日期，早于开始视为次日（「23点到1点」）"""
-    end, _has_time = parse_when(text)
+    end, _has_time = parse_when(text, now)
     if end is None:
         return None
     if is_clock_only(text):
@@ -213,7 +230,7 @@ def parse_range_end(text: str, start: datetime) -> datetime | None:
 
 
 def parse_schedule_time(
-    datetime_str: str,
+    datetime_str: str, now: datetime | None = None
 ) -> tuple[datetime | None, datetime | None, bool]:
     """解析日程时间，返回 (开始, 结束, 是否全天)。
 
@@ -234,10 +251,10 @@ def parse_schedule_time(
             left, right = s.split(sep, 1)
             left = left.strip().removeprefix("从")
             right = right.strip()
-            start, start_has_time = parse_when(left)
+            start, start_has_time = parse_when(left, now)
             if start is None:
                 return None, None, False
-            end, end_has_time = parse_when(right)
+            end, end_has_time = parse_when(right, now)
             if end is None:
                 return None, None, False
             if all_day_flag or (not start_has_time and not end_has_time):
@@ -255,7 +272,7 @@ def parse_schedule_time(
             # 结束不晚于开始由调用方报「结束时间需要晚于开始时间」
             return start, end, False
 
-    when, has_time = parse_when(s)
+    when, has_time = parse_when(s, now)
     if when is None:
         return None, None, False
     if all_day_flag or not has_time:

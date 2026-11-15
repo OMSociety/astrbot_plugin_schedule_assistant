@@ -1,482 +1,253 @@
-"""日程数据存储模块
+"""本地日程存储。"""
 
-提供日程和习惯的数据持久化，基于 AstrBot 的内置 KV 存储 API。
-支持单次日程、定期习惯、喝水记录、临时覆盖等数据管理。
-"""
+from __future__ import annotations
 
+import asyncio
+import logging
 import time
-import uuid
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, tzinfo
 from typing import Any
+from uuid import uuid4
 
-from astrbot.api import logger
-
-from .constants import (
-    CONVERSATION_MAX_AGE_HOURS,
-    CONVERSATION_MAX_MESSAGES,
-    HABITS_KEY,
-    LOG_PREFIX,
-    SCHEDULES_KEY,
-    WATER_LAST_KEY,
-)
-
-__all__ = ["ScheduleItem", "ScheduleStore"]
-
-
-def _schedules_key(user_id: str) -> str:
-    return f"schedules_{user_id}"
-
-
-def _habits_key(user_id: str) -> str:
-    return f"habits_{user_id}"
-
-
-def _water_key(user_id: str) -> str:
-    return f"water_last_{user_id}"
-
-
-def _nickname_key(user_id: str) -> str:
-    return f"nickname_{user_id}"
-
-
-def _conversation_key(user_id: str) -> str:
-    return f"conversation_{user_id}"
-
-
-_USERS_KEY = "_users"
-_CACHE_TTL_SECONDS = 30.0
+LOG_PREFIX = "[ScheduleAssistant]"
+logger = logging.getLogger("astrbot")
 
 
 @dataclass
 class ScheduleItem:
-    """日程/习惯数据项"""
-
-    id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
-    type: str = ""
+    id: str = field(default_factory=lambda: uuid4().hex[:8])
     title: str = ""
     time: str = ""
     end_time: str | None = None
-    recur: str | None = None
     context: str = ""
-    enabled: bool = True
-    snoozed_until: str | None = None
-    last_triggered: str | None = None
-    temp_override: str | None = None
     apple_uid: str | None = None
     all_day: bool = False
 
-    def to_dict(self) -> dict:
-        """序列化为字典"""
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
-    @staticmethod
-    def from_dict(data: dict) -> "ScheduleItem":
-        """从字典反序列化，过滤未知字段"""
-        valid_fields = {
-            "id",
-            "type",
-            "title",
-            "time",
-            "end_time",
-            "recur",
-            "context",
-            "enabled",
-            "snoozed_until",
-            "last_triggered",
-            "temp_override",
-            "apple_uid",
-            "all_day",
-        }
-        filtered = {k: v for k, v in data.items() if k in valid_fields}
-        if not filtered.get("id"):
-            filtered["id"] = str(uuid.uuid4())[:8]
-        return ScheduleItem(**filtered)
+    @classmethod
+    def create(
+        cls,
+        *,
+        title: str,
+        time: str,
+        end_time: str | None = None,
+        context: str = "",
+        apple_uid: str | None = None,
+        all_day: bool = False,
+    ) -> "ScheduleItem":
+        return cls(
+            title=title,
+            time=time,
+            end_time=end_time,
+            context=context,
+            apple_uid=apple_uid,
+            all_day=all_day,
+        )
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ScheduleItem":
+        return cls(
+            id=str(data.get("id") or uuid4().hex[:8]),
+            title=str(data.get("title") or ""),
+            time=str(data.get("time") or ""),
+            end_time=data.get("end_time") or None,
+            context=str(data.get("context") or ""),
+            apple_uid=data.get("apple_uid") or None,
+            all_day=bool(data.get("all_day", False)),
+        )
 
 
 class ScheduleStore:
-    """日程数据存储器（基于 AstrBot 内置 KV API）"""
+    CACHE_TTL = 30.0
 
     def __init__(self, plugin):
         self.plugin = plugin
-        self._cache: dict[str, tuple[Any, float]] = {}
-        logger.info(f"{LOG_PREFIX} ScheduleStore 初始化完成")
+        self._log = getattr(plugin, "logger", logger)
+        self._cache: dict[str, tuple[float, list[ScheduleItem]]] = {}
+        self._lock = asyncio.Lock()
 
-    async def _get_kv(self, key: str, default=None):
-        """读取 KV，带短期内存缓存"""
-        now = time.monotonic()
-        if key in self._cache:
-            value, ts = self._cache[key]
-            if now - ts < _CACHE_TTL_SECONDS:
-                return value
-        try:
-            value = await self.plugin.get_kv_data(key, default)
-        except Exception:
-            value = default
-        self._cache[key] = (value, now)
-        return value
+    @staticmethod
+    def _schedules_key(umo: str) -> str:
+        return f"schedules_{umo}"
 
-    async def _set_kv(self, key: str, value) -> None:
-        """写入 KV 并更新缓存"""
-        self._cache[key] = (value, time.monotonic())
-        try:
-            await self.plugin.put_kv_data(key, value)
-        except Exception as e:
-            logger.error(f"{LOG_PREFIX} KV 写入失败 key={key}: {e}")
-
-    async def _get_user_index(self) -> list[str]:
-        users = await self._get_kv(_USERS_KEY, [])
-        return [str(u) for u in users if u]
-
-    async def _save_user_index(self, users: list[str]) -> None:
-        uniq = sorted({str(u) for u in users if u})
-        await self._set_kv(_USERS_KEY, uniq)
-
-    async def _touch_user(self, user_id: str) -> None:
-        if not user_id:
-            return
-        users = await self._get_user_index()
-        if user_id not in users:
-            users.append(user_id)
-            await self._save_user_index(users)
-
-    async def _load_user_data(self, user_id: str) -> dict[str, Any]:
-        """向后兼容：从旧版统一 data 键迁移数据"""
-        data: dict[str, Any] = {
-            SCHEDULES_KEY: [],
-            HABITS_KEY: [],
-            WATER_LAST_KEY: "",
-        }
-        schedules = await self._get_kv(_schedules_key(user_id), [])
-        if schedules:
-            data[SCHEDULES_KEY] = schedules
-        habits = await self._get_kv(_habits_key(user_id), [])
-        if habits:
-            data[HABITS_KEY] = habits
-        water = await self._get_kv(_water_key(user_id), "")
-        if water:
-            data[WATER_LAST_KEY] = water
-        return data
-
-    async def _save_user_data(self, user_id: str, data: dict[str, Any]) -> None:
-        await self._set_kv(_schedules_key(user_id), data.get(SCHEDULES_KEY, []))
-        await self._set_kv(_habits_key(user_id), data.get(HABITS_KEY, []))
-        await self._set_kv(_water_key(user_id), data.get(WATER_LAST_KEY, ""))
-        await self._touch_user(user_id)
-
-    async def add_item(self, user_id: str, item: ScheduleItem) -> None:
-        data = await self._load_user_data(user_id)
-        item_dict = item.to_dict()
-        if item.type == "habit":
-            data[HABITS_KEY] = [
-                h for h in data[HABITS_KEY] if h.get("title") != item.title
-            ]
-            data[HABITS_KEY].append(item_dict)
-        else:
-            data[SCHEDULES_KEY].append(item_dict)
-        await self._save_user_data(user_id, data)
-
-    async def list_all_items(self, user_id: str) -> list[ScheduleItem]:
-        data = await self._load_user_data(user_id)
-        items = []
-        for s in data.get(SCHEDULES_KEY, []):
-            items.append(ScheduleItem.from_dict(s))
-        for h in data.get(HABITS_KEY, []):
-            items.append(ScheduleItem.from_dict(h))
-        return items
-
-    async def get_schedules(self, user_id: str) -> dict[str, list[ScheduleItem]]:
-        data = await self._load_user_data(user_id)
-        return {
-            SCHEDULES_KEY: [
-                ScheduleItem.from_dict(s) for s in data.get(SCHEDULES_KEY, [])
-            ],
-            HABITS_KEY: [ScheduleItem.from_dict(h) for h in data.get(HABITS_KEY, [])],
-        }
-
-    async def get_all_users(self) -> list[str]:
-        return sorted(set(await self._get_user_index()))
-
-    async def remove_item(self, user_id: str, item_id: str) -> bool:
-        data = await self._load_user_data(user_id)
-        before = len(data.get(SCHEDULES_KEY, [])) + len(data.get(HABITS_KEY, []))
-        data[SCHEDULES_KEY] = [
-            s for s in data.get(SCHEDULES_KEY, []) if s.get("id") != item_id
+    async def _load(self, umo: str) -> list[ScheduleItem]:
+        cached = self._cache.get(umo)
+        if cached and time.monotonic() - cached[0] < self.CACHE_TTL:
+            return list(cached[1])
+        raw = await self._read_kv(self._schedules_key(umo), [])
+        items = [
+            ScheduleItem.from_dict(entry) for entry in raw if isinstance(entry, dict)
         ]
-        data[HABITS_KEY] = [
-            h for h in data.get(HABITS_KEY, []) if h.get("id") != item_id
-        ]
-        after = len(data.get(SCHEDULES_KEY, [])) + len(data.get(HABITS_KEY, []))
-        if before != after:
-            await self._save_user_data(user_id, data)
-            return True
-        return False
+        self._cache[umo] = (time.monotonic(), items)
+        return list(items)
 
-    async def update_item(self, user_id: str, item: "ScheduleItem") -> bool:
-        data = await self._load_user_data(user_id)
-        item_dict = item.to_dict()
-        for key in [SCHEDULES_KEY, HABITS_KEY]:
-            for i, stored in enumerate(data.get(key, [])):
-                if stored.get("id") == item.id:
-                    data[key][i] = item_dict
-                    await self._save_user_data(user_id, data)
+    async def _save(self, umo: str, items: list[ScheduleItem]) -> None:
+        await self.plugin.put_kv_data(
+            self._schedules_key(umo), [item.to_dict() for item in items]
+        )
+        self._cache[umo] = (time.monotonic(), list(items))
+
+    async def _read_kv(self, key: str, default):
+        try:
+            return await self.plugin.get_kv_data(key, default)
+        except Exception as exc:
+            self._log.warning(f"{LOG_PREFIX} 读取本地数据失败 key={key}: {exc}")
+            return default
+
+    async def list_items(self, umo: str) -> list[ScheduleItem]:
+        return await self._load(umo)
+
+    async def get_item(self, umo: str, item_id: str) -> ScheduleItem | None:
+        for item in await self._load(umo):
+            if item.id == item_id:
+                return item
+        return None
+
+    async def add_item(self, umo: str, item: ScheduleItem) -> None:
+        async with self._lock:
+            items = await self._load(umo)
+            if any(existing.id == item.id for existing in items):
+                item = ScheduleItem.from_dict({**item.to_dict(), "id": uuid4().hex[:8]})
+            items.append(item)
+            await self._save(umo, items)
+
+    async def update_item(self, umo: str, item: ScheduleItem) -> bool:
+        async with self._lock:
+            items = await self._load(umo)
+            for index, existing in enumerate(items):
+                if existing.id == item.id:
+                    items[index] = item
+                    await self._save(umo, items)
                     return True
         return False
 
-    async def snooze_item(self, user_id: str, item_id: str, minutes: int) -> bool:
-        new_time = (datetime.now() + timedelta(minutes=minutes)).strftime(
-            "%Y-%m-%d %H:%M"
-        )
-        data = await self._load_user_data(user_id)
-        found = False
-        for key in [SCHEDULES_KEY, HABITS_KEY]:
-            for item in data.get(key, []):
-                if item.get("id") == item_id:
-                    item["snoozed_until"] = new_time
-                    found = True
-        if found:
-            await self._save_user_data(user_id, data)
-        return found
-
-    async def enable_item(self, user_id: str, item_id: str, enabled: bool) -> bool:
-        data = await self._load_user_data(user_id)
-        found = False
-        for key in [SCHEDULES_KEY, HABITS_KEY]:
-            for item in data.get(key, []):
-                if item.get("id") == item_id:
-                    item["enabled"] = enabled
-                    found = True
-        if found:
-            await self._save_user_data(user_id, data)
-        return found
-
-    async def get_water_last(self, user_id: str) -> str:
-        return await self._get_kv(_water_key(user_id), "")
-
-    async def set_water_last(self, user_id: str, ts: str) -> None:
-        await self._set_kv(_water_key(user_id), ts)
-
-    async def set_temp_override(
-        self, user_id: str, habit_title: str, new_time: str
-    ) -> bool:
-        data = await self._load_user_data(user_id)
-        today = datetime.now().strftime("%Y-%m-%d")
-        found = False
-        for habit in data.get(HABITS_KEY, []):
-            if habit.get("title") == habit_title:
-                habit["temp_override"] = f"{today} {new_time}"
-                found = True
-        if found:
-            await self._save_user_data(user_id, data)
-        return found
-
-    async def get_effective_time(
-        self, user_id: str, habit_title: str, default_time: str
-    ) -> str:
-        data = await self._load_user_data(user_id)
-        today = datetime.now().strftime("%Y-%m-%d")
-        for habit in data.get(HABITS_KEY, []):
-            if habit.get("title") == habit_title:
-                temp = habit.get("temp_override", "")
-                if temp and temp.startswith(today):
-                    return temp.split(" ")[1] if " " in temp else default_time
-        return default_time
+    async def remove_item(self, umo: str, item_id: str) -> bool:
+        async with self._lock:
+            items = await self._load(umo)
+            remaining = [item for item in items if item.id != item_id]
+            if len(remaining) == len(items):
+                return False
+            await self._save(umo, remaining)
+            return True
 
     async def sync_from_apple_calendar(
-        self, user_id: str, apple_events: list[dict], *, allow_delete: bool
+        self,
+        umo: str,
+        apple_events: list[dict],
+        *,
+        allow_delete: bool,
+        now: datetime | None = None,
     ) -> dict[str, int]:
         """把 Apple 日历事件并入本地日程。
 
-        Args:
-            allow_delete: 是否允许把"本轮事件列表里没出现"的本地日程删掉。
-                只有当调用方确认本轮读取完整（没有发现失败、抓取失败）时才可
-                传 True——读取不完整时，缺席的 UID 与"事件已被删除"无法区分，
-                传 False 表示只做新增与更新。
+        ``allow_delete`` 只在调用方确认本轮读取完整时传 True；读取不完整时，
+        缺席的 UID 与「事件已被删除」无法区分，此时只做新增与更新。
         """
-        # 防御：API 返回空列表时（可能是失败），不执行删除，避免误删
-        if not apple_events:
-            logger.debug(f"{LOG_PREFIX} Apple 日历返回空事件列表，跳过同步")
-            return {"added": 0, "updated": 0, "deleted": 0}
-        data = await self._load_user_data(user_id)
-        schedules = data.get(SCHEDULES_KEY, [])
-        uid_map = {s["apple_uid"]: s for s in schedules if s.get("apple_uid")}
-        apple_uids = set()
         stats = {"added": 0, "updated": 0, "deleted": 0}
+        if not apple_events:
+            return stats
 
-        # 只同步未来 7 天内的日程
-        now = datetime.now()
-        future_cutoff = now + timedelta(days=7)
+        current = now or datetime.now().astimezone()
+        tz = current.tzinfo
+        lower = current - timedelta(days=1)
+        future_cutoff = current + timedelta(days=7)
 
-        # 防止重复添加：记录本次同步中已处理的 UID（解决 Apple 返回重复事件的问题）
-        processed_uids_this_sync: set[str] = set()
+        async with self._lock:
+            items = await self._load(umo)
+            by_uid = {item.apple_uid: item for item in items if item.apple_uid}
+            apple_uids: set[str] = set()
+            processed_uids: set[str] = set()
 
-        for evt in apple_events:
-            uid = evt.get("uid")
-            if not uid:
-                continue
-
-            # 防止同一个 UID 被添加两次（Apple 有时会返回重复的 RRULE 实例）
-            if uid in processed_uids_this_sync:
-                logger.debug(
-                    f"{LOG_PREFIX} 跳过重复 UID: {uid[:16]}... (事件: {evt.get('summary', '无标题')})"
-                )
-                # 成员资格由首个实例决定（窗口外被 discard 的不再加回）
-                continue
-
-            apple_uids.add(uid)
-            # 无论走哪个分支都视为已处理，重复实例在下一轮循环被拦下
-            processed_uids_this_sync.add(uid)
-            start_str = evt.get("start", "")
-            if not start_str:
-                continue
-            try:
-                start_dt = datetime.fromisoformat(start_str)
-                # 过滤：只保留未来 7 天内的日程
-                if start_dt < now - timedelta(days=1):  # 1天前的也保留（刚结束的）
-                    logger.debug(
-                        f"{LOG_PREFIX} 跳过过期日程: {evt.get('summary', '无标题')} ({start_str})"
-                    )
-                    apple_uids.discard(uid)  # 不保留在 apple_uids 中，允许后续删除
+            for event in apple_events:
+                uid = event.get("uid")
+                if not uid or uid in processed_uids:
                     continue
-                if start_dt > future_cutoff:
-                    logger.debug(
-                        f"{LOG_PREFIX} 跳过远期日程: {evt.get('summary', '无标题')} ({start_str})"
-                    )
-                    apple_uids.discard(uid)  # 不保留在 apple_uids 中，允许后续删除
+                processed_uids.add(uid)
+                start_str = event.get("start") or ""
+                if not start_str:
                     continue
+                start_dt = self._parse_event_time(start_str, tz)
+                if start_dt is None:
+                    continue
+                if start_dt < lower or start_dt > future_cutoff:
+                    continue
+                apple_uids.add(uid)
+
+                wall = start_dt.astimezone(tz) if (tz and start_dt.tzinfo) else start_dt
+                all_day = bool(event.get("all_day", False))
                 schedule_time = (
-                    start_dt.strftime("%Y-%m-%d")
-                    if evt.get("all_day")
-                    else start_dt.strftime("%Y-%m-%d %H:%M")
+                    wall.strftime("%Y-%m-%d")
+                    if all_day
+                    else wall.strftime("%Y-%m-%d %H:%M")
                 )
-            except (ValueError, TypeError):
-                schedule_time = start_str
-            # 结束时间（区间日程）：全天事件不记 end
-            end_str = None
-            end_raw = evt.get("end") or ""
-            if end_raw and not evt.get("all_day"):
-                try:
-                    end_str = datetime.fromisoformat(end_raw).strftime("%Y-%m-%d %H:%M")
-                except (ValueError, TypeError):
-                    end_str = str(end_raw)
-            if uid in uid_map:
-                local = uid_map[uid]
-                if (
-                    local.get("title") != evt.get("summary")
-                    or local.get("time") != schedule_time
-                    or local.get("end_time") != end_str
-                ):
-                    # 改期（时间/结束时间变化）重置防重标记，让新时间重新提前提醒；
-                    # 旧数据无 end_time 键时首轮补齐不算改期，避免升级后重复提醒
-                    end_changed = (
-                        "end_time" in local and local.get("end_time") != end_str
-                    )
-                    if local.get("time") != schedule_time or end_changed:
-                        local["last_triggered"] = None
-                    local["title"] = evt.get("summary", "无标题")
-                    local["time"] = schedule_time
-                    local["end_time"] = end_str
-                    local["all_day"] = bool(evt.get("all_day", False))
-                    stats["updated"] += 1
-            else:
-                schedules.append(
-                    ScheduleItem(
-                        type="schedule",
-                        title=evt.get("summary", "无标题"),
+                end_str = None
+                end_raw = event.get("end") or ""
+                if end_raw and not all_day:
+                    end_dt = self._parse_event_time(end_raw, tz)
+                    if end_dt is None:
+                        end_str = str(end_raw)
+                    else:
+                        end_wall = (
+                            end_dt.astimezone(tz) if (tz and end_dt.tzinfo) else end_dt
+                        )
+                        end_str = end_wall.strftime("%Y-%m-%d %H:%M")
+                title = event.get("summary", "无标题")
+                context = event.get("description", "")
+
+                local = by_uid.get(uid)
+                if local is None:
+                    new_item = ScheduleItem(
+                        id=uuid4().hex[:8],
+                        title=title,
                         time=schedule_time,
                         end_time=end_str,
-                        context=evt.get("description", ""),
+                        context=context,
                         apple_uid=uid,
-                        all_day=evt.get("all_day", False),
-                    ).to_dict()
-                )
-                stats["added"] += 1
-        if allow_delete:
-            before_count = len(schedules)
-            schedules = [
-                s
-                for s in schedules
-                if not s.get("apple_uid") or s["apple_uid"] in apple_uids
-            ]
-            stats["deleted"] = before_count - len(schedules)
-        else:
-            logger.debug(f"{LOG_PREFIX} 未获删除授权，本轮保留本地日程")
-        # 无变化不写盘（提醒扫描前每轮都会刷新同步，避免无谓 IO）
-        if stats["added"] or stats["updated"] or stats["deleted"]:
-            data[SCHEDULES_KEY] = schedules
-            await self._save_user_data(user_id, data)
+                        all_day=all_day,
+                    )
+                    items.append(new_item)
+                    by_uid[uid] = new_item
+                    stats["added"] += 1
+                    continue
+
+                if (
+                    local.title != title
+                    or local.time != schedule_time
+                    or local.end_time != end_str
+                    or local.context != context
+                    or local.all_day != all_day
+                ):
+                    local.title = title
+                    local.time = schedule_time
+                    local.end_time = end_str
+                    local.context = context
+                    local.all_day = all_day
+                    stats["updated"] += 1
+
+            if allow_delete:
+                before = len(items)
+                items = [
+                    item
+                    for item in items
+                    if not item.apple_uid or item.apple_uid in apple_uids
+                ]
+                stats["deleted"] = before - len(items)
+            else:
+                self._log.debug(f"{LOG_PREFIX} 未获删除授权，本轮保留本地日程")
+
+            if stats["added"] or stats["updated"] or stats["deleted"]:
+                await self._save(umo, items)
         return stats
 
-    async def get_user_nickname(self, user_id: str) -> str:
-        """读取用户昵称（优先读取存储的昵称）"""
-        return str((await self._get_kv(_nickname_key(user_id), "")).strip())
-
-    async def set_user_nickname(self, user_id: str, nickname: str) -> None:
-        """持久化用户昵称"""
-        value = (nickname or "").strip()
-        await self._set_kv(_nickname_key(user_id), value)
-
-    async def clear_expired_overrides(self, user_id: str) -> None:
-        """清理过期的临时覆盖"""
-        data = await self._load_user_data(user_id)
-        today = datetime.now().strftime("%Y-%m-%d")
-        changed = False
-        for habit in data.get(HABITS_KEY, []):
-            temp = habit.get("temp_override", "")
-            if temp and not temp.startswith(today):
-                habit.pop("temp_override", None)
-                changed = True
-        if changed:
-            await self._save_user_data(user_id, data)
-
-    async def add_conversation_message(
-        self, user_id: str, role: str, content: str
-    ) -> None:
-        """记录用户对话消息"""
-        history = await self._get_kv(_conversation_key(user_id), [])
-        history.append(
-            {"role": role, "content": content, "timestamp": datetime.now().isoformat()}
-        )
-        cutoff = datetime.now() - timedelta(hours=CONVERSATION_MAX_AGE_HOURS)
-        history = [
-            m for m in history if datetime.fromisoformat(m["timestamp"]) > cutoff
-        ]
-        if len(history) > CONVERSATION_MAX_MESSAGES:
-            history = history[-CONVERSATION_MAX_MESSAGES:]
-        await self._set_kv(_conversation_key(user_id), history)
-
-    async def get_conversation_history(self, user_id: str) -> list[dict[str, str]]:
-        """获取用户对话历史"""
-        history = await self._get_kv(_conversation_key(user_id), [])
-        cutoff = datetime.now() - timedelta(hours=CONVERSATION_MAX_AGE_HOURS)
-        return [m for m in history if datetime.fromisoformat(m["timestamp"]) > cutoff]
-
-    def format_history_for_prompt(
-        self, history: list[dict[str, str]], max_tokens: int = 500
-    ) -> str:
-        """将对话历史格式化为 prompt 字符串"""
-        if not history:
-            return "（无近期对话历史）"
-        lines = []
-        total_chars = 0
-        for msg in reversed(history):
-            role_label = "用户" if msg["role"] == "user" else "芙兰"
-            ts = datetime.fromisoformat(msg["timestamp"]).strftime("%H:%M")
-            line = f"[{ts}] {role_label}: {msg['content']}"
-            # 截断口径：按字符数近似 token（1 字符 ≈ 1.5 token）。
-            # 旧实现 total 侧漏乘 1.5，实际字符预算膨胀到 ~1.5×max_tokens，
-            # 现修正为 max_tokens 字符（历史会变短约 1/3，方向保守）
-            if total_chars + len(line) > max_tokens:
-                break
-            total_chars += len(line)
-            lines.append(line)
-        lines.reverse()
-        return "\n".join(lines) if lines else "（无近期对话历史）"
-
-    async def set_user_platform(self, user_id: str, platform_id: str) -> None:
-        """持久化用户所属平台（用户真实所在的平台，用于定时消息精确推送）"""
-        await self._set_kv(f"user_platform_{user_id}", str(platform_id or "").strip())
-
-    async def get_user_platform(self, user_id: str) -> str:
-        """读取用户所属平台，未记录时返回空字符串"""
-        return str((await self._get_kv(f"user_platform_{user_id}", "")).strip())
+    @staticmethod
+    def _parse_event_time(value: str, tz: tzinfo | None) -> datetime | None:
+        try:
+            parsed = datetime.fromisoformat(str(value))
+        except (TypeError, ValueError):
+            return None
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=tz) if tz else parsed
+        return parsed.astimezone(tz) if tz else parsed

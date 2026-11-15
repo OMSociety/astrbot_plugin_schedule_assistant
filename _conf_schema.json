@@ -2,25 +2,12 @@
  "basic_settings": {
   "description": "基础设置",
   "type": "object",
-  "hint": "播报人格、称呼与接收用户。",
+  "hint": "接收定时推送的会话名单，每行一个完整 UMO，如 qq:FriendMessage:123456789。",
   "items": {
-   "persona_id": {
-    "type": "string",
-    "description": "播报使用的人格",
-    "hint": "早安播报与习惯提醒使用的人格。留空则自动从会话获取。",
-    "_special": "select_persona",
-    "default": ""
-   },
-   "user_nickname": {
-    "type": "string",
-    "description": "用户昵称",
-    "hint": "播报时对用户的称呼。留空则使用「主人」。",
-    "default": ""
-   },
-   "user_ids": {
+   "user_umos": {
     "type": "list",
-    "description": "用户名单 ID 列表",
-    "hint": "每行一个，接收自动提醒的用户 ID（QQ 号或平台 UID，支持 UMO 格式）。",
+    "description": "会话 UMO 列表",
+    "hint": "格式 platform:message_type:session。在目标会话发送 /sid 获取 UMO；格式不符的条目会在启动时告警并跳过。",
     "default": []
    }
   }
@@ -28,12 +15,12 @@
  "schedule_reminder_settings": {
   "description": "日程提醒",
   "type": "object",
-  "hint": "日程的智能提醒开关、提前量与扫描频率。",
+  "hint": "日程临近时的提醒开关与提前量。",
   "items": {
    "enable_schedule_reminder": {
     "type": "bool",
-    "description": "开启日程 LLM 智能提醒",
-    "hint": "开启后，AI 会在日程临近时结合对话上下文生成自然语言提醒。",
+    "description": "开启日程提醒",
+    "hint": "开启后，主 Agent 会在日程临近时结合会话人格生成提醒并发送。",
     "default": false
    },
    "schedule_reminder_minutes": {
@@ -41,12 +28,6 @@
     "description": "日程提前提醒分钟数",
     "hint": "日程开始前多少分钟提醒。全天日程不提醒。",
     "default": 10
-   },
-   "schedule_reminder_check_interval": {
-    "type": "int",
-    "description": "日程提醒扫描间隔（分钟）",
-    "hint": "扫描频率，建议取提前量的 1/3~1/2（如提前 10 分钟则填 3~5），最小 2 分钟，且不大于提前量。",
-    "default": 5
    }
   }
  },
@@ -58,7 +39,7 @@
    "enable_morning_report": {
     "type": "bool",
     "description": "开启早安播报",
-    "hint": "每天定时推送早安播报，含天气、今日日程与 Notion 待办。",
+    "hint": "每天定时推送早安播报，含天气、未来 24 小时日程与 Notion 待办。",
     "default": true
    },
    "morning_report_time": {
@@ -204,64 +185,39 @@
    }
   }
  },
- "message_render_settings": {
-  "description": "消息渲染",
-  "type": "object",
-  "hint": "提醒与播报消息的 Markdown 渲染方式。",
-  "items": {
-   "markdown_enabled": {
-    "type": "bool",
-    "description": "提醒/播报启用 Markdown 渲染",
-    "hint": "开启后按平台自动选择：原生平台直发 md 原文，其余降级纯文本。",
-    "default": true
-   },
-   "markdown_native_platforms": {
-    "type": "list",
-    "description": "额外原生支持 Markdown 的平台类型名",
-    "hint": "每行一个平台类型名（如 qq_official、discord），填实例 ID 无效。默认已内置常见平台。",
-    "default": []
-   },
-   "qq_markdown_enabled": {
-    "type": "bool",
-    "description": "QQ 官方平台原生 Markdown",
-    "hint": "开启=QQ 直发原生 md（含表格）；关闭=QQ 强制纯文本。",
-    "default": true
-   }
-  }
- },
  "prompt_settings": {
   "description": "提醒 Prompt 模板",
   "type": "object",
-  "hint": "各提醒的 LLM 提示词模板。留空则使用内置默认模板；想定制提醒语气时填写，支持 {变量名} 占位符。",
+  "hint": "留空使用内置模板；填写后整段替换内置模板（写作要求与输出要求都由你决定）。",
   "items": {
    "prompt_morning": {
     "type": "string",
     "description": "早安播报模板",
-    "hint": "占位符：{username} {date} {weekday} {weather_current} {weather_forecast} {agenda} {notion_todos} {late_night}",
+    "hint": "占位符：{date} {weekday} {weather_current} {weather_forecast} {agenda} {notion_todos}",
     "default": ""
    },
    "prompt_bath": {
     "type": "string",
     "description": "洗澡提醒模板",
-    "hint": "占位符：{current_time} {default_time} {history}",
+    "hint": "占位符：{current_time} {default_time}",
     "default": ""
    },
    "prompt_sleep": {
     "type": "string",
     "description": "睡觉提醒模板",
-    "hint": "占位符：{current_time} {default_time} {is_late} {history}",
+    "hint": "占位符：{current_time} {default_time}",
     "default": ""
    },
    "prompt_water": {
     "type": "string",
     "description": "喝水提醒模板",
-    "hint": "占位符：{current_time} {history}",
+    "hint": "占位符：{current_time}",
     "default": ""
    },
    "prompt_schedule": {
     "type": "string",
     "description": "日程提醒模板",
-    "hint": "占位符：{item_title} {time_label} {ahead_label} {item_context} {conv_history}",
+    "hint": "占位符：{item_title} {time_label} {ahead_label} {item_context}",
     "default": ""
    }
   }

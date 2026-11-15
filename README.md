@@ -6,7 +6,7 @@
 
 **你的贴心日程管家** —— 早安播报 · 习惯提醒 · LLM 日程管理 · Apple 日历双向同步 · Notion 待办同步
 
-[![Version](https://img.shields.io/badge/version-1.3.1-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/OMSociety/astrbot_plugin_schedule_assistant)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/stargazers)
@@ -24,30 +24,43 @@
 
 | 特性 | 说明 |
 |------|------|
-| **每日早安播报** | 天气 + 今日日程 + Notion 待办 + 熬夜检测，一条消息搞定起床信息 |
-| **智能习惯提醒** | 洗澡 / 睡觉 / 喝水定时提醒，提醒时间可配置 |
+| **全托管定时推送** | 提醒文本由 AstrBot 主 Agent 按目标会话的人格与历史生成，再经 `send_message_to_user` 发出，纯文本 |
+| **每日早安播报** | 天气 + 未来 24 小时日程（本地与 Apple）+ Notion 待办，一条消息搞定起床信息 |
+| **智能习惯提醒** | 洗澡 / 睡觉 / 喝水定时提醒，时间与开关可配置 |
+| **日程智能提醒** | 日程开始前 N 分钟推送，结合日程备注生成自然语言提醒 |
 | **LLM 日程管理** | 动嘴管日程：新增 / 删除 / 查询 / 修改，自然语言时间解析 |
 | **Apple 日历双向同步** | iCloud CalDAV 读取 + 写入，自动去重与增量更新 |
-| **Notion 待办同步** | 早安播报中附 DDL 倒计时（还剩N天 / 今天截止 / 已逾期） |
-| **多平台 Markdown 渲染** | QQ 官方原生表格，Onebot 等平台自动降级纯文本 |
+| **Notion 待办同步** | 早安播报中附 DDL 倒计时（还剩 N 天 / 今天截止 / 已逾期） |
 
 ---
 
 ## 功能概览
 
-### 每日早安播报
-每天早上自动推送（可配置时间），一条消息搞定起床信息：
+### 推送方式
 
-<img src="https://raw.githubusercontent.com/OMSociety/astrbot_plugin_schedule_assistant/main/docs/briefing_example.png" alt="早安播报示例" width="480" />
+定时提醒由 AstrBot 的主动 Agent 机制完成：插件只负责按时刻整理数据、写好任务说明，交给框架的 `active job`；框架唤醒目标会话的主 Agent，由它沿用该会话的人格与历史生成正文，并调用 `send_message_to_user` 发送。因此提醒语气会跟随你为机器人配置的人格，不需要在插件里另设人设。
+
+推送全部为纯文本。投递失败按本次丢失处理，不自动重试，也不会重复补发。
+
+### 每日早安播报
+
+每天早上自动推送（时间可配置）：
+
+- 天气实况与预报
+- 今天（以及从播报时刻起 24 小时内）的本地日程与 Apple 日程，自动合并去重
+- Notion 待办与 DDL 倒计时
+- 全天日程只统计播报当天
+
+内置提示词把正文控制在 120 字以内；自定义提示词会整段接管写作要求与输出要求。
 
 ### 习惯提醒
 
 | 习惯 | 默认时间 | 说明 |
 |------|---------|------|
 | 洗澡提醒 | 22:00 | 提醒时间可配置 |
-| 睡觉提醒 | 23:00 | 智能催睡，超时带吐槽 |
-| 喝水提醒 | 每90分钟 | 9:30–21:30 时段内循环提醒 |
-| 日程智能提醒 | 提前 N 分钟 | **LLM 生成**自然语言提醒，结合上下文 |
+| 睡觉提醒 | 23:00 | 提醒时间可配置 |
+| 喝水提醒 | 每 90 分钟 | 9:30–21:30 时段内按间隔提醒 |
+| 日程智能提醒 | 提前 N 分钟 | 默认关闭，开启后按开始时间推送 |
 
 ### Apple iCloud 日历双向同步
 
@@ -66,14 +79,8 @@
 - `caldav_host` — CalDAV 服务器地址，留空用 `caldav.icloud.com`。中国大陆区账号被拒绝认证时可填 `caldav.icloud.com.cn`；若该地址仍不通，填网页版 iCloud 日历共享链接里自己的主机，形如 `pXX-caldav.icloud.com.cn`
 
 ### Notion 待办同步
+
 Notion 待办会在每日早安播报中列出，并附 DDL 倒计时（还剩 N 天 / 今天截止 / 已逾期）。需先配置 Maton Gateway 作为中间层接入。
-
-### Markdown 渲染
-所有定时播报（早安 / 习惯 / 日程提醒）走统一渲染管线，按平台自动降级：
-- **native** — 平台原生解析 md（qq_official、discord、telegram 等），原文直发
-- **plain** — 不支持原生 md 的平台自动 strip 降级为纯文本
-
-QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中关闭或强制切换。
 
 ---
 
@@ -83,24 +90,27 @@ QQ 原生表格自动渲染为对齐行，无需额外配置；可在配置中�
 
 AstrBot WebUI → 插件市场 → 搜索 `schedule_assistant`
 
-> **提示**：依赖声明在插件 `requirements.txt`（`apscheduler` / `aiohttp` / `python-dateutil`）：AstrBot 加载与安装插件时会自动预检并补齐缺失依赖，通常无需手动安装。
+> **提示：** 依赖声明在插件 `requirements.txt`（`aiohttp` / `python-dateutil`）：AstrBot 加载与安装插件时会自动预检并补齐缺失依赖，通常无需手动安装。
 
-### 第二步：最小配置（跑通全部定时提醒）
+### 第二步：填写会话名单
 
-只需在 WebUI 插件配置 → **基础设置** → `user_ids` 填一行：
+在要接收提醒的会话里（私聊或群聊）发送 `/sid`，拿到该会话的 UMO。然后在 WebUI 插件配置 → **基础设置** → `user_umos` 中逐行填写：
 
 ```
-你的平台ID:FriendMessage:你的用户ID
+qq:FriendMessage:123456789
+qq:GroupMessage:987654321
 ```
 
-`平台ID:会话类型:用户ID`（UMO 格式）一行搞定「提醒谁 + 从哪个平台发」。填纯 QQ 号也可以，会自动按私聊发送。
+`平台:消息类型:会话 ID`（UMO 格式）一行搞定「提醒哪个会话 + 从哪个平台发」。格式不符的条目会在启动时告警一次并跳过。
+
+群聊被视为独立用户：群内成员共享同一份日程，早安、洗澡、睡觉、喝水等推送都会发到群里，日程提醒与工具也作用于该群。填写前请确认群成员都知情。
 
 ### 第三步（可选）：配置 Notion 同步
 
 1. 在 [Maton](https://www.maton.ai/) 上接入 Notion（OAuth2 方式），生成 **Maton API Key**
 2. 插件配置 → **外部服务** 填入 `maton_api_key`，并用 `notion_db_ids` 指定要读取的数据库（如 `事务:xxx`、`阅读:yyy`）
 
-> **注意**：Notion 待办经第三方网关 `gateway.maton.ai` 中转（非直连 Notion 官方 API）：`maton_api_key` 会作为请求头发送给该第三方，其可读取你指定数据库中的标题、状态与截止日期等字段。
+> **注意：** Notion 待办经第三方网关 `gateway.maton.ai` 中转（非直连 Notion 官方 API）：`maton_api_key` 会作为请求头发送给该第三方，其可读取你指定数据库中的标题、状态与截止日期等字段。
 
 ---
 
@@ -110,17 +120,14 @@ AstrBot WebUI → 插件市场 → 搜索 `schedule_assistant`
 
 | 配置项 | 类型 | 默认 | 说明 |
 |--------|------|------|------|
-| `persona_id` | string | `""` | LLM 人设 ID（对应配置文件中的 `persona_id`），留空自动从会话获取 |
-| `user_nickname` | string | `""` | 用户昵称，留空则播报称呼为「主人」 |
-| `user_ids` | list | `[]` | 用户名单 ID 列表，每行一个接收自动提醒的用户 ID（QQ 号或平台 UID）；填 UMO 格式（`平台ID:会话类型:用户ID`）可同时完成平台路由 |
+| `user_umos` | list | `[]` | 接收自动提醒的会话 UMO 列表，每行一个 `platform:message_type:session` |
 
 ### 日程提醒设置
 
 | 配置项 | 类型 | 默认 | 说明 |
 |--------|------|------|------|
-| `enable_schedule_reminder` | bool | `false` | 日程 LLM 智能提醒开关（默认关闭） |
-| `schedule_reminder_minutes` | int | `10` | 日程提前提醒分钟数（日程开始前多少分钟提醒，全天日程不提醒） |
-| `schedule_reminder_check_interval` | int | `5` | 日程提醒扫描间隔（分钟），建议设为提前量的 1/3~1/2（如提前10分钟则间隔3-5分钟），最小值2分钟且不大于提前量 |
+| `enable_schedule_reminder` | bool | `false` | 日程智能提醒开关（默认关闭） |
+| `schedule_reminder_minutes` | int | `10` | 日程提前提醒分钟数（全天日程不提醒） |
 
 ### 习惯提醒设置
 
@@ -149,7 +156,7 @@ AstrBot WebUI → 插件市场 → 搜索 `schedule_assistant`
 | `apple_calendar.calendar_id` | string | - | 目标日历 UUID，留空默认第一个；可用值见日志的「可用日历」清单（`工作日 → UUID`） |
 | `webcal_urls` | list | `[]` | WebCal 共享日历链接 |
 
-> **WebCal 订阅安全**：`webcal_urls` 只接受公网 `https://` 订阅地址（`webcal://` 自动转 `https://`）。插件会拒绝 `localhost`、内网（如 `192.168.x` / `10.x`）、云元数据（`169.254.169.254`）等地址（防 SSRF）。请勿填写内网或本机地址。
+> **WebCal 订阅安全：** `webcal_urls` 只接受公网 `https://` 订阅地址（`webcal://` 自动转 `https://`）。插件会拒绝 `localhost`、内网（如 `192.168.x` / `10.x`）、云元数据（`169.254.169.254`）等地址（防 SSRF）。请勿填写内网或本机地址。
 
 > 写入开关统一使用顶层的 `enable_apple_calendar_sync`，开启后本地创建/删除的日程会自动同步到 Apple 日历。
 
@@ -162,25 +169,17 @@ AstrBot WebUI → 插件市场 → 搜索 `schedule_assistant`
 | `weather_api_key` | string | `""` | 心知天气 API Key（[seniverse.com](https://seniverse.com)） |
 | `weather_city` | string | `北京` | 天气查询城市（默认：北京） |
 
-### 消息渲染设置
+### 提醒提示词
 
 | 配置项 | 类型 | 默认 | 说明 |
 |--------|------|------|------|
-| `markdown_enabled` | bool | `true` | 全局 Markdown 渲染开关，关闭后降级为纯文本 |
-| `markdown_native_platforms` | list | `[]` | 额外追加原生解析 Markdown 的平台类型名（填实例 ID 无效） |
-| `qq_markdown_enabled` | bool | `true` | QQ 平台开关：`true` 直发原生 md；`false` 强制 QQ 不走原生 md |
+| `prompt_morning` | string | `""` | 早安播报提示词。占位符：`{date} {weekday} {weather_current} {weather_forecast} {agenda} {notion_todos}` |
+| `prompt_bath` | string | `""` | 洗澡提醒提示词。占位符：`{current_time} {default_time}` |
+| `prompt_sleep` | string | `""` | 睡觉提醒提示词。占位符：`{current_time} {default_time}` |
+| `prompt_water` | string | `""` | 喝水提醒提示词。占位符：`{current_time}` |
+| `prompt_schedule` | string | `""` | 日程提醒提示词。占位符：`{item_title} {time_label} {ahead_label} {item_context}` |
 
-### 提醒 Prompt 模板
-
-| 配置项 | 类型 | 默认 | 说明 |
-|--------|------|------|------|
-| `prompt_morning` | string | `""` | 早安播报模板。占位符：`{username} {date} {weekday} {weather_current} {weather_forecast} {agenda} {notion_todos} {late_night}` |
-| `prompt_bath` | string | `""` | 洗澡提醒模板。占位符：`{current_time} {default_time} {history}` |
-| `prompt_sleep` | string | `""` | 睡觉提醒模板。占位符：`{current_time} {default_time} {is_late} {history}` |
-| `prompt_water` | string | `""` | 喝水提醒模板。占位符：`{current_time} {history}` |
-| `prompt_schedule` | string | `""` | 日程提醒模板。占位符：`{item_title} {time_label} {ahead_label} {item_context} {conv_history}` |
-
-> 各模板留空则使用内置默认（见 `prompt_config.py`）；想定制提醒语气时填写，支持 `{变量名}` 占位符。
+> 留空时使用内置模板（内置模板含数据段、写作要求与输出要求）。填写后整段接管，插件不再追加任何写作或输出约束；纯文本推送，建议在自定义提示词里自行写明「只输出正文、不要提及系统」等要求。
 
 ### 快速配置模板
 
@@ -189,14 +188,11 @@ AstrBot WebUI → 插件市场 → 搜索 `schedule_assistant`
 ```json
 {
   "basic_settings": {
-    "persona_id": "",
-    "user_nickname": "",
-    "user_ids": ["你的平台ID:FriendMessage:你的用户ID"]
+    "user_umos": ["qq:FriendMessage:123456789", "qq:GroupMessage:987654321"]
   },
   "schedule_reminder_settings": {
     "enable_schedule_reminder": false,
-    "schedule_reminder_minutes": 10,
-    "schedule_reminder_check_interval": 5
+    "schedule_reminder_minutes": 10
   },
   "habit_reminder_settings": {
     "enable_morning_report": true,
@@ -227,11 +223,6 @@ AstrBot WebUI → 插件市场 → 搜索 `schedule_assistant`
     "weather_api_key": "",
     "weather_city": "北京"
   },
-  "message_render_settings": {
-    "markdown_enabled": true,
-    "markdown_native_platforms": [],
-    "qq_markdown_enabled": true
-  },
   "prompt_settings": {
     "prompt_morning": "",
     "prompt_bath": "",
@@ -248,35 +239,35 @@ AstrBot WebUI → 插件市场 → 搜索 `schedule_assistant`
 
 插件注册 4 个 LLM 工具，模型会自动判断何时调用，你只需用自然语言说需求：
 
-> **时间写法**：数字/ISO 格式（`2024-01-15 14:30`、`2024-01-15 09:00-11:00`、`2024-01-16`）或中文口语（「明天9点」「明天9点到11点」「明天全天」）；纯日期即全天。
+> **时间写法：** 数字/ISO 格式（`2024-01-15 14:30`、`2024-01-15 09:00-11:00`、`2024-01-16`）或中文口语（「明天9点」「明天9点到11点」「明天全天」）；纯日期即全天。
 
 ```
 用户: 帮我加个明天早上9点开组会的日程
-🤖 → create_schedule(title=组会, datetime_str=明天9点)
-    已创建日程「组会」，时间：08-17 09:00 ✅
+-> create_schedule(title=组会, datetime_str=明天9点)
+   已创建日程「组会」，时间：08-17 09:00 ✅
 
 用户: 明天9点到11点开组会
-🤖 → create_schedule(title=组会, datetime_str=明天9点到11点)
-    已创建日程「组会」，时间：08-17 09:00-11:00 ✅
+-> create_schedule(title=组会, datetime_str=明天9点到11点)
+   已创建日程「组会」，时间：08-17 09:00-11:00 ✅
 
 用户: 后天全天团建
-🤖 → create_schedule(title=团建, datetime_str=后天全天)
-    已创建日程「团建」，时间：08-18 全天 ✅
+-> create_schedule(title=团建, datetime_str=后天全天)
+   已创建日程「团建」，时间：08-18 全天 ✅
 
 用户: 把下午3点的会议改到4点
-🤖 → update_schedule(title_keyword=会议, new_datetime=下午4点)
-    已修改日程：时间改为下午4点 ✅
+-> update_schedule(title_keyword=会议, new_datetime=下午4点)
+   已修改日程：时间改为下午4点 ✅
 
 用户: 看看这周有什么安排
-🤖 → list_schedules(days=7)
-    📋 接下来7天日程（共3个）：
-    ━━━ 08-17 周一 ━━━
-      ⏰ 09:00 │ 组会
-      ...
+-> list_schedules(days=7)
+   📋 接下来7天日程（共3个）：
+
+   ━━━ 08-17 周一 ━━━
+     ⏰ 09:00 │ 组会
 
 用户: 删除明天的读书会
-🤖 → delete_schedule(title_keyword=读书会)
-    已删除日程「读书会」✅
+-> delete_schedule(title_keyword=读书会)
+   已删除日程「读书会」✅
 ```
 
 ### create_schedule
@@ -302,7 +293,7 @@ AstrBot WebUI → 插件市场 → 搜索 `schedule_assistant`
 
 | 参数 | 类型 | 说明 |
 |------|------|------|
-| `days` | int? | 查看最近几天的日程，默认7天 |
+| `days` | int? | 查看最近几天的日程，默认 7 天 |
 
 ### update_schedule
 修改日程。可单独或组合更新标题、时间、备注。

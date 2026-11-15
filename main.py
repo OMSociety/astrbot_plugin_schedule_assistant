@@ -1,909 +1,128 @@
-"""
-日程助手插件
+"""日程助手插件：生命周期与依赖组装。"""
 
-提供日程管理、习惯提醒、早安播报、Apple日历同步、Notion待办等功能。
-采用 MessagingService 封装发送逻辑，
-主类只保留插件生命周期管理和定时任务调度。
-"""
+from __future__ import annotations
 
-import asyncio
 import contextlib
-import time
-from datetime import datetime, timedelta
 from typing import Any
 
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
-from astrbot.api import logger
-from astrbot.api.event import filter
 from astrbot.api.star import Context, Star
 
 from .apple_calendar import AppleCalendar
-from .async_utils import try_lock
-from .constants import (
-    DEFAULT_BATH_TIME,
-    DEFAULT_SLEEP_TIME,
-    DEFAULT_WATER_END,
-    DEFAULT_WATER_INTERVAL,
-    DEFAULT_WATER_START,
-    LOG_PREFIX,
-    SCHEDULES_KEY,
-)
-from .engine import TimedMessageEngine
-from .messaging import MessagingService
+from .briefing import MorningBriefing
+from .calendar_sync import CalendarSync
 from .notion_client import NotionClient
-from .reminders.briefing import BriefingReminder
-from .reminders.habits import BathReminder, SleepReminder, WaterReminder
-from .reminders.schedule import (
-    ScheduleReminder,
-    check_and_trigger_schedule_reminder,
-    mark_schedule_reminder_triggered,
-)
-from .schedule_store import ScheduleItem, ScheduleStore
-from .services.llm import LLMService
-from .services.notion import NotionService
-from .services.weather import WeatherService
-from .time_parser import is_all_day_event, parse_item_time
+from .schedule_store import ScheduleStore
+from .scheduling import Scheduling
+from .settings import load_settings
 from .tools.schedule_tools import register_schedule_tools
-
-SCHEDULE_REMINDER_LOG_THROTTLE_SECONDS = 300  # seconds (5 minutes)
+from .weather import WeatherService
 
 
 class ScheduleAssistant(Star):
-    def _flatten_config(self, nested: dict) -> dict:
-        """将一层嵌套配置展平：把顶层 group 的键值提升到根层级，但保留更深层的嵌套对象（如 apple_calendar）。"""
-        result = {}
-        for k, v in nested.items():
-            if isinstance(v, dict):
-                for inner_k, inner_v in v.items():
-                    result[inner_k] = inner_v
-            else:
-                result[k] = v
-        return result
-
-    def __init__(self, context: Context, config: dict[str, Any]):
-        super().__init__(context)
-        self.config = self._flatten_config(config)  # 自动展平嵌套配置，保持与旧代码兼容
+    def __init__(self, context: Context, config: dict[str, Any] | None = None):
+        super().__init__(context, config)
+        self.config = config or {}
+        self.settings = load_settings(self.config)
         self.store = ScheduleStore(self)
-        self.default_user_id: str | None = None
-        target_ids = MessagingService._collect_config_target_ids(self.config)
-        if target_ids:
-            self.default_user_id = str(target_ids[0])
-        self.messaging = MessagingService(
-            context,
-            self.config,
-            platform_lookup=self.store.get_user_platform,
-            users_lookup=self.store.get_all_users,
-            default_user_id=self.default_user_id,
-        )
-        self.scheduler = AsyncIOScheduler(timezone="Asia/Shanghai")
-        # 通用定时消息引擎：业务注册为 job，内容生成与发送解耦
-        self.timed_engine = TimedMessageEngine(
-            context, self.config, self.messaging, self.scheduler
-        )
-        self.weather_service: WeatherService | None = None
-        self.notion_service: NotionService | None = None
-        self.llm_service: LLMService | None = None
-        self.apple_calendar: AppleCalendar | None = None
+        self.weather: WeatherService | None = None
         self.notion: NotionClient | None = None
-        self.schedule_reminder: ScheduleReminder | None = None
-        self._services_ready = False
-        self._services_init_lock = asyncio.Lock()
-        self._tasks_registered = False
-        self._tools_registered = False
-        self._schedule_reminder_scan_lock = asyncio.Lock()
-        self._apple_calendar_sync_lock = asyncio.Lock()
-        self._last_apple_read_issue: str | None = None
-        self._schedule_reminder_last_log_ts = 0.0
+        self.apple: AppleCalendar | None = None
+        self.briefing: MorningBriefing | None = None
+        self.scheduling: Scheduling | None = None
 
-        self._init_task: asyncio.Task | None = None
-        self._delayed_task: asyncio.Task | None = None
-        self._runtime_cleaned = False
-        self._cleanup_lock: asyncio.Lock | None = None
-
-        # 早安播报共享上下文缓存（天气/Apple 深夜事件，避免每个用户重复请求）
-        self._morning_ctx_cache: dict | None = None
-        self._morning_ctx_ts = 0.0
-
-        # 启动后台初始化（兼容热重载：__init__ 在热重载时立即执行）
-        self._init_task = asyncio.create_task(self._initialize())
-        self._init_task.add_done_callback(self._on_init_done)
-
-    def _on_init_done(self, task: asyncio.Task):
-        try:
-            exc = task.exception()
-            if exc:
-                logger.error(f"{LOG_PREFIX} 初始化任务异常: {exc}")
-        except asyncio.CancelledError:
-            pass
-
-    async def _initialize(self):
-        """AstrBot 初始化或热重载后启动插件定时任务"""
-        logger.info(f"{LOG_PREFIX} 开始初始化...")
-        await self._ensure_services()
-        await self._register_tasks()
-        logger.info(f"{LOG_PREFIX} 初始化完成")
-
-    @filter.on_astrbot_loaded()
-    async def on_loaded(self):
-        """AstrBot 冷启动时的初始化兜底（热重载时不触发此钩子）"""
-        # 如果 __init__ 中的任务已在运行，无需重复初始化
-        if self._init_task and not self._init_task.done():
-            logger.debug(f"{LOG_PREFIX} 冷启动初始化已在 __init__ 中启动，跳过")
-            return
-        # 如果是某种边界情况导致 __init__ 没启动，兜底执行
-        await self._initialize()
-
-    def _schedule_next_water_reminder(self, run_date: datetime):
-        self.timed_engine.register_raw_job(
-            "water_reminder",
-            "date",
-            self._water_reminder,
-            run_date=run_date,
-            max_instances=1,
-            coalesce=True,
-            misfire_grace_time=60,
+    async def initialize(self) -> None:
+        self.settings = load_settings(self.config, self.context.get_config())
+        self.weather = WeatherService(
+            self.settings.weather_api_key, self.settings.weather_city
         )
-
-    async def _ensure_services(self):
-        if self._services_ready:
-            return
-        async with self._services_init_lock:
-            if self._services_ready:
-                return
-
-            # 注册 LLM 日程管理工具（先置位再注册：即使注册抛异常，
-            # 也不再重复注册，避免热重载后工具重复挂载）
-            if not self._tools_registered:
-                self._tools_registered = True
-                register_schedule_tools(self)
-
-            api_key = self.config.get("weather_api_key")
-            city = self.config.get("weather_city", "北京")
-            if api_key:
-                self.weather_service = WeatherService(
-                    {"weather_api_key": api_key, "weather_city": city}
-                )
-
-            self.llm_service = LLMService(self.context, self.config)
-
-            notion_db_ids = self.config.get("notion_db_ids", [])
-            maton_key = self.config.get("maton_api_key")
-            if notion_db_ids and maton_key:
-                try:
-                    transaction_db = ""
-                    reading_db = ""
-                    for item in notion_db_ids:
-                        if isinstance(item, dict):
-                            name = item.get("name", "")
-                            db_id = item.get("id", "")
-                            if name == "事务" or name == "transaction":
-                                transaction_db = db_id
-                            elif name == "阅读" or name == "reading":
-                                reading_db = db_id
-                        elif isinstance(item, str):
-                            raw = item.strip()
-                            if ":" in raw:
-                                name, db_id = raw.split(":", 1)
-                                name = name.strip().lower()
-                                db_id = db_id.strip()
-                                if name in ("事务", "transaction"):
-                                    transaction_db = db_id
-                                elif name in ("阅读", "reading"):
-                                    reading_db = db_id
-                            elif not transaction_db:
-                                transaction_db = raw
-                                logger.warning(
-                                    f"{LOG_PREFIX} notion_db_ids 使用无前缀字符串，已按顺序第1个映射为「事务库」"
-                                )
-                            elif not reading_db:
-                                reading_db = raw
-                                logger.warning(
-                                    f"{LOG_PREFIX} notion_db_ids 使用无前缀字符串，已按顺序第2个映射为「阅读库」"
-                                )
-                            elif raw:
-                                logger.warning(
-                                    f"{LOG_PREFIX} notion_db_ids 额外无前缀字符串未使用: {raw[:12]}..."
-                                )
-                    self.notion = NotionClient(maton_key, transaction_db, reading_db)
-                    self.notion_service = NotionService(self.notion)
-                except Exception as e:
-                    logger.warning(f"{LOG_PREFIX} Notion 初始化失败: {e}")
-                    self.notion = None
-                    self.notion_service = None
-
-            self.briefing_reminder = BriefingReminder(
-                self.config, self.context, self.llm_service
-            )
-            self.bath_reminder = BathReminder(
-                self.config, self.default_user_id, self.llm_service, self.store
-            )
-            self.sleep_reminder = SleepReminder(
-                self.config, self.default_user_id, self.llm_service, self.store
-            )
-            self.water_reminder = WaterReminder(
-                self.config, self.default_user_id, self.llm_service, self.store
-            )
-            self.schedule_reminder = ScheduleReminder(self.llm_service, self.config)
-
-            conf = self.config
-            if conf.get("enable_apple_calendar_sync"):
-                apple_conf = conf.get("apple_calendar", {})
-                username = apple_conf.get("username") if apple_conf else None
-                app_password = apple_conf.get("app_password") if apple_conf else None
-                if username and app_password:
-                    cal_id = apple_conf.get("calendar_id", "").strip() or None
-                    caldav_host = (apple_conf.get("caldav_host") or "").strip()
-                    self.apple_calendar = AppleCalendar(
-                        username=username,
-                        app_password=app_password,
-                        calendar_id=cal_id,
-                        webcal_urls=conf.get("webcal_urls", []) or [],
-                        caldav_host=caldav_host,
-                    )
-                    logger.info(
-                        f"{LOG_PREFIX} Apple Calendar 已配置: {username[:3]}***, "
-                        f"calendar_id={cal_id}, "
-                        f"caldav_host={caldav_host or 'caldav.icloud.com'}"
-                    )
-                else:
-                    logger.warning(
-                        f"{LOG_PREFIX} Apple Calendar 未配置凭据（username 或 app_password 缺失）"
-                    )
-
-            # 全部服务初始化成功后才标记就绪；中途异常时保持 False，
-            # 下次调用会重新尝试初始化（_services_ready 只在成功路径置位）
-            self._services_ready = True
-            logger.info(f"{LOG_PREFIX} 外部服务初始化完成")
-
-    async def _register_tasks(self):
-        if self._tasks_registered:
-            return
-        self._tasks_registered = True
-        conf = self.config
-        engine = self.timed_engine
-
-        if conf.get("enable_morning_report", True):
-            morning_time = conf.get("morning_report_time", "09:00")
-            ok = engine.register_job(
-                "morning_briefing",
-                morning_time,
-                self._morning_briefing_content,
-                prepare=self._prepare_morning_context,
-            )
-            if ok:
-                logger.info(f"{LOG_PREFIX} 早安播报已注册: {morning_time}")
-
-        if conf.get("enable_bath_reminder", True):
-            bath_time = conf.get("bath_time", DEFAULT_BATH_TIME)
-            ok = engine.register_job(
-                "bath_reminder",
-                bath_time,
-                self._make_habit_content_provider(self.bath_reminder, "洗澡"),
-            )
-            if ok:
-                logger.info(f"{LOG_PREFIX} 洗澡提醒已注册: {bath_time}")
-
-        if conf.get("enable_sleep_reminder", True):
-            sleep_time = conf.get("sleep_time", DEFAULT_SLEEP_TIME)
-            ok = engine.register_job(
-                "sleep_reminder",
-                sleep_time,
-                self._make_habit_content_provider(self.sleep_reminder, "睡觉"),
-            )
-            if ok:
-                logger.info(f"{LOG_PREFIX} 睡觉提醒已注册: {sleep_time}")
-
-        if conf.get("enable_apple_calendar_sync"):
-            sync_interval = conf.get("apple_calendar_sync_interval", 30)
-            engine.register_raw_job(
-                "apple_calendar_sync",
-                "interval",
-                self._apple_calendar_sync,
-                minutes=sync_interval,
-                # 防重入/堆积：上次未完成时不并行，错过窗口时合并为一次执行。
-                max_instances=1,
-                coalesce=True,
-                misfire_grace_time=120,
-            )
-            logger.info(
-                f"{LOG_PREFIX} Apple 日历同步任务已注册（每 {sync_interval} 分钟）"
-            )
-
-        if self.config.get("enable_schedule_reminder"):
-            check_interval = conf.get("schedule_reminder_check_interval", 5)
-            try:
-                check_interval = max(2, int(check_interval))
-            except (ValueError, TypeError):
-                check_interval = 5
-            engine.register_raw_job(
-                "schedule_reminder_scan",
-                "interval",
-                self._schedule_reminder_scan,
-                minutes=check_interval,
-                # 防重入/堆积：单实例执行，misfire 时合并。
-                max_instances=1,
-                coalesce=True,
-                misfire_grace_time=check_interval * 60,
-            )
-            logger.info(f"{LOG_PREFIX} 日程 LLM 提醒已启用（每 {check_interval} 分钟）")
-
-        if conf.get("enable_water_reminder", True):
-            water_interval = conf.get("water_interval", DEFAULT_WATER_INTERVAL)
-            water_start = conf.get("water_start_time", DEFAULT_WATER_START)
-            water_end = conf.get("water_end_time", DEFAULT_WATER_END)
-
-            now = datetime.now()
-            next_trigger = self._get_water_next_trigger(
-                now, water_start, water_end, water_interval
-            )
-            initial_delay = max((next_trigger - now).total_seconds(), 30.0)
-
-            self._schedule_next_water_reminder(
-                datetime.now() + timedelta(seconds=initial_delay)
-            )
-            logger.info(
-                f"{LOG_PREFIX} 喝水提醒首次触发: {next_trigger.strftime('%H:%M')} ({initial_delay / 60:.1f}分钟后)"
-            )
-
-        engine.register_raw_job(
-            "clear_expired_overrides",
-            CronTrigger(hour=0, minute=5),
-            self._clear_expired_overrides,
+        self.notion = self._build_notion()
+        self.apple = self._build_apple()
+        self.briefing = MorningBriefing(
+            self.store, self.weather, self.notion, self.apple, self.settings
         )
-        engine.start()
+        calendar_sync = (
+            CalendarSync(self.apple, self.store, self.settings)
+            if self.apple is not None
+            else None
+        )
+        self.scheduling = Scheduling(
+            self, self.store, self.settings, self.briefing, calendar_sync
+        )
+        register_schedule_tools(self)
+        await self.scheduling.start()
 
-        logger.info(f"{LOG_PREFIX} 所有定时任务已注册，调度器已启动")
+    async def terminate(self) -> None:
+        if self.scheduling is not None:
+            await self.scheduling.stop()
+            self.scheduling = None
+        if self.notion is not None:
+            with contextlib.suppress(Exception):
+                await self.notion.close()
+            self.notion = None
+        if self.apple is not None:
+            with contextlib.suppress(Exception):
+                await self.apple.close()
+            self.apple = None
 
-    def _get_water_next_trigger(
-        self, now: datetime, water_start: str, water_end: str, water_interval: int
-    ) -> datetime:
-        try:
-            start_h, start_m = map(int, water_start.split(":"))
-            end_h, end_m = map(int, water_end.split(":"))
-        except (ValueError, TypeError, AttributeError):
-            logger.warning(
-                f"{LOG_PREFIX} 喝水时段配置非法: start={water_start!r} end={water_end!r}，使用默认 {DEFAULT_WATER_START}-{DEFAULT_WATER_END}"
-            )
-            start_h, start_m = map(int, DEFAULT_WATER_START.split(":"))
-            end_h, end_m = map(int, DEFAULT_WATER_END.split(":"))
-        try:
-            interval_min = max(1, int(water_interval))
-        except (ValueError, TypeError):
-            interval_min = DEFAULT_WATER_INTERVAL
-        today_start = now.replace(hour=start_h, minute=start_m, second=0, microsecond=0)
-        today_end = now.replace(hour=end_h, minute=end_m, second=0, microsecond=0)
-        if now < today_start:
-            return today_start
-        if now >= today_end:
-            return today_start + timedelta(days=1)
-        elapsed = now - today_start
-        next_time = today_start + (
-            elapsed // timedelta(minutes=interval_min) + 1
-        ) * timedelta(minutes=interval_min)
-        if next_time > today_end:
-            return today_start + timedelta(days=1)
-        return next_time
+    # ---------------------------------------------------------------- 依赖构造
 
-    def _extract_sender_name(self, event: Any) -> str:
-        """从事件对象中提取发送者昵称（duck typing，平台无关）"""
-        try:
-            if hasattr(event, "get_sender_name"):
-                name = event.get_sender_name()
-                if isinstance(name, str) and name.strip():
-                    return name.strip()
-        except Exception as e:
-            logger.debug(f"{LOG_PREFIX} 获取发送者昵称异常: {e}")
-
-        for attr in ("sender_nickname", "sender_name", "nickname", "name"):
-            name = getattr(event, attr, None)
-            if isinstance(name, str) and name.strip():
-                return name.strip()
-
-        sender = getattr(event, "sender", None)
-        if isinstance(sender, dict):
-            try:
-                sender_id = str(event.get_sender_id())
-            except Exception:
-                sender_id = ""
-            for key in ("nickname", "name", "card", "group_card"):
-                val = sender.get(key)
-                if isinstance(val, str) and val.strip() and val != sender_id:
-                    return val.strip()
-
-        return ""
-
-    async def _get_target_user_ids(
-        self, include_known_users: bool = False
-    ) -> list[str]:
-        """获取目标用户ID列表
-
-        目标用户解析已统一收敛到 messaging 路由
-        （用户名单 UMO 绑定 + 记忆 + 持久化恢复，见 MessagingService.resolve_target_users）。
-        此处保留薄封装，兼容既有调用方。
-        """
-        return await self.messaging.resolve_target_users(include_known_users)
-
-    def _extract_block_lines(self, block: str) -> list[str]:
-        """提取并清洗文本块中的行"""
-        if not block or block in ("暂无", "获取失败"):
-            return []
-        return [line.strip() for line in block.split("\n") if line.strip()]
-
-    def _merge_today_schedule_blocks(
-        self, local_text: str, apple_text: str, limit: int = 12
-    ) -> str:
-        """合并本地日程和Apple日历文本，去重后返回"""
-        merged = []
-        seen = set()
-        for line in self._extract_block_lines(local_text) + self._extract_block_lines(
-            apple_text
-        ):
-            key = " ".join(line.split())
-            if key in seen:
-                continue
-            seen.add(key)
-            merged.append(key)
-            if len(merged) >= limit:
-                break
-        if merged:
-            return "\n".join(merged)
-        if apple_text == "获取失败" and local_text in ("暂无", "", None):
-            return "获取失败"
-        return "暂无"
-
-    async def _get_user_schedules(self, user_id: str) -> list[ScheduleItem]:
-        """获取用户所有日程"""
-        schedules_dict = await self.store.get_schedules(user_id)
-        return schedules_dict.get(SCHEDULES_KEY, [])
+    def _build_notion(self) -> NotionClient | None:
+        if not self.settings.maton_api_key or not self.settings.notion_db_ids:
+            return None
+        transaction, reading = self._parse_notion_dbs(self.settings.notion_db_ids)
+        if not transaction and not reading:
+            return None
+        return NotionClient(
+            self.settings.maton_api_key,
+            transaction,
+            reading,
+            timezone=self.settings.timezone,
+        )
 
     @staticmethod
-    def _schedule_time_label(
-        start_dt: datetime, end_str: str | None, all_day: bool
-    ) -> str:
-        """今日日程时间标签：全天 / 15:00-16:30 / 15:00。
-
-        本地与 Apple 两路用同一格式，早安播报合并去重才能命中同一事件。
-        """
-        if all_day:
-            return "全天"
-        if end_str:
-            end_dt = parse_item_time(end_str)
-            if end_dt:
-                return f"{start_dt.strftime('%H:%M')}-{end_dt.strftime('%H:%M')}"
-        return start_dt.strftime("%H:%M")
-
-    async def _get_today_local_schedules_text(
-        self, user_id: str, limit: int = 8
-    ) -> str:
-        """获取今日本地日程文本"""
-        schedules = await self._get_user_schedules(user_id)
-        today = datetime.now().date()
-        today_items = []
-        for s in schedules:
-            if not s.time:
+    def _parse_notion_dbs(entries: tuple[str, ...]) -> tuple[str, str]:
+        transaction = ""
+        reading = ""
+        unnamed: list[str] = []
+        for entry in entries:
+            text = str(entry).strip().replace("：", ":")
+            if not text:
                 continue
-            dt = parse_item_time(s.time)
-            if not dt or dt.date() != today:
-                continue
-            time_label = self._schedule_time_label(dt, s.end_time, is_all_day_event(s))
-            today_items.append((dt, f"⏰ {time_label} │ {s.title}"))
-        if not today_items:
-            return "暂无"
-        today_items.sort(key=lambda x: x[0])
-        return "\n".join([line for _, line in today_items[:limit]])
-
-    async def _get_today_apple_calendar_text(self, limit: int = 8) -> str:
-        """获取今日Apple日历文本"""
-        if not self.apple_calendar:
-            return "暂无"
-        try:
-            events, _ = await self.apple_calendar.get_all_events(days=1)
-            today = datetime.now().date()
-            logger.debug(
-                f"{LOG_PREFIX} Apple日历获取到 {len(events)} 个事件，开始筛选今日({today})事件..."
-            )
-
-            rows = []
-            for e in events:
-                start_str = e.get("start", "")
-                summary = e.get("summary", "无标题")
-
-                if not start_str:
-                    continue
-                start_dt = parse_item_time(start_str)
-                if not start_dt:
-                    logger.debug(
-                        f"{LOG_PREFIX} Apple 事件时间格式无法解析: {start_str!r}"
-                    )
-                    continue
-                if start_dt.date() != today:
-                    continue
-                time_label = self._schedule_time_label(
-                    start_dt, e.get("end"), bool(e.get("all_day"))
-                )
-                rows.append((start_dt, f"⏰ {time_label} │ {summary}"))
-
-            if not rows:
-                logger.debug(f"{LOG_PREFIX} 今日 Apple 日历无日程")
-                return "暂无"
-            rows.sort(key=lambda x: x[0])
-            logger.debug(
-                f"{LOG_PREFIX} 今日 Apple 日历事件筛选完成，共 {len(rows)} 个: {[s for _, s in rows]}"
-            )
-            return "\n".join([line for _, line in rows[:limit]])
-        except Exception as e:
-            logger.warning(f"{LOG_PREFIX} Apple 今日日程读取失败: {e}")
-            return "获取失败"
-
-    async def _get_notion_pending_text(self, limit: int = 5) -> str:
-        """获取Notion待办文本"""
-        if not self.notion_service:
-            return "暂无"
-        try:
-            pending = await self.notion_service.get_pending_tasks()
-            if not pending:
-                return "暂无"
-            lines = []
-            for task in pending[:limit]:
-                ddl = self.notion_service.format_ddl(task.get("ddl", ""))
-                title = task.get("title", "(无标题)")
-                lines.append(f"- {ddl} | {title}" if ddl else f"- {title}")
-            return "\n".join(lines) if lines else "暂无"
-        except Exception as e:
-            logger.warning(f"{LOG_PREFIX} Notion 待办读取失败: {e}")
-            return "获取失败"
-
-    async def _get_user_nickname(self, user_id: str) -> str:
-        """获取用户昵称，优先读取存储，再用配置兜底（避免返回纯数字QQ号）"""
-        try:
-            cached = await self.store.get_user_nickname(user_id)
-            cached = (cached or "").strip()
-            # 过滤：有效昵称不能是纯数字（QQ号）
-            if cached and not cached.isdigit():
-                return cached
-        except Exception as e:
-            logger.debug(f"{LOG_PREFIX} 读取昵称缓存失败: {e}")
-        fallback = str(self.config.get("user_nickname", "") or "").strip()
-        if fallback and not fallback.isdigit():
-            return fallback
-        # 实在没有昵称，返回通用称呼
-        return "主人"
-
-    async def _prepare_morning_context(self) -> dict:
-        """一次性准备早安播报共享数据（天气/Apple 深夜事件），带 5 分钟缓存
-
-        内容生成与发送解耦后，所有目标用户共享同一份外部数据，
-        避免每个用户重复请求天气/日历 API。
-        """
-        now = time.monotonic()
-        if self._morning_ctx_cache and now - self._morning_ctx_ts < 300:
-            return self._morning_ctx_cache
-
-        await self._ensure_services()
-        weather_current, weather_forecast = "", ""
-        if self.weather_service:
-            try:
-                weather_current, weather_forecast = await self.weather_service.fetch()
-            except Exception:
-                weather_current, weather_forecast = "", ""
-
-        late_night_text = ""
-        if self.apple_calendar:
-            try:
-                late_night = await self.apple_calendar.get_late_night_events()
-                late_night_text = "、".join(
-                    [e.get("summary", "无标题") for e in late_night[:3]]
-                )
-            except Exception:
-                late_night_text = ""
-
-        self._morning_ctx_cache = {
-            "weather_current": weather_current,
-            "weather_forecast": weather_forecast,
-            "late_night": late_night_text,
-        }
-        self._morning_ctx_ts = now
-        return self._morning_ctx_cache
-
-    async def _morning_briefing_content(
-        self, user_id: str, shared: dict | None = None
-    ) -> str | None:
-        """早安播报内容生成（定时引擎调用，只生成不发送）"""
-        await self._ensure_services()
-        shared = shared or await self._prepare_morning_context()
-
-        now = datetime.now()
-        date_str = now.strftime("%Y-%m-%d")
-        weekday_str = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][
-            now.weekday()
-        ]
-
-        nickname = await self._get_user_nickname(user_id)
-        local_text = await self._get_today_local_schedules_text(user_id)
-        apple_text = await self._get_today_apple_calendar_text()
-        agenda_text = self._merge_today_schedule_blocks(local_text, apple_text)
-        notion_text = await self._get_notion_pending_text()
-
-        briefing = await self.briefing_reminder.generate_full_report(
-            username=nickname,
-            date=date_str,
-            weekday=weekday_str,
-            weather_current=shared.get("weather_current", ""),
-            weather_forecast=shared.get("weather_forecast", ""),
-            agenda=agenda_text,
-            notion_todos=notion_text,
-            late_night=shared.get("late_night", ""),
-            user_id=user_id,
-        )
-        return briefing or None
-
-    def _make_habit_content_provider(self, reminder_obj, label: str):
-        """构造习惯提醒内容生成器（定时引擎调用，只生成不发送）"""
-
-        async def provider(user_id: str, shared: Any = None) -> str | None:
-            try:
-                await self._ensure_services()
-                history = await self.store.get_conversation_history(user_id)
-                history_text = (
-                    self.store.format_history_for_prompt(history[-5:])
-                    if history
-                    else ""
-                )
-                message = await reminder_obj.generate(
-                    await self._get_user_nickname(user_id),
-                    history_text,
-                    user_id=user_id,
-                )
-                return message or None
-            except Exception as e:
-                logger.error(
-                    f"{LOG_PREFIX} {label}提醒内容生成失败 user={user_id} err={e}"
-                )
-                return None
-
-        return provider
-
-    async def _run_habit_reminder(
-        self, reminder_obj, label: str, target_user_id: str | None = None
-    ) -> list[str]:
-        """通用习惯提醒执行逻辑，返回目标用户列表（调用方可追加后续操作）。"""
-        try:
-            await self._ensure_services()
-            target_user_ids = (
-                [str(target_user_id)]
-                if target_user_id
-                else await self._get_target_user_ids()
-            )
-            if not target_user_ids:
-                return []
-
-            provider = self._make_habit_content_provider(reminder_obj, label)
-            for user_id in target_user_ids:
-                message = await provider(user_id, None)
-                if message:
-                    await self.messaging.send_to_user(user_id, message)
-            logger.info(f"{LOG_PREFIX} {label}提醒已发送 users={target_user_ids}")
-            return target_user_ids
-        except Exception as e:
-            logger.error(f"{LOG_PREFIX} {label}提醒失败: {e}")
-            return []
-
-    async def _water_reminder(self, target_user_id: str | None = None):
-        await self._run_habit_reminder(self.water_reminder, "喝水", target_user_id)
-
-        water_interval = self.config.get("water_interval", DEFAULT_WATER_INTERVAL)
-        water_start = self.config.get("water_start_time", DEFAULT_WATER_START)
-        water_end = self.config.get("water_end_time", DEFAULT_WATER_END)
-
-        next_trigger = self._get_water_next_trigger(
-            datetime.now(),
-            water_start,
-            water_end,
-            water_interval,
-        )
-        delay = max((next_trigger - datetime.now()).total_seconds(), 30.0)
-
-        self._schedule_next_water_reminder(datetime.now() + timedelta(seconds=delay))
-
-    async def _schedule_reminder_scan(self):
-        async with try_lock(self._schedule_reminder_scan_lock) as acquired:
-            if not acquired:
-                logger.debug(f"{LOG_PREFIX} 日程提醒扫描仍在运行，跳过本轮")
-                return
-            now_ts = time.monotonic()
-            if (
-                now_ts - self._schedule_reminder_last_log_ts
-                >= SCHEDULE_REMINDER_LOG_THROTTLE_SECONDS
-            ):
-                logger.debug(f"{LOG_PREFIX} 执行日程提醒扫描")
-                self._schedule_reminder_last_log_ts = now_ts
-
-            await self._ensure_services()
-            if not self.schedule_reminder:
-                return
-
-            # Apple 事件先入库再扫：手机侧新加/改期的事件也能被提前提醒
-            await self._apple_calendar_sync()
-
-            try:
-                raw_minutes = self.config.get("schedule_reminder_minutes", 10)
-                if raw_minutes in (None, ""):
-                    raw_minutes = 10
-                if isinstance(raw_minutes, str):
-                    raw_minutes = raw_minutes.strip()
-                    if not raw_minutes.isdigit():
-                        logger.warning(
-                            f"{LOG_PREFIX} schedule_reminder_minutes 非数字，使用默认值 10"
-                        )
-                        raw_minutes = 10
-                minutes_ahead = int(raw_minutes)
-            except Exception:
-                minutes_ahead = 10
-            if minutes_ahead <= 0:
-                minutes_ahead = 10
-
-            for user_id in await self._get_target_user_ids(include_known_users=True):
-                try:
-                    triggered = await check_and_trigger_schedule_reminder(
-                        schedule_store=self.store,
-                        llm_service=self.llm_service,
-                        user_id=user_id,
-                        minutes_before=minutes_ahead,
-                        reminder=self.schedule_reminder,
-                    )
-                    for item in triggered:
-                        if not item.get("reminder_text"):
-                            # 文案为空也要落标记：否则该日程每轮都进 triggered 却
-                            # 永远不发，防重标记永不成立 → 每轮空转
-                            logger.warning(
-                                f"{LOG_PREFIX} 提醒文案为空，跳过发送并落防重标记避免空转 "
-                                f"user={user_id} item_id={item['item_id']}"
-                            )
-                            await mark_schedule_reminder_triggered(
-                                self.store, user_id, item["item_id"]
-                            )
-                            continue
-                        # 只有确认送达才落防重标记：MessagingService.send_to_user
-                        # 的失败主通道是返回 False（平台不可用 continue、
-                        # 发送异常被吞成 warning、所有平台均失败），
-                        # 只对异常敏感会漏判，标记一落该日程就不再提醒
-                        delivered = await self.messaging.send_to_user(
-                            user_id, item["reminder_text"]
-                        )
-                        # 只把显式 False 判为未送达（MessagingService.send_to_user
-                        # 声明 -> bool 且所有失败路径都 return False）；
-                        # 返回 None 的自定义实现按"未报错"处理，避免误判成失败后
-                        # 反复重发同一条提醒
-                        if delivered is False:
-                            logger.warning(
-                                f"{LOG_PREFIX} 提醒未送达，不落防重标记，下轮重试 "
-                                f"user={user_id} item_id={item['item_id']}"
-                            )
-                            continue
-                        # 发送成功后才落防重标记：先落盘会在发送失败时
-                        # 让该日程本期（乃至永久）不再提醒
-                        marked = await mark_schedule_reminder_triggered(
-                            self.store, user_id, item["item_id"]
-                        )
-                        if not marked:
-                            logger.warning(
-                                f"{LOG_PREFIX} 防重标记未写入，该日程下轮会重试提醒 "
-                                f"user={user_id} item_id={item['item_id']}"
-                            )
-                except Exception as e:
-                    logger.warning(f"{LOG_PREFIX} 用户 {user_id} 日程提醒扫描失败: {e}")
-
-    async def _apple_calendar_sync(self):
-        async with try_lock(self._apple_calendar_sync_lock) as acquired:
-            if not acquired:
-                logger.debug(f"{LOG_PREFIX} Apple 同步仍在运行，跳过本轮")
-                return
-            if not self.apple_calendar:
-                return
-            try:
-                events, issues = await self.apple_calendar.get_all_events(days=7)
-                # 读取不完整时，缺席的 UID 与"事件已被删除"无法区分：只做新增与更新
-                if issues:
-                    reason = "；".join(issues)
-                    if reason != self._last_apple_read_issue:
-                        self._last_apple_read_issue = reason
-                        logger.warning(
-                            f"{LOG_PREFIX} Apple 日历读取不完整（{reason}），"
-                            "本轮只做新增与更新，不删除本地日程"
-                        )
-                    else:
-                        logger.debug(
-                            f"{LOG_PREFIX} Apple 日历读取仍不完整（{reason}），继续不删除"
-                        )
+            if ":" in text:
+                label, _, db_id = text.partition(":")
+                label = label.strip()
+                db_id = db_id.strip()
+                if label in {"事务", "transaction"}:
+                    transaction = db_id
+                elif label in {"阅读", "reading"}:
+                    reading = db_id
                 else:
-                    self._last_apple_read_issue = None
-                if not events:
-                    logger.debug(f"{LOG_PREFIX} Apple Calendar 无事件，跳过同步")
-                    return
-                user_ids = await self._get_target_user_ids(include_known_users=True)
-                if not user_ids:
-                    logger.debug(
-                        f"{LOG_PREFIX} Apple Calendar 已读取 {len(events)} 个事件，但无可同步用户"
-                    )
-                    return
-                events_changed = False
-                for user_id in user_ids:
-                    stats = await self.store.sync_from_apple_calendar(
-                        user_id, events, allow_delete=not issues
-                    )
-                    logger.debug(
-                        f"{LOG_PREFIX} Apple→本地同步 user={user_id} "
-                        f"added={stats['added']} updated={stats['updated']} deleted={stats['deleted']}"
-                    )
-                    if stats.get("added", 0) > 0 or stats.get("updated", 0) > 0:
-                        events_changed = True
+                    unnamed.append(text)
+            else:
+                unnamed.append(text)
+        for db_id in unnamed:
+            if not transaction:
+                transaction = db_id
+            elif not reading:
+                reading = db_id
+        return transaction, reading
 
-                # 新增或改期事件时，触发一次即时扫描（30秒后；已有排队任务则不重复挂）
-                if events_changed and self.config.get("enable_schedule_reminder"):
-                    if self._delayed_task is None or self._delayed_task.done():
-                        self._delayed_task = asyncio.create_task(
-                            self._delayed_schedule_reminder_scan()
-                        )
-            except Exception as e:
-                logger.error(f"{LOG_PREFIX} Apple Calendar 同步失败: {e}")
-
-    async def _delayed_schedule_reminder_scan(self):
-        """延迟触发日程提醒扫描，用于 Apple 同步后补扫"""
-        await asyncio.sleep(30)
-        try:
-            await self._schedule_reminder_scan()
-        except Exception as e:
-            logger.warning(f"{LOG_PREFIX} 即时扫描失败: {e}")
-
-    async def _clear_expired_overrides(self):
-        for user_id in await self._get_target_user_ids(include_known_users=True):
-            await self.store.clear_expired_overrides(user_id)
-        logger.debug(f"{LOG_PREFIX} 已清理过期临时修改")
-
-    # ============ 消息处理入口 ============
-
-    @filter.event_message_type(filter.EventMessageType.PRIVATE_MESSAGE)
-    async def handle_private_message(self, event: Any):
-        """私聊消息入口：记录平台、会话与昵称，交给后续指令与提醒处理。"""
-        user_id = str(event.get_sender_id())
-        msg_text = event.message_str.strip()
-
-        # 记录平台用于后续发送（内存 + 持久化，重启后仍能精确推送）
-        platform_id = self.messaging._extract_platform_id_from_event(event)
-        if platform_id:
-            self.messaging.remember_user_platform(user_id, platform_id)
-            try:
-                await self.store.set_user_platform(user_id, platform_id)
-            except Exception as store_err:
-                logger.warning(
-                    f"{LOG_PREFIX} 持久化用户平台失败 user={user_id} err={store_err}"
-                )
-
-        if msg_text:
-            await self.store.add_conversation_message(user_id, "user", msg_text)
-
-        # 记录/更新用户昵称
-        sender_name = self._extract_sender_name(event)
-        if sender_name:
-            await self.store.set_user_nickname(user_id, sender_name)
-
-    async def terminate(self):
-        """插件卸载时清理定时任务与后台协程"""
-        self.timed_engine.shutdown()
-        # 取消仍在 sleep/执行的后台协程，避免卸载后继续回调 messaging
-        for task in (self._init_task, self._delayed_task):
-            if task is not None and not task.done():
-                task.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await task
-        if self.notion:
-            try:
-                await self.notion.close()
-            except Exception as e:
-                logger.warning(f"{LOG_PREFIX} 关闭 NotionClient 失败: {e}")
-        if self.apple_calendar:
-            try:
-                await self.apple_calendar.close()
-            except Exception as e:
-                logger.warning(f"{LOG_PREFIX} 关闭 AppleCalendar 失败: {e}")
+    def _build_apple(self) -> AppleCalendar | None:
+        if not self.settings.enable_apple_calendar_sync:
+            return None
+        has_account = bool(
+            self.settings.apple_username and self.settings.apple_app_password
+        )
+        if not has_account and not self.settings.webcal_urls:
+            self.logger.warning(
+                "Apple 日历同步已开启，但既没有账号凭据也没有 webcal 地址，已跳过"
+            )
+            return None
+        return AppleCalendar(
+            username=self.settings.apple_username or None,
+            app_password=self.settings.apple_app_password or None,
+            webcal_urls=list(self.settings.webcal_urls) or None,
+            calendar_id=self.settings.apple_calendar_id or None,
+            caldav_host=self.settings.apple_caldav_host or None,
+            timezone=self.settings.timezone,
+        )

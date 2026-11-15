@@ -6,8 +6,9 @@ Notion Client - 通过 Maton Gateway 异步获取未完成任务
 """
 
 import asyncio
+import logging
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, tzinfo
 from typing import Any
 
 import aiohttp
@@ -15,15 +16,21 @@ import aiohttp
 GATEWAY = "https://gateway.maton.ai/notion/v1"
 DEFAULT_TIMEOUT = 30
 MAX_RETRIES = 3
+logger = logging.getLogger("astrbot")
 
 
 class NotionClient:
     """通过 Maton Gateway 获取未完成任务（纯异步）"""
 
     def __init__(
-        self, api_key: str = "", transaction_db_id: str = "", reading_db_id: str = ""
+        self,
+        api_key: str = "",
+        transaction_db_id: str = "",
+        reading_db_id: str = "",
+        timezone: tzinfo | None = None,
     ):
         self._api_key = api_key
+        self._tz = timezone
         self._db_ids: dict[str, str] = {}
         if transaction_db_id:
             self._db_ids["事务"] = transaction_db_id
@@ -40,6 +47,9 @@ class NotionClient:
             "Notion-Version": "2022-06-28",
             "Content-Type": "application/json",
         }
+
+    def _now(self) -> datetime:
+        return datetime.now(self._tz) if self._tz else datetime.now()
 
     async def _get_http_session(self) -> aiohttp.ClientSession:
         if self._http_session is None or self._http_session.closed:
@@ -83,40 +93,45 @@ class NotionClient:
                 await asyncio.sleep(0.5 * (attempt + 1))
         return {"error": f"请求失败（已重试{retries}次）: {last_error}"}
 
+    def _local(self, value: str) -> datetime:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            return parsed
+        return parsed.astimezone(self._tz) if self._tz else parsed.astimezone()
+
     def _relevant(self, ddl: str | None) -> bool:
         if not ddl:
             return True
         try:
-            due = (
-                datetime.fromisoformat(ddl.replace("Z", "+00:00"))
-                .astimezone()
-                .replace(tzinfo=None)
-            )
-            # 已过期或 7 天内到期都视为相关（前一个条件蕴含于后者，合并即可）
-            return due <= datetime.now() + timedelta(days=7)
+            due = self._local(ddl)
+            now = self._now()
         except Exception:
             return True
+        if due.tzinfo is None and now.tzinfo is not None:
+            now = now.replace(tzinfo=None)
+        elif due.tzinfo is not None and now.tzinfo is None:
+            due = due.replace(tzinfo=None)
+        return due <= now + timedelta(days=7)
 
-    @staticmethod
-    def _parse_ddl_for_sort(ddl: str | None) -> datetime:
+    def _parse_ddl_for_sort(self, ddl: str | None) -> datetime:
         if not ddl:
             return datetime.max
         try:
-            # 统一转本地时区后排序，随后去掉 tzinfo，
-            # 避免混用 aware/naive datetime 触发比较异常。
-            return (
-                datetime.fromisoformat(ddl.replace("Z", "+00:00"))
-                .astimezone()
-                .replace(tzinfo=None)
-            )
+            return self._local(ddl)
         except Exception:
             return datetime.max
 
-    async def get_pending_transactions(self, use_cache: bool = True) -> list[dict]:
-        """获取所有未完成任务（带 5 分钟缓存）"""
+    async def get_pending_transactions(
+        self, use_cache: bool = True
+    ) -> list[dict] | None:
+        """获取所有未完成任务（带 5 分钟缓存）。
+
+        任一数据库查询失败时返回 ``None``，调用方可据此区分「读取失败」与
+        「确实没有待办」；失败结果不写缓存。
+        """
         if (
             use_cache
-            and self._pending_cache["data"]
+            and self._pending_cache["data"] is not None
             and (time.time() - self._pending_cache["timestamp"])
             < self._pending_cache["ttl"]
         ):
@@ -124,7 +139,10 @@ class NotionClient:
 
         results: list[dict] = []
         for db_name, db_id in self._db_ids.items():
-            results.extend(await self._query_db(db_id, db_name))
+            batch = await self._query_db(db_id, db_name)
+            if batch is None:
+                return None
+            results.extend(batch)
 
         results.sort(
             key=lambda x: (
@@ -137,7 +155,7 @@ class NotionClient:
         self._pending_cache = {"data": results, "timestamp": time.time(), "ttl": 300}
         return results
 
-    async def _query_db(self, db_id: str, db_name: str) -> list[dict]:
+    async def _query_db(self, db_id: str, db_name: str) -> list[dict] | None:
         results: list[dict] = []
         cursor = None
         while True:
@@ -146,7 +164,12 @@ class NotionClient:
                 body["start_cursor"] = cursor
             resp = await self._request("POST", f"databases/{db_id}/query", body)
             if "error" in resp:
-                break
+                logger.warning(
+                    "[ScheduleAssistant] Notion 查询失败 db=%s: %s",
+                    db_name,
+                    resp["error"],
+                )
+                return None
             for page in resp.get("results", []):
                 props = page.get("properties", {})
                 status = props.get("进度", {}).get("status", {}).get("name", "未开始")

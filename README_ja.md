@@ -2,199 +2,193 @@
 
 <div align="center">
 
-<h1><img src="https://raw.githubusercontent.com/OMSociety/astrbot_plugin_schedule_assistant/main/logo.png" width="192" alt="Schedule Assistant Logo"><br>Schedule Assistant — スケジュールリマインダー</h1>
+<h1><img src="https://raw.githubusercontent.com/OMSociety/astrbot_plugin_schedule_assistant/main/logo.png" width="192" alt="Schedule Assistant Logo"><br>Schedule Assistant スケジュールアシスタント</h1>
 
-**あなたの頼れるスケジュール執事** — 朝の配信 · 習慣リマインダー · LLM によるスケジュール管理 · Apple カレンダー双方向同期 · Notion ToDo 同期
+**あなたの頼れるスケジュール管理役** —— 朝のブリーフィング · 習慣リマインダー · LLM スケジュール管理 · Apple カレンダー双方向同期 · Notion ToDo 同期
 
-[![Version](https://img.shields.io/badge/version-1.3.1-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/OMSociety/astrbot_plugin_schedule_assistant)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/stargazers)
 [![Issues](https://img.shields.io/github/issues/OMSociety/astrbot_plugin_schedule_assistant)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/issues)
 
+[機能](#機能) • [動作の仕組み](#動作の仕組み) • [クイックスタート](#クイックスタート) • [設定項目](#設定項目) • [LLM ツール](#llm-ツール) • [変更履歴](CHANGELOG.md)
+
 </div>
 
-> 本プロジェクトは AI によって作成されました · プラグインのロゴは Pixiv Pid: [130776279](https://www.pixiv.net/artworks/130776279) から
+> 本プロジェクトは AI が執筆 · ロゴは Pixiv Pid: [130776279](https://www.pixiv.net/artworks/130776279)
 
 ---
 
-## 主な機能
+## 機能
 
 | 機能 | 説明 |
 |------|------|
-| **毎日の朝の配信** | 天気 + 今日の予定 + Notion ToDo + 夜更かし検出。起床に必要な情報を 1 通のメッセージで |
-| **スマートな習慣リマインダー** | 入浴 / 睡眠 / 水分補給の定時リマインダー。通知時刻は設定で変更可能 |
-| **LLM によるスケジュール管理** | 話すだけで予定を管理：追加 / 削除 / 照会 / 変更、自然言語での日時解析 |
-| **Apple カレンダー双方向同期** | iCloud CalDAV の読み書き、自動的な重複排除と増分更新 |
-| **Notion ToDo 同期** | 朝の配信で DDL カウントダウン（残り N 日 / 今日が締め切り / 期限超過） |
-| **マルチプラットフォーム Markdown レンダリング** | QQ 公式はネイティブテーブル対応、Onebot などのプラットフォームは自動的にプレーンテキストへフォールバック |
+| **フレームワーク任せの配信** | リマインダー本文は AstrBot のメイン Agent が対象セッションの人格と履歴で生成し、`send_message_to_user` で送信します。プレーンテキストのみ |
+| **毎日の朝ブリーフィング** | 天気 + 今後 24 時間の予定（ローカルと Apple）+ Notion ToDo を 1 通にまとめます |
+| **習慣リマインダー** | 入浴・就寝・水分補給の時刻を設定できます |
+| **予定リマインダー** | 予定開始の N 分前に、予定のメモを踏まえて通知します |
+| **LLM スケジュール管理** | 追加・削除・一覧・変更を自然言語で操作できます |
+| **Apple カレンダー双方向同期** | iCloud CalDAV の読み書き、重複排除と差分更新に対応 |
+| **Notion ToDo 同期** | 朝のブリーフィングに期限カウント（残り N 日 / 今日締切 / 期限超過）を表示 |
 
 ---
 
-## 機能概要
+## 動作の仕組み
 
-### 毎日の朝の配信
-毎朝自動で配信（時刻は設定可能）。起床に必要な情報を 1 通のメッセージで届けます：
+リマインダーは AstrBot の主動 Agent 機構で配信されます。プラグインは時刻に合わせてデータとタスク説明を組み立て、フレームワークの `active job` に渡すだけです。フレームワークが対象セッションのメイン Agent を起動し、そのセッションの人格と履歴で本文を生成して `send_message_to_user` で送信します。
 
-<img src="https://raw.githubusercontent.com/OMSociety/astrbot_plugin_schedule_assistant/main/docs/briefing_example.png" alt="朝の配信の例" width="480" />
+したがって口調はボットに設定した人格に従います。プラグイン側に別の人設設定はありません。
+
+配信はすべてプレーンテキストです。配信に失敗した回はそのまま失われ、自動再試行や重複した追い送りは行いません。
+
+### 朝のブリーフィング
+
+設定した時刻に毎朝配信します。
+
+- 現在の天気と予報
+- 配信時刻から 24 時間以内のローカル予定と Apple 予定（統合・重複排除）
+- Notion ToDo と期限カウント
+- 終日予定はブリーフィング当日のみ集計
+
+内蔵プロンプトは本文を 120 字以内に抑えます。カスタムプロンプトを入力すると、執筆要件と出力要件の両方を置き換えます。
 
 ### 習慣リマインダー
 
-| 習慣 | デフォルト時刻 | 説明 |
-|------|---------|------|
-| 入浴リマインダー | 22:00 | 通知時刻は設定で変更可能 |
-| 睡眠リマインダー | 23:00 | スマートな就寝促し、遅いとツッコミ入り |
-| 水分補給リマインダー | 90 分ごと | 9:30–21:30 の時間帯で繰り返し通知 |
-| 予定のスマートリマインダー | N 分前 | **LLM が生成**する自然言語リマインダー、文脈を考慮 |
+| 習慣 | 既定時刻 | 説明 |
+|------|----------|------|
+| 入浴 | 22:00 | 変更可能 |
+| 就寝 | 23:00 | 変更可能 |
+| 水分補給 | 90 分ごと | 09:30–21:30 の範囲 |
+| 予定リマインダー | N 分前 | 既定では無効 |
 
 ### Apple iCloud カレンダー双方向同期
 
-**読み取り（Apple → ローカル）**：
-- iCloud カレンダーの予定を定期的にローカルストレージへ取得
-- 追加 / 変更 / 削除を自動同期。Apple カレンダーを正とする
+**読み取り（Apple → ローカル）**
+- 定期的に iCloud の予定をローカルへ取り込みます
+- 追加・変更・削除を Apple カレンダー基準で同期します
 
-**書き込み（ローカル → Apple）**：
-- ボットで追加した予定を指定の Apple カレンダーへ自動書き込み
-- 予定の UID を記録し、以後の同期識別と重複排除に対応
+**書き込み（ローカル → Apple）**
+- ボット経由で作成した予定を指定カレンダーへ書き込みます
+- イベント UID を保存し、以後の照合と重複排除に使います
 
-**接続に必要なもの**：
-- `username` — Apple ID のメールアドレス（例：`xxx@icloud.com`）
-- `app_password` — **アプリ専用パスワード**（[appleid.apple.com](https://appleid.apple.com) で生成します。ログインパスワードではありません）
-- `calendar_id` — 対象カレンダーの UUID。空欄なら先頭のカレンダー。入力できる値は、カレンダー検出時にログへ一度だけ出力される一覧（`名前 → UUID`）で確認できます。CalDAV アドレス `…/calendars/<UUID>/` から UUID 部分を取得することもできます
-- `caldav_host` — CalDAV サーバーのアドレス。空欄なら `caldav.icloud.com`。中国本土のアカウントで認証を拒否された場合は `caldav.icloud.com.cn`、それでも通らない場合は iCloud ウェブ版カレンダーの共有リンクにある自分のホスト（例：`pXX-caldav.icloud.com.cn`）を入力します
+**必要な項目**
+- `username` — Apple ID のメールアドレス
+- `app_password` — [appleid.apple.com](https://appleid.apple.com) で発行する **App 用パスワード**（ログインパスワードではありません）
+- `calendar_id` — 対象カレンダーの UUID。空なら先頭。ログの `名前 → UUID` 一覧か `.../calendars/<UUID>/` から取得できます
+- `caldav_host` — CalDAV ホスト。既定は `caldav.icloud.com`。中国本土のアカウントは `caldav.icloud.com.cn`、それでも通らない場合は `pXX-caldav.icloud.com.cn` のような分割ホストを指定します
 
 ### Notion ToDo 同期
-Notion のタスクは毎朝の配信で DDL カウントダウン付き（残り N 日 / 今日が締め切り / 期限超過）で一覧表示されます。事前に Maton Gateway を中継層として設定する必要があります。
 
-### Markdown レンダリング
-すべての定時配信（朝の配信 / 習慣 / 予定リマインダー）は統一レンダリングパイプラインを通り、プラットフォームに応じて自動的にフォールバックします：
-- **native** — md をネイティブ解析するプラットフォーム（qq_official、discord、telegram など）には原文のまま送信
-- **plain** — ネイティブ md 非対応のプラットフォームは自動的に strip され、プレーンテキストになります
-
-QQ のネイティブテーブルは整列された行として自動レンダリングされ、追加設定は不要です。設定で無効化や強制切り替えも可能です。
+Notion の ToDo は朝のブリーフィングに期限カウント付きで表示されます。Maton Gateway 経由で接続します。
 
 ---
 
 ## クイックスタート
 
-### ステップ 1：Schedule Assistant のインストール
+### 1. インストール
 
 AstrBot WebUI → プラグインマーケット → `schedule_assistant` を検索
 
-> **ヒント**：依存関係はプラグインの `requirements.txt`（`apscheduler` / `aiohttp` / `python-dateutil`）に記載されています。AstrBot がプラグインの読み込み・インストール時に不足分を自動で確認して導入するため、通常は手動インストール不要です。
+> **ヒント：** 依存関係は `requirements.txt`（`aiohttp`、`python-dateutil`）にあります。AstrBot はプラグイン読み込み時に不足分を確認して導入します。
 
-### ステップ 2：最小構成（すべての定時リマインダーを動かす）
+### 2. セッション一覧を設定
 
-WebUI のプラグイン設定 → **基本設定** → `user_ids` に 1 行入力するだけです：
+通知を受け取るセッション（私信またはグループ）で `/sid` を送り、返ってきた UMO を控えます。次に WebUI のプラグイン設定 → **基本設定** → `user_umos` に 1 行ずつ入力します。
 
 ```
-プラットフォームID:FriendMessage:ユーザーID
+qq:FriendMessage:123456789
+qq:GroupMessage:987654321
 ```
 
-`プラットフォーム ID:セッションタイプ:ユーザー ID`（UMO 形式）の 1 行で「誰にリマインドするか + どのプラットフォームから送るか」を解決します。QQ 番号だけの入力も可能で、自動的に個人チャットとして送信されます。
+`platform:message_type:session`（UMO 形式）。形式が不正な項目は起動時に 1 回警告してスキップします。
 
-### ステップ 3（任意）：Notion 同期の設定
+グループは独立したユーザーとして扱われ、メンバーは 1 つの予定リストを共有します。おはよう・入浴・就寝・水分の配信もグループへ送られるため、メンバーが承知していることを確認してください。
 
-1. [Maton](https://www.maton.ai/) で Notion を接続（OAuth2 方式）し、**Maton API Key** を生成
-2. プラグイン設定 → **外部サービス** に `maton_api_key` を入力し、`notion_db_ids` で読み取るデータベースを指定（例：`仕事:xxx`、`読書:yyy`）
+### 3. 任意：Notion
 
-> **注意**：Notion ToDo はサードパーティのゲートウェイ `gateway.maton.ai` 経由で取得します（Notion 公式 API への直接接続ではありません）：`maton_api_key` はリクエストヘッダーとしてこのサードパーティに送信され、指定したデータベースのタイトル・ステータス・期限などのフィールドを読み取ることができます。
+1. [Maton](https://www.maton.ai/) で Notion を接続（OAuth2）し、**Maton API Key** を発行
+2. **外部サービス** の `maton_api_key` に入力し、`notion_db_ids` にデータベースを指定（例：`Tasks:xxx`、`Reading:yyy`）
+
+> **注意：** Notion のデータは公式 API ではなく第三者ゲートウェイ `gateway.maton.ai` を経由します。`maton_api_key` は同ゲートウェイへ送信され、指定したデータベースのタイトル・ステータス・期限などを読み取ります。
 
 ---
 
-## 設定項目の説明
+## 設定項目
 
 ### 基本設定
 
-| 設定項目 | 型 | デフォルト | 説明 |
-|--------|------|------|------|
-| `persona_id` | string | `""` | LLM パーソナ ID（設定ファイルの `persona_id` に対応）。空欄ならセッションから自動取得 |
-| `user_nickname` | string | `""` | ユーザーのニックネーム。空欄の場合、配信では「主人」と呼びかけます |
-| `user_ids` | list | `[]` | 自動リマインダーを受け取るユーザー ID のリスト（QQ 番号またはプラットフォーム UID）。UMO 形式（`プラットフォーム ID:セッションタイプ:ユーザー ID`）で入力すればプラットフォームルーティングも同時に設定できます |
+| 項目 | 型 | 既定値 | 説明 |
+|------|----|--------|------|
+| `user_umos` | list | `[]` | 配信先セッションの UMO 一覧。1 行に 1 件の `platform:message_type:session` |
 
-### 予定リマインダー設定
+### 予定リマインダー
 
-| 設定項目 | 型 | デフォルト | 説明 |
-|--------|------|------|------|
-| `enable_schedule_reminder` | bool | `false` | 予定の LLM スマートリマインダーのスイッチ（デフォルトはオフ） |
-| `schedule_reminder_minutes` | int | `10` | 予定開始の何分前にリマインドするか（終日の予定は対象外） |
-| `schedule_reminder_check_interval` | int | `5` | 予定リマインダーのスキャン間隔（分）。リードタイムの 1/3〜1/2 を推奨（例：10 分前なら 3〜5 分間隔）、最小値は 2 分で、事前通知の分数以下にしてください |
+| 項目 | 型 | 既定値 | 説明 |
+|------|----|--------|------|
+| `enable_schedule_reminder` | bool | `false` | 予定リマインダーの有効化 |
+| `schedule_reminder_minutes` | int | `10` | 何分前に通知するか。終日予定は対象外 |
 
-### 習慣リマインダー設定
+### 習慣リマインダー
 
-| 設定項目 | 型 | デフォルト | 説明 |
-|--------|------|------|------|
-| `enable_morning_report` | bool | `true` | 朝の配信のスイッチ |
-| `morning_report_time` | string | `09:00` | 朝の配信の送信時刻（HH:MM） |
-| `enable_bath_reminder` | bool | `true` | 入浴リマインダーのスイッチ |
-| `bath_time` | string | `22:00` | 入浴リマインダーの時刻 |
-| `enable_sleep_reminder` | bool | `true` | 睡眠リマインダーのスイッチ |
-| `sleep_time` | string | `23:00` | 睡眠リマインダーの時刻 |
-| `enable_water_reminder` | bool | `true` | 水分補給リマインダーのスイッチ |
-| `water_interval` | int | `90` | 水分補給の間隔（分） |
-| `water_start_time` | string | `09:30` | 水分補給の開始時刻 |
-| `water_end_time` | string | `21:30` | 水分補給の終了時刻 |
+| 項目 | 型 | 既定値 | 説明 |
+|------|----|--------|------|
+| `enable_morning_report` | bool | `true` | 朝ブリーフィングの有効化 |
+| `morning_report_time` | string | `09:00` | 配信時刻（HH:MM） |
+| `enable_bath_reminder` | bool | `true` | 入浴リマインダー |
+| `bath_time` | string | `22:00` | 入浴時刻 |
+| `enable_sleep_reminder` | bool | `true` | 就寝リマインダー |
+| `sleep_time` | string | `23:00` | 就寝時刻 |
+| `enable_water_reminder` | bool | `true` | 水分補給リマインダー |
+| `water_interval` | int | `90` | 間隔（分） |
+| `water_start_time` | string | `09:30` | 開始時刻 |
+| `water_end_time` | string | `21:30` | 終了時刻 |
 
-### カレンダー同期設定
+### カレンダー同期
 
-| 設定項目 | 型 | デフォルト | 説明 |
-|--------|------|------|------|
-| `enable_apple_calendar_sync` | bool | `false` | Apple カレンダー双方向同期のスイッチ |
-| `apple_calendar_sync_interval` | int | `30` | Apple カレンダーの同期間隔（分） |
+| 項目 | 型 | 既定値 | 説明 |
+|------|----|--------|------|
+| `enable_apple_calendar_sync` | bool | `false` | 双方向同期の有効化 |
+| `apple_calendar_sync_interval` | int | `30` | 同期間隔（分） |
 | `apple_calendar.username` | string | - | Apple ID のメールアドレス |
-| `apple_calendar.app_password` | string | - | **アプリ専用パスワード**（ログインパスワードではありません） |
-| `apple_calendar.caldav_host` | string | - | CalDAV サーバーのアドレス。空欄なら `caldav.icloud.com`。中国本土のアカウントは `caldav.icloud.com.cn` や分区ホスト `pXX-caldav.icloud.com.cn` を利用できます |
-| `apple_calendar.calendar_id` | string | - | 対象カレンダーの UUID。空欄なら先頭。入力できる値はログのカレンダー一覧（`名前 → UUID`）で確認できます |
-| `webcal_urls` | list | `[]` | WebCal 共有カレンダーのリンク |
+| `apple_calendar.app_password` | string | - | App 用パスワード |
+| `apple_calendar.caldav_host` | string | - | CalDAV ホスト |
+| `apple_calendar.calendar_id` | string | - | 対象カレンダーの UUID |
+| `webcal_urls` | list | `[]` | WebCal 購読 URL |
 
-> **WebCal 購読のセキュリティ**：`webcal_urls` は公開の `https://` 購読アドレスのみを受け付けます（`webcal://` は自動的に `https://` に変換）。プラグインは `localhost`、内部ネットワーク（`192.168.x` / `10.x` など）、クラウドメタデータ（`169.254.169.254`）などのアドレスを拒否します（SSRF 対策）。内部ネットワークやローカルのアドレスは入力しないでください。
+> **WebCal の安全性：** `webcal_urls` は公開 `https://` のみ受け付けます（`webcal://` は変換）。SSRF 対策として `localhost`、プライベート網、クラウドメタデータ（`169.254.169.254`）は拒否します。
 
-> 書き込みはトップレベルの `enable_apple_calendar_sync` で一括制御されます。有効にすると、ローカルで作成 / 削除した予定が Apple カレンダーへ自動同期されます。
+### 外部サービス
 
-### 外部サービス設定
+| 項目 | 型 | 既定値 | 説明 |
+|------|----|--------|------|
+| `maton_api_key` | string | `""` | Maton API Key（Notion に必要） |
+| `notion_db_ids` | list | `[]` | `Task:xxx`、`Reading:yyy` 形式 |
+| `weather_api_key` | string | `""` | Seniverse API Key |
+| `weather_city` | string | `Beijing` | 天気の都市 |
 
-| 設定項目 | 型 | デフォルト | 説明 |
-|--------|------|------|------|
-| `maton_api_key` | string | `""` | Maton API Key（Notion 機能に必須） |
-| `notion_db_ids` | list | `[]` | Notion データベース ID のリスト。形式：`["仕事:xxx", "読書:yyy"]` — 接頭辞は任意のカテゴリ名で構いません |
-| `weather_api_key` | string | `""` | Seniverse の API キー（[seniverse.com](https://seniverse.com)） |
-| `weather_city` | string | `北京` | 天気を取得する都市（デフォルト：北京） |
+### リマインダーのプロンプト
 
-### メッセージレンダリング設定
+| 項目 | 型 | 既定値 | 説明 |
+|------|----|--------|------|
+| `prompt_morning` | string | `""` | 朝のプロンプト。プレースホルダー：`{date} {weekday} {weather_current} {weather_forecast} {agenda} {notion_todos}` |
+| `prompt_bath` | string | `""` | 入浴。`{current_time} {default_time}` |
+| `prompt_sleep` | string | `""` | 就寝。`{current_time} {default_time}` |
+| `prompt_water` | string | `""` | 水分補給。`{current_time}` |
+| `prompt_schedule` | string | `""` | 予定。`{item_title} {time_label} {ahead_label} {item_context}` |
 
-| 設定項目 | 型 | デフォルト | 説明 |
-|--------|------|------|------|
-| `markdown_enabled` | bool | `true` | グローバルの Markdown レンダリングスイッチ。オフにするとプレーンテキストへフォールバック |
-| `markdown_native_platforms` | list | `[]` | Markdown をネイティブ解析するプラットフォーム型名の追加（インスタンス ID は無効） |
-| `qq_markdown_enabled` | bool | `true` | QQ プラットフォームのスイッチ：`true` で QQ はネイティブ md を直送。`false` で強制オフ |
+> 空欄なら内蔵プロンプト（データ部・執筆要件・出力要件）を使います。入力した場合はすべて置き換わり、プラグインは追加の制約を付けません。配信はプレーンテキストなので、「本文のみ、システムに触れない」などの指示は自分で書いてください。
 
-### リマインダー Prompt テンプレート
-
-| 設定項目 | 型 | デフォルト | 説明 |
-|--------|------|------|------|
-| `prompt_morning` | string | `""` | 朝の配信テンプレート。プレースホルダー：`{username} {date} {weekday} {weather_current} {weather_forecast} {agenda} {notion_todos} {late_night}` |
-| `prompt_bath` | string | `""` | 入浴リマインダーテンプレート。プレースホルダー：`{current_time} {default_time} {history}` |
-| `prompt_sleep` | string | `""` | 睡眠リマインダーテンプレート。プレースホルダー：`{current_time} {default_time} {is_late} {history}` |
-| `prompt_water` | string | `""` | 水分補給リマインダーテンプレート。プレースホルダー：`{current_time} {history}` |
-| `prompt_schedule` | string | `""` | 予定リマインダーテンプレート。プレースホルダー：`{item_title} {time_label} {ahead_label} {item_context} {conv_history}` |
-
-> テンプレートを空欄にすると内蔵のデフォルト（`prompt_config.py` 参照）が使われます。リマインダーの口調をカスタマイズしたい場合に入力してください。`{変数名}` 形式のプレースホルダーに対応しています。
-
-### クイック設定テンプレート
-
-WebUI の設定パネルで入力するか、以下の構造を参考にしてください（`data/config/schedule_assistant_config.json`）：
+### 設定例
 
 ```json
 {
   "basic_settings": {
-    "persona_id": "",
-    "user_nickname": "",
-    "user_ids": ["プラットフォームID:FriendMessage:ユーザーID"]
+    "user_umos": ["qq:FriendMessage:123456789", "qq:GroupMessage:987654321"]
   },
   "schedule_reminder_settings": {
     "enable_schedule_reminder": false,
-    "schedule_reminder_minutes": 10,
-    "schedule_reminder_check_interval": 5
+    "schedule_reminder_minutes": 10
   },
   "habit_reminder_settings": {
     "enable_morning_report": true,
@@ -223,12 +217,7 @@ WebUI の設定パネルで入力するか、以下の構造を参考にして�
     "maton_api_key": "",
     "notion_db_ids": [],
     "weather_api_key": "",
-    "weather_city": "北京"
-  },
-  "message_render_settings": {
-    "markdown_enabled": true,
-    "markdown_native_platforms": [],
-    "qq_markdown_enabled": true
+    "weather_city": "Beijing"
   },
   "prompt_settings": {
     "prompt_morning": "",
@@ -242,91 +231,75 @@ WebUI の設定パネルで入力するか、以下の構造を参考にして�
 
 ---
 
-## LLM が呼び出せるツール
+## LLM ツール
 
-プラグインは 4 つの LLM ツールを登録しており、モデルが呼び出しタイミングを自動判断します。自然言語で要件を言うだけです：
+プラグインは 4 つの LLM ツールを登録します。呼び出しはモデルが判断するので、自然言語で依頼するだけです。
 
-> **時刻の書式**：数字 / ISO 形式（「2024-01-15 14:30」「2024-01-15 09:00-11:00」「2024-01-16」）または中国語の自然言語（「明天9点」「明天9点到11点」「明天全天」）。日付のみは終日として扱われます。
+> **時刻の書き方：** ISO / 数値（`2024-01-15 14:30`、`2024-01-15 09:00-11:00`、`2024-01-16`）または中国語の言い方（明天9点 = 明日 9 時、明天9点到11点 = 明日 9〜11 時、明天全天 = 明日終日）。日付だけなら終日です。
 
 ```
-ユーザー: 明日の朝 9 時にチーム定例を入れて
-🤖 → create_schedule(title=チーム定例, datetime_str=2024-01-15 09:00)
-    予定「チーム定例」を作成しました。時間：01-15 09:00 ✅
+ユーザー: 明日9時に会議を追加して
+-> create_schedule(title=会議, datetime_str=明天9点)
+   予定「会議」を作成しました。時刻：08-17 09:00 ✅
 
-ユーザー: 2024-01-15 の 9:00〜11:00 でチーム定例
-🤖 → create_schedule(title=チーム定例, datetime_str=2024-01-15 09:00-11:00)
-    予定「チーム定例」を作成しました。時間：01-15 09:00-11:00 ✅
+ユーザー: 今週の予定は
+-> list_schedules(days=7)
+   📋 今後7日間の予定（3 件）：
 
-ユーザー: 2024-01-16 は終日、チームビルディング
-🤖 → create_schedule(title=チームビルディング, datetime_str=2024-01-16)
-    予定「チームビルディング」を作成しました。時間：01-16 終日 ✅
-
-ユーザー: 午後 3 時の会議を 4 時に変更して
-🤖 → update_schedule(title_keyword=会議, new_datetime=2024-01-15 16:00)
-    予定を変更しました：時間を 16:00 に変更 ✅
-
-ユーザー: 今週の予定を教えて
-🤖 → list_schedules(days=7)
-    📋 今後 7 日間の予定（全 3 件）：
-    ━━━ 08-17 月 ━━━
-      ⏰ 09:00 │ チーム定例
-      ...
+   ━━━ 08-17 月 ━━━
+     ⏰ 09:00 │ 会議
 
 ユーザー: 明日の読書会を削除して
-🤖 → delete_schedule(title_keyword=読書会)
-    予定「読書会」を削除しました ✅
+-> delete_schedule(title_keyword=読書会)
+   予定「読書会」を削除しました ✅
 ```
 
 ### create_schedule
-新しい予定を作成します。
 
-| パラメーター | 型 | 説明 |
-|------|------|------|
-| `title` | string | **必須**。予定のタイトル / 内容 |
-| `datetime_str` | string | **必須**。数字 / ISO（「2024-01-15 14:30」「2024-01-15 09:00-11:00」）または中国語の自然言語（「明天9点」「明天9点到11点」「明天全天」）。日付のみは終日 |
-| `end_datetime_str` | string? | 任意。時間帯の終了時刻（例：「11 時」）。指定しない場合は単一時刻（Apple カレンダーは開始から 1 時間） |
-| `description` | string? | 任意のメモ |
+| 引数 | 型 | 説明 |
+|------|----|------|
+| `title` | string | **必須**、予定のタイトル |
+| `datetime_str` | string | **必須**、ISO / 数値または自然言語。日付だけなら終日 |
+| `end_datetime_str` | string? | 範囲の終了時刻（例 `11点`）。省略時は単一時刻（Apple は 1 時間） |
+| `description` | string? | メモ |
 
 ### delete_schedule
-予定を削除します。ID での完全一致またはタイトルキーワードでの部分一致に対応しています。
 
-| パラメーター | 型 | 説明 |
-|------|------|------|
+| 引数 | 型 | 説明 |
+|------|----|------|
 | `schedule_id` | string? | 予定 ID（完全一致） |
-| `title_keyword` | string? | タイトルのキーワード（部分一致、例：「会議」「定例」） |
+| `title_keyword` | string? | タイトル語（部分一致） |
 
 ### list_schedules
-予定の一覧を表示します。
 
-| パラメーター | 型 | 説明 |
-|------|------|------|
-| `days` | int? | 直近何日分の予定を表示するか。デフォルトは 7 日 |
+| 引数 | 型 | 説明 |
+|------|----|------|
+| `days` | int? | 何日先までか。既定 7 |
 
 ### update_schedule
-予定を変更します。タイトル、日時、メモを単独または組み合わせで更新できます。
 
-| パラメーター | 型 | 説明 |
-|------|------|------|
+| 引数 | 型 | 説明 |
+|------|----|------|
 | `schedule_id` | string? | 予定 ID（完全一致） |
-| `title_keyword` | string? | タイトルのキーワード（部分一致） |
+| `title_keyword` | string? | タイトル語（部分一致） |
 | `new_title` | string? | 新しいタイトル |
-| `new_datetime` | string? | 新しい日時。書式は `datetime_str` と同じ |
-| `new_end_datetime` | string? | 時間帯の新しい終了時刻（例：「11 時」）。`new_datetime` と一緒に指定 |
+| `new_datetime` | string? | 新しい時刻。書き方は `datetime_str` と同じ |
+| `new_end_datetime` | string? | 新しい終了時刻。`new_datetime` と併用 |
 | `new_description` | string? | 新しいメモ |
 
-## 更新履歴
+## 変更履歴
 
-> **[更新履歴の全文を見る →](CHANGELOG.md)**
+> **[変更履歴を見る →](CHANGELOG.md)**
 
-## 応援と謝辞
+## サポート
 
-このプラグインが役に立ったら、Star をいただけると嬉しいです。質問や提案は [Issue](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/issues) または [Pull Request](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/pulls) へどうぞ。
+役に立ったら Star をお願いします。Issue と Pull Request も歓迎です。
 
-- [AstrBot](https://github.com/AstrBotDevs/AstrBot) オープンソースのチャットボットフレームワーク
-- プラグインのロゴは Pixiv Pid: [130776279](https://www.pixiv.net/artworks/130776279) から
+- [AstrBot](https://github.com/AstrBotDevs/AstrBot)
+- ロゴは Pixiv Pid: [130776279](https://www.pixiv.net/artworks/130776279)
 
-## ライセンスと作者
+## ライセンス
 
-このプロジェクトは **MIT License** で公開されています。
+MIT License。
 
 [@OMSociety](https://github.com/OMSociety)
