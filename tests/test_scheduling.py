@@ -1,7 +1,6 @@
 """调度核心逻辑测试：任务登记、去重、喝水时刻、启动清理。"""
 
 import asyncio
-import logging
 from datetime import datetime, time, timedelta
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
@@ -57,9 +56,7 @@ class FakeStore:
 def _make(items=None, jobs=None, **overrides):
     cron = FakeCron(jobs)
     settings = Settings(timezone=TZ, **overrides)
-    plugin = SimpleNamespace(
-        context=SimpleNamespace(cron_manager=cron), logger=logging.getLogger("test")
-    )
+    plugin = SimpleNamespace(context=SimpleNamespace(cron_manager=cron))
     scheduling = Scheduling(plugin, FakeStore(items), settings, None, None)
     return scheduling, cron
 

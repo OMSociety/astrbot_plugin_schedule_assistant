@@ -10,6 +10,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-11-16
+
+### 修复
+
+- 日志记录器统一改为 `from astrbot.api import logger`，移除各模块自行创建的 `logging.getLogger("astrbot")`，符合插件市场上架规范。
+
+### Fixed
+
+- Logger instances now come from `from astrbot.api import logger`; per-module `logging.getLogger("astrbot")` calls are removed to meet the plugin market requirements.
+
 ## [2.0.0] - 2026-11-15
 
 ### 新增

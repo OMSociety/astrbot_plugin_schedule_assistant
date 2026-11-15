@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import logging
 from datetime import datetime, timedelta
+
+from astrbot.api import logger
 
 from . import notices
 from .schedule_store import ScheduleItem
 from .settings import Settings
-
-logger = logging.getLogger("astrbot")
 
 
 class MorningBriefing:

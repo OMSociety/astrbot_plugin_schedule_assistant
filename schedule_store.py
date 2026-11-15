@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, tzinfo
 from typing import Any
 from uuid import uuid4
 
+from astrbot.api import logger
+
 LOG_PREFIX = "[ScheduleAssistant]"
-logger = logging.getLogger("astrbot")
 
 
 @dataclass

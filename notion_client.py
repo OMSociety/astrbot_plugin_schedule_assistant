@@ -6,17 +6,17 @@ Notion Client - 通过 Maton Gateway 异步获取未完成任务
 """
 
 import asyncio
-import logging
 import time
 from datetime import datetime, timedelta, tzinfo
 from typing import Any
 
 import aiohttp
 
+from astrbot.api import logger
+
 GATEWAY = "https://gateway.maton.ai/notion/v1"
 DEFAULT_TIMEOUT = 30
 MAX_RETRIES = 3
-logger = logging.getLogger("astrbot")
 
 
 class NotionClient:

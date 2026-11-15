@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import logging
 from datetime import datetime
 
-from .settings import Settings
+from astrbot.api import logger
 
-logger = logging.getLogger("astrbot")
+from .settings import Settings
 
 
 class CalendarSync:

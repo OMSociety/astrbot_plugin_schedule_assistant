@@ -7,13 +7,12 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 from datetime import datetime, time as dt_time, timedelta
+
+from astrbot.api import logger
 
 from . import notices
 from .settings import JOB_PREFIX, Settings
-
-logger = logging.getLogger("astrbot")
 
 _DEFAULT_MORNING = "09:00"
 _DEFAULT_BATH = "22:00"
@@ -41,7 +40,7 @@ class Scheduling:
 
     def __init__(self, plugin, store, settings: Settings, briefing, calendar_sync):
         self.plugin = plugin
-        self.log = getattr(plugin, "logger", logger)
+        self.log = logger
         self.context = plugin.context
         self.store = store
         self.settings = settings
