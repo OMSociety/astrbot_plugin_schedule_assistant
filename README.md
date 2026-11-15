@@ -6,7 +6,7 @@
 
 **你的贴心日程管家** —— 早安播报 · 习惯提醒 · LLM 日程管理 · Apple 日历双向同步 · Notion 待办同步
 
-[![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
+[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/OMSociety/astrbot_plugin_schedule_assistant)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/stargazers)
@@ -28,7 +28,7 @@
 | **每日早安播报** | 天气 + 未来 24 小时日程（本地与 Apple）+ Notion 待办，一条消息搞定起床信息 |
 | **智能习惯提醒** | 洗澡 / 睡觉 / 喝水定时提醒，时间与开关可配置 |
 | **日程智能提醒** | 日程开始前 N 分钟推送，结合日程备注生成自然语言提醒 |
-| **LLM 日程管理** | 动嘴管日程：新增 / 删除 / 查询 / 修改，自然语言时间解析 |
+| **LLM 日程管理** | 动嘴管日程：新增 / 删除 / 查询 / 修改；模型把口语时间转成 ISO 参数 |
 | **Apple 日历双向同步** | iCloud CalDAV 读取 + 写入，自动去重与增量更新 |
 | **Notion 待办同步** | 早安播报中附 DDL 倒计时（还剩 N 天 / 今天截止 / 已逾期） |
 
@@ -51,7 +51,7 @@
 - Notion 待办与 DDL 倒计时
 - 全天日程只统计播报当天
 
-内置提示词把正文控制在 120 字以内；自定义提示词会整段接管写作要求与输出要求。
+内置提示词只给出任务与数据，不设字数或输出约束；自定义提示词会整段接管内置模板。
 
 ### 习惯提醒
 
@@ -174,12 +174,12 @@ qq:GroupMessage:987654321
 | 配置项 | 类型 | 默认 | 说明 |
 |--------|------|------|------|
 | `prompt_morning` | string | `""` | 早安播报提示词。占位符：`{date} {weekday} {weather_current} {weather_forecast} {agenda} {notion_todos}` |
-| `prompt_bath` | string | `""` | 洗澡提醒提示词。占位符：`{current_time} {default_time}` |
-| `prompt_sleep` | string | `""` | 睡觉提醒提示词。占位符：`{current_time} {default_time}` |
+| `prompt_bath` | string | `""` | 洗澡提醒提示词。占位符：`{current_time}` |
+| `prompt_sleep` | string | `""` | 睡觉提醒提示词。占位符：`{current_time}` |
 | `prompt_water` | string | `""` | 喝水提醒提示词。占位符：`{current_time}` |
 | `prompt_schedule` | string | `""` | 日程提醒提示词。占位符：`{item_title} {time_label} {ahead_label} {item_context}` |
 
-> 留空时使用内置模板（内置模板含数据段、写作要求与输出要求）。填写后整段接管，插件不再追加任何写作或输出约束；纯文本推送，建议在自定义提示词里自行写明「只输出正文、不要提及系统」等要求。
+> 留空时使用内置模板（任务说明与数据）。填写后整段接管，插件不再追加任何约束；纯文本推送，可自行在提示词里写明表达要求。
 
 ### 快速配置模板
 
@@ -239,24 +239,24 @@ qq:GroupMessage:987654321
 
 插件注册 4 个 LLM 工具，模型会自动判断何时调用，你只需用自然语言说需求：
 
-> **时间写法：** 数字/ISO 格式（`2024-01-15 14:30`、`2024-01-15 09:00-11:00`、`2024-01-16`）或中文口语（「明天9点」「明天9点到11点」「明天全天」）；纯日期即全天。
+> **时间写法：** ISO 8601。带时间用 `2026-09-10 14:30`，全天用 `2026-09-10` 并置 `all_day=true`。开始时间不能早于当前时间，年份不能晚于 2100。
 
 ```
 用户: 帮我加个明天早上9点开组会的日程
--> create_schedule(title=组会, datetime_str=明天9点)
-   已创建日程「组会」，时间：08-17 09:00 ✅
+-> create_schedule(title=组会, start=2026-09-11 09:00)
+   已创建日程「组会」，时间：09-11 09:00 ✅
 
 用户: 明天9点到11点开组会
--> create_schedule(title=组会, datetime_str=明天9点到11点)
-   已创建日程「组会」，时间：08-17 09:00-11:00 ✅
+-> create_schedule(title=组会, start=2026-09-11 09:00, end=2026-09-11 11:00)
+   已创建日程「组会」，时间：09-11 09:00-11:00 ✅
 
 用户: 后天全天团建
--> create_schedule(title=团建, datetime_str=后天全天)
-   已创建日程「团建」，时间：08-18 全天 ✅
+-> create_schedule(title=团建, start=2026-09-12, all_day=true)
+   已创建日程「团建」，时间：09-12 全天 ✅
 
 用户: 把下午3点的会议改到4点
--> update_schedule(title_keyword=会议, new_datetime=下午4点)
-   已修改日程：时间改为下午4点 ✅
+-> update_schedule(title_keyword=会议, new_start=2026-09-11 16:00)
+   已修改日程：时间改为09-11 16:00 ✅
 
 用户: 看看这周有什么安排
 -> list_schedules(days=7)
@@ -276,8 +276,9 @@ qq:GroupMessage:987654321
 | 参数 | 类型 | 说明 |
 |------|------|------|
 | `title` | string | **必填**，日程标题/内容 |
-| `datetime_str` | string | **必填**，数字/ISO 时间（`2024-01-15 14:30`、`2024-01-15 09:00-11:00`）或中文口语（「明天9点」「明天9点到11点」「明天全天」）；纯日期即全天 |
-| `end_datetime_str` | string? | 可选，区间日程的结束时间（如「11点」）；不填为单时间点（Apple 日历按开始后 1 小时） |
+| `start` | string | **必填**，ISO 8601 开始时间（`2026-09-10 14:30`）；全天日程可直接给日期 `2026-09-10` |
+| `end` | string? | 可选，ISO 8601 结束时间；不填为单时间点（Apple 日历按开始后 1 小时） |
+| `all_day` | bool? | 是否全天日程 |
 | `description` | string? | 可选备注描述 |
 
 ### delete_schedule
@@ -303,8 +304,9 @@ qq:GroupMessage:987654321
 | `schedule_id` | string? | 日程 ID（精确匹配） |
 | `title_keyword` | string? | 标题关键词（模糊匹配） |
 | `new_title` | string? | 新标题 |
-| `new_datetime` | string? | 新时间，写法同 `datetime_str` |
-| `new_end_datetime` | string? | 区间日程的新结束时间（如「11点」），需与 `new_datetime` 一起给 |
+| `new_start` | string? | 新开始时间（ISO 8601） |
+| `new_end` | string? | 新结束时间（ISO 8601），需与 `new_start` 一起给 |
+| `new_all_day` | bool? | 是否改为全天日程 |
 | `new_description` | string? | 新备注 |
 
 ## 更新日志

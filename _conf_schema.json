@@ -188,7 +188,7 @@
  "prompt_settings": {
   "description": "提醒 Prompt 模板",
   "type": "object",
-  "hint": "留空使用内置模板；填写后整段替换内置模板（写作要求与输出要求都由你决定）。",
+  "hint": "留空使用内置模板；填写后整段替换内置模板，插件不再追加约束。",
   "items": {
    "prompt_morning": {
     "type": "string",

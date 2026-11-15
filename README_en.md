@@ -6,7 +6,7 @@
 
 **Your considerate schedule keeper** — morning briefing · habit reminders · LLM schedule management · two-way Apple Calendar sync · Notion to-dos
 
-[![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
+[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/OMSociety/astrbot_plugin_schedule_assistant)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/stargazers)
@@ -51,7 +51,7 @@ Pushed every morning at a configurable time:
 - Notion to-dos with DDL countdown
 - All-day schedules count only on the day of the briefing
 
-The built-in prompt keeps the body under 120 characters. A custom prompt takes over both the writing and output requirements.
+The built-in prompts are short task instructions with data; a custom prompt replaces the whole built-in template.
 
 ### Habit reminders
 
@@ -172,8 +172,8 @@ A group is treated as an independent user: members share one schedule list, and 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `prompt_morning` | string | `""` | Morning prompt. Placeholders: `{date} {weekday} {weather_current} {weather_forecast} {agenda} {notion_todos}` |
-| `prompt_bath` | string | `""` | Bath prompt. Placeholders: `{current_time} {default_time}` |
-| `prompt_sleep` | string | `""` | Sleep prompt. Placeholders: `{current_time} {default_time}` |
+| `prompt_bath` | string | `""` | Bath prompt. Placeholders: `{current_time}` |
+| `prompt_sleep` | string | `""` | Sleep prompt. Placeholders: `{current_time}` |
 | `prompt_water` | string | `""` | Water prompt. Placeholders: `{current_time}` |
 | `prompt_schedule` | string | `""` | Schedule prompt. Placeholders: `{item_title} {time_label} {ahead_label} {item_context}` |
 
@@ -235,16 +235,20 @@ A group is treated as an independent user: members share one schedule list, and 
 
 The plugin registers four LLM tools. The model decides when to call them; you just speak naturally.
 
-> **Time formats:** ISO / numeric (`2024-01-15 14:30`, `2024-01-15 09:00-11:00`, `2024-01-16`) or Chinese phrases such as 明天9点 (tomorrow at 9), 明天9点到11点 (tomorrow 9 to 11), 明天全天 (all day tomorrow). A bare date means all day.
+> **Time formats:** ISO 8601. Use `2026-09-10 14:30` for timed entries and `2026-09-10` with `all_day=true` for all-day entries. Start times cannot be in the past, and years cannot exceed 2100.
 
 ```
 User: add a team meeting tomorrow at 9
--> create_schedule(title=team meeting, datetime_str=明天9点)
-   Created "team meeting", time: 08-17 09:00 ✅
+-> create_schedule(title=team meeting, start=2026-09-11 09:00)
+   Created "team meeting", time: 09-11 09:00 ✅
 
 User: meeting from 9 to 11 tomorrow
--> create_schedule(title=meeting, datetime_str=明天9点到11点)
-   Created "meeting", time: 08-17 09:00-11:00 ✅
+-> create_schedule(title=meeting, start=2026-09-11 09:00, end=2026-09-11 11:00)
+   Created "meeting", time: 09-11 09:00-11:00 ✅
+
+User: all-day offsite the day after tomorrow
+-> create_schedule(title=offsite, start=2026-09-12, all_day=true)
+   Created "offsite", time: 09-12 all day ✅
 
 User: what's on this week
 -> list_schedules(days=7)
@@ -263,8 +267,9 @@ User: delete tomorrow's reading group
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `title` | string | **Required**, schedule title |
-| `datetime_str` | string | **Required**, ISO / numeric or natural-language time; a bare date means all day |
-| `end_datetime_str` | string? | Optional end time for a range (for example `11点`); omitted means a single point (Apple gets one hour) |
+| `start` | string | **Required**, ISO 8601 start time (`2026-09-10 14:30`); for all-day entries a date such as `2026-09-10` |
+| `end` | string? | Optional ISO 8601 end time; omitted means a single point (Apple gets one hour) |
+| `all_day` | bool? | Whether this is an all-day entry |
 | `description` | string? | Optional note |
 
 ### delete_schedule
@@ -287,8 +292,9 @@ User: delete tomorrow's reading group
 | `schedule_id` | string? | Exact schedule ID |
 | `title_keyword` | string? | Title keyword (fuzzy match) |
 | `new_title` | string? | New title |
-| `new_datetime` | string? | New time, same formats as `datetime_str` |
-| `new_end_datetime` | string? | New end time, requires `new_datetime` |
+| `new_start` | string? | New start time (ISO 8601) |
+| `new_end` | string? | New end time (ISO 8601), requires `new_start` |
+| `new_all_day` | bool? | Whether to make it an all-day entry |
 | `new_description` | string? | New note |
 
 ## Changelog

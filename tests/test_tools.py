@@ -68,9 +68,7 @@ def test_create_list_update_delete():
     create = CreateScheduleTool()
     create.inject(store, UMO, plugin)
     result = asyncio.run(
-        create.call(
-            context, title="组会", datetime_str=_tomorrow_at(9), description="带材料"
-        )
+        create.call(context, title="组会", start=_tomorrow_at(9), description="带材料")
     )
     assert "已创建日程「组会」" in result
     assert len(store.items[UMO]) == 1
@@ -89,7 +87,7 @@ def test_create_list_update_delete():
             context,
             schedule_id=item_id,
             new_title="组会（改）",
-            new_datetime=_tomorrow_at(10),
+            new_start=_tomorrow_at(10),
         )
     )
     assert "已修改日程" in result
@@ -103,6 +101,54 @@ def test_create_list_update_delete():
     assert store.items[UMO] == []
 
 
+def test_create_with_end_and_all_day():
+    store = FakeStore()
+    plugin, _ = _plugin(store)
+    context = _context()
+    create = CreateScheduleTool()
+    create.inject(store, UMO, plugin)
+
+    asyncio.run(
+        create.call(
+            context,
+            title="区间",
+            start=_tomorrow_at(9),
+            end=_tomorrow_at(11),
+        )
+    )
+    assert store.items[UMO][0].end_time is not None
+
+    asyncio.run(
+        create.call(context, title="全天", start=_tomorrow_at(9)[:10], all_day=True)
+    )
+    assert store.items[UMO][1].all_day is True
+    assert len(store.items[UMO][1].time) == 10
+
+
+def test_create_rejects_past_time():
+    store = FakeStore()
+    plugin, _ = _plugin(store)
+    create = CreateScheduleTool()
+    create.inject(store, UMO, plugin)
+
+    past = (datetime.now(TZ) - timedelta(days=1)).strftime("%Y-%m-%d %H:%M")
+    result = asyncio.run(create.call(_context(), title="旧事", start=past))
+
+    assert "不能早于当前时间" in result
+    assert store.items == {}
+
+
+def test_create_rejects_invalid_iso():
+    store = FakeStore()
+    plugin, _ = _plugin(store)
+    create = CreateScheduleTool()
+    create.inject(store, UMO, plugin)
+
+    result = asyncio.run(create.call(_context(), title="组会", start="明天9点"))
+
+    assert "格式无法解析" in result
+
+
 def test_tool_uses_session_umo_not_sender_id():
     store = FakeStore()
     plugin, _ = _plugin(store)
@@ -110,7 +156,7 @@ def test_tool_uses_session_umo_not_sender_id():
 
     create = CreateScheduleTool()
     create.inject(store, "qq:FriendMessage:other", plugin)
-    asyncio.run(create.call(context, title="群日程", datetime_str=_tomorrow_at(9)))
+    asyncio.run(create.call(context, title="群日程", start=_tomorrow_at(9)))
 
     assert "群日程" in [item.title for item in store.items[UMO]]
     assert "qq:FriendMessage:other" not in store.items
@@ -132,19 +178,6 @@ def test_delete_multiple_matches_returns_candidates():
     assert "找到多个匹配日程" in result
     assert "组会一" in result
     assert "组会二" in result
-
-
-def test_create_rejects_unparsable_time():
-    store = FakeStore()
-    plugin, _ = _plugin(store)
-
-    create = CreateScheduleTool()
-    create.inject(store, UMO, plugin)
-    result = asyncio.run(
-        create.call(_context(), title="组会", datetime_str="某个不确定的时候")
-    )
-
-    assert "时间格式无法解析" in result
 
 
 def test_list_reports_empty():

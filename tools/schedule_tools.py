@@ -12,16 +12,9 @@ from pydantic import Field
 from pydantic.dataclasses import dataclass
 
 from ..schedule_store import ScheduleItem
-from ..time_parser import (
-    format_item_when,
-    format_when_label,
-    is_all_day_event,
-    parse_item_time,
-    parse_range_end,
-    parse_schedule_time,
-)
 
 FALLBACK_ERROR = "操作失败，请稍后重试"
+MAX_YEAR = 2100
 
 
 def _now(plugin) -> datetime:
@@ -42,6 +35,68 @@ def _format_time(value: datetime, all_day: bool) -> str:
     return value.strftime("%Y-%m-%d") if all_day else value.strftime("%Y-%m-%d %H:%M")
 
 
+def _time_label(start: datetime, end: datetime | None, all_day: bool) -> str:
+    if all_day:
+        return f"{start:%m-%d} 全天"
+    if end is not None:
+        if end.date() == start.date():
+            return f"{start:%m-%d %H:%M}-{end:%H:%M}"
+        return f"{start:%m-%d %H:%M}-{end:%m-%d %H:%M}"
+    return f"{start:%m-%d %H:%M}"
+
+
+def _format_item_when(item: ScheduleItem) -> str:
+    try:
+        start = datetime.fromisoformat(item.time.replace(" ", "T"))
+    except (TypeError, ValueError):
+        return item.time or ""
+    if item.all_day:
+        return f"全天 {start:%m-%d}"
+    if item.end_time:
+        try:
+            end = datetime.fromisoformat(item.end_time.replace(" ", "T"))
+        except (TypeError, ValueError):
+            end = None
+        if end is not None:
+            if end.date() == start.date():
+                return f"⏰ {start:%H:%M}-{end:%H:%M}"
+            return f"⏰ {start:%m-%d %H:%M}-{end:%m-%d %H:%M}"
+    return f"⏰ {start:%H:%M}"
+
+
+def _parse_local(value: str, all_day: bool, timezone) -> datetime | None:
+    text = (value or "").strip()
+    if not text:
+        return None
+    if all_day:
+        text = text[:10]
+    try:
+        parsed = datetime.fromisoformat(text.replace(" ", "T"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is not None:
+        if timezone is not None:
+            parsed = parsed.astimezone(timezone)
+        parsed = parsed.replace(tzinfo=None)
+    return parsed
+
+
+def _parse_start(value: str, all_day: bool, timezone) -> datetime | None:
+    return _parse_local(value, all_day, timezone)
+
+
+def _parse_end(value: str, all_day: bool, timezone) -> datetime | None:
+    return _parse_local(value, all_day, timezone)
+
+
+def _validate_start(start: datetime, now: datetime) -> str | None:
+    if start < now - timedelta(minutes=1):
+        return "开始时间不能早于当前时间"
+    if start.year > MAX_YEAR:
+        return f"开始时间不能晚于 {MAX_YEAR} 年"
+    return None
+
+
 def _match_items(items, schedule_id: str, title_keyword: str):
     if schedule_id:
         return [item for item in items if item.id == schedule_id]
@@ -53,9 +108,7 @@ def _match_items(items, schedule_id: str, title_keyword: str):
 def _multiple_matches(matches) -> str:
     lines = ["找到多个匹配日程，请提供更具体的信息："]
     for item in matches:
-        lines.append(
-            f"  [{item.id}] {item.title} · {format_item_when(item, with_date=True)}"
-        )
+        lines.append(f"  [{item.id}] {item.title} · {_format_item_when(item)}")
     return "\n".join(lines)
 
 
@@ -63,6 +116,11 @@ async def _cancel_pending(plugin, umo: str, item_id: str) -> None:
     scheduling = getattr(plugin, "scheduling", None) if plugin is not None else None
     if scheduling is not None:
         await scheduling.cancel_item_jobs(umo, item_id)
+
+
+def _timezone(plugin):
+    settings = getattr(plugin, "settings", None)
+    return getattr(settings, "timezone", None) if settings else None
 
 
 @dataclass(config=dict(arbitrary_types_allowed=True))  # noqa: C408
@@ -79,21 +137,24 @@ class CreateScheduleTool(FunctionTool[AstrAgentContext]):
                     "type": "string",
                     "description": "日程标题/内容，如「开会」「组会」「读书会」等",
                 },
-                "datetime_str": {
+                "start": {
                     "type": "string",
                     "description": (
-                        "日期时间，格式如「2024-01-15 14:30」"
-                        "「明天9点」「后天下午3点」「今天晚上8点」；"
-                        "也支持区间「明天9点到11点」与全天「明天全天」"
-                        "（纯日期如「明天」即全天）"
+                        "开始时间，ISO 8601 格式，如「2026-09-10 14:30」；"
+                        "全天日程可直接给日期「2026-09-10」"
                     ),
                 },
-                "end_datetime_str": {
+                "end": {
                     "type": "string",
                     "description": (
-                        "区间日程的结束时间，如「11点」「2024-01-15 16:30」；"
-                        "不填则为单时间点（Apple 日历按开始后 1 小时）"
+                        "结束时间，ISO 8601 格式，如「2026-09-10 16:00」；"
+                        "不填则为单时间点"
                     ),
+                    "nullable": True,
+                },
+                "all_day": {
+                    "type": "boolean",
+                    "description": "是否全天日程",
                     "nullable": True,
                 },
                 "description": {
@@ -101,7 +162,7 @@ class CreateScheduleTool(FunctionTool[AstrAgentContext]):
                     "description": "可选的备注描述",
                 },
             },
-            "required": ["title", "datetime_str"],
+            "required": ["title", "start"],
         }
     )
 
@@ -119,26 +180,30 @@ class CreateScheduleTool(FunctionTool[AstrAgentContext]):
     async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs):
         try:
             title = (kwargs.get("title") or "").strip()
-            datetime_str = (kwargs.get("datetime_str") or "").strip()
-            end_datetime_str = (kwargs.get("end_datetime_str") or "").strip()
-            description = (kwargs.get("description") or "").strip()
-
-            if not title or not datetime_str:
-                return "请提供日程标题和时间"
-
+            all_day = bool(kwargs.get("all_day"))
+            timezone = _timezone(self._plugin)
             now = _now(self._plugin)
-            start, end, all_day = parse_schedule_time(datetime_str, now=now)
+
+            if not title:
+                return "请提供日程标题"
+
+            start = _parse_start(kwargs.get("start") or "", all_day, timezone)
             if start is None:
-                return (
-                    "时间格式无法解析，请使用如「2024-01-15 14:30」「明天9点」"
-                    "「明天9点到11点」（区间）「明天全天」（全天）"
-                )
-            if end_datetime_str and not all_day:
-                end = parse_range_end(end_datetime_str, start, now=now)
+                return "开始时间格式无法解析，请使用 ISO 8601，如「2026-09-10 14:30」"
+            invalid = _validate_start(start, now)
+            if invalid:
+                return invalid
+
+            end = None
+            raw_end = (kwargs.get("end") or "").strip()
+            if raw_end and not all_day:
+                end = _parse_end(raw_end, False, timezone)
                 if end is None:
-                    return "结束时间格式无法解析，请使用如「11点」「2024-01-15 16:30」"
-            if end is not None and end <= start:
-                return "结束时间需要晚于开始时间"
+                    return (
+                        "结束时间格式无法解析，请使用 ISO 8601，如「2026-09-10 16:00」"
+                    )
+                if end <= start:
+                    return "结束时间需要晚于开始时间"
 
             umo = _resolve_umo(context, self.default_umo)
             if not umo:
@@ -150,7 +215,7 @@ class CreateScheduleTool(FunctionTool[AstrAgentContext]):
                 title=title,
                 time=_format_time(start, all_day),
                 end_time=None if all_day or end is None else _format_time(end, False),
-                context=description,
+                context=(kwargs.get("description") or "").strip(),
                 all_day=all_day,
             )
             await self.store.add_item(umo, item)
@@ -163,7 +228,7 @@ class CreateScheduleTool(FunctionTool[AstrAgentContext]):
                         summary=title,
                         start=start,
                         end=end,
-                        description=description,
+                        description=item.context,
                         all_day=all_day,
                     )
                     if created_uid:
@@ -179,7 +244,7 @@ class CreateScheduleTool(FunctionTool[AstrAgentContext]):
 
             return (
                 f"已创建日程「{title}」，"
-                f"时间：{format_when_label(start, end, all_day)} ✅{apple_msg}"
+                f"时间：{_time_label(start, end, all_day)} ✅{apple_msg}"
             )
         except Exception:
             logger.exception("创建日程失败")
@@ -222,20 +287,23 @@ class DeleteScheduleTool(FunctionTool[AstrAgentContext]):
         self.default_umo = default_umo
         self._plugin = plugin_instance
 
-    async def _delete_from_apple(self, item: ScheduleItem) -> None:
+    async def _delete_from_apple(self, item: ScheduleItem) -> bool:
         if not item.apple_uid:
-            return
+            return True
         apple = getattr(self._plugin, "apple", None) if self._plugin else None
         if apple is None:
-            return
+            return True
         try:
-            if not await apple.delete_event(item.apple_uid):
-                logger.warning(
-                    "Apple 日历删除未成功，下轮同步可能恢复该日程: "
-                    f"title={item.title} uid={item.apple_uid}"
-                )
+            if await apple.delete_event(item.apple_uid):
+                return True
+            logger.warning(
+                "Apple 日历删除未成功，本地日程保持不动: "
+                f"title={item.title} uid={item.apple_uid}"
+            )
+            return False
         except Exception:
             logger.exception("Apple 日历删除失败")
+            return False
 
     async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs):
         try:
@@ -263,9 +331,11 @@ class DeleteScheduleTool(FunctionTool[AstrAgentContext]):
                 return _multiple_matches(matches)
 
             target = matches[0]
+            if not await self._delete_from_apple(target):
+                return "删除 Apple 日历事件失败，日程未删除"
+
             await self.store.remove_item(umo, target.id)
             await _cancel_pending(self._plugin, umo, target.id)
-            await self._delete_from_apple(target)
             return f"已删除日程「{target.title}」✅"
         except Exception:
             logger.exception("删除日程失败")
@@ -284,7 +354,7 @@ class ListSchedulesTool(FunctionTool[AstrAgentContext]):
             "properties": {
                 "days": {
                     "type": "number",
-                    "description": "查看最近几天的日程",
+                    "description": "查看最近几天的日程，默认 7 天",
                     "nullable": True,
                 },
             },
@@ -326,14 +396,14 @@ class ListSchedulesTool(FunctionTool[AstrAgentContext]):
                 if not item.time:
                     continue
                 try:
-                    start = parse_item_time(item.time)
+                    start = datetime.fromisoformat(item.time.replace(" ", "T"))
                 except ValueError:
                     logger.debug(f"日程时间解析失败，跳过: {item.time!r}")
                     continue
-                if is_all_day_event(item):
+                if item.all_day:
                     if now.date() <= start.date() <= future.date():
                         entries.append((start, item))
-                elif now <= start <= future:
+                elif now - timedelta(minutes=1) <= start <= future:
                     entries.append((start, item))
 
             if not entries:
@@ -347,7 +417,7 @@ class ListSchedulesTool(FunctionTool[AstrAgentContext]):
                 if date_str != current_date:
                     current_date = date_str
                     lines.append(f"━━━ {date_str} {format_weekday(start)} ━━━")
-                lines.append(f"  {format_item_when(item)} │ {item.title}")
+                lines.append(f"  {_format_item_when(item)} │ {item.title}")
                 if item.context:
                     lines.append(f"      📝 {item.context}")
             return "\n".join(lines)
@@ -385,17 +455,19 @@ class UpdateScheduleTool(FunctionTool[AstrAgentContext]):
                     "description": "新标题",
                     "nullable": True,
                 },
-                "new_datetime": {
+                "new_start": {
                     "type": "string",
-                    "description": (
-                        "新时间，格式如「2024-01-15 14:30」「明天9点」；"
-                        "也支持区间「明天9点到11点」与全天「明天全天」"
-                    ),
+                    "description": "新开始时间，ISO 8601，如「2026-09-10 14:30」",
                     "nullable": True,
                 },
-                "new_end_datetime": {
+                "new_end": {
                     "type": "string",
-                    "description": "区间日程的新结束时间，如「11点」，需与 new_datetime 一起给",
+                    "description": "新结束时间，ISO 8601，需与 new_start 一起给",
+                    "nullable": True,
+                },
+                "new_all_day": {
+                    "type": "boolean",
+                    "description": "是否改为全天日程",
                     "nullable": True,
                 },
                 "new_description": {
@@ -425,18 +497,20 @@ class UpdateScheduleTool(FunctionTool[AstrAgentContext]):
         apple = getattr(self._plugin, "apple", None) if self._plugin else None
         if apple is None:
             return
+        timezone = _timezone(self._plugin)
         try:
-            start, end, all_day = parse_schedule_time(item.time)
+            start = _parse_start(item.time, item.all_day, timezone)
             if start is None:
                 return
-            if end is None and item.end_time:
-                end = parse_range_end(item.end_time, start)
+            end = None
+            if item.end_time and not item.all_day:
+                end = _parse_end(item.end_time, False, timezone)
             new_uid = await apple.create_event(
                 summary=item.title,
                 start=start,
                 end=end,
                 description=item.context,
-                all_day=all_day,
+                all_day=item.all_day,
                 uid=item.apple_uid,
             )
             if new_uid:
@@ -455,14 +529,16 @@ class UpdateScheduleTool(FunctionTool[AstrAgentContext]):
             schedule_id = (kwargs.get("schedule_id") or "").strip()
             title_keyword = (kwargs.get("title_keyword") or "").strip()
             new_title = (kwargs.get("new_title") or "").strip()
-            new_datetime = (kwargs.get("new_datetime") or "").strip()
-            new_end_datetime = (kwargs.get("new_end_datetime") or "").strip()
+            new_start_raw = (kwargs.get("new_start") or "").strip()
+            new_end_raw = (kwargs.get("new_end") or "").strip()
             new_description = (kwargs.get("new_description") or "").strip()
 
             if not schedule_id and not title_keyword:
                 return "请提供要修改的日程 ID 或标题关键词"
-            if not (new_title or new_datetime or new_end_datetime or new_description):
+            if not (new_title or new_start_raw or new_end_raw or new_description):
                 return "请提供要修改的内容（新标题/新时间/新备注）"
+            if new_end_raw and not new_start_raw:
+                return "请一并提供新的开始时间"
 
             umo = _resolve_umo(context, self.default_umo)
             if not umo:
@@ -479,25 +555,30 @@ class UpdateScheduleTool(FunctionTool[AstrAgentContext]):
                 return _multiple_matches(matches)
 
             target = matches[0]
-            parsed = None
-            if new_end_datetime and not new_datetime:
-                return "请一并提供开始时间，或直接用「9点到11点」的区间写法"
+            timezone = _timezone(self._plugin)
             now = _now(self._plugin)
-            if new_datetime:
-                start, end, all_day = parse_schedule_time(new_datetime, now=now)
+            parsed = None
+            if new_start_raw:
+                all_day = (
+                    bool(kwargs.get("new_all_day"))
+                    if kwargs.get("new_all_day") is not None
+                    else target.all_day
+                )
+                start = _parse_start(new_start_raw, all_day, timezone)
                 if start is None:
                     return (
-                        "时间格式无法解析，请使用如「明天9点」"
-                        "「明天9点到11点」（区间）「明天全天」（全天）"
+                        "开始时间格式无法解析，请使用 ISO 8601，如「2026-09-10 14:30」"
                     )
-                if new_end_datetime and not all_day:
-                    end = parse_range_end(new_end_datetime, start, now=now)
+                invalid = _validate_start(start, now)
+                if invalid:
+                    return invalid
+                end = None
+                if new_end_raw and not all_day:
+                    end = _parse_end(new_end_raw, False, timezone)
                     if end is None:
-                        return (
-                            "结束时间格式无法解析，请使用如「11点」「2024-01-15 16:30」"
-                        )
-                if end is not None and end <= start:
-                    return "结束时间需要晚于开始时间"
+                        return "结束时间格式无法解析，请使用 ISO 8601，如「2026-09-10 16:00」"
+                    if end <= start:
+                        return "结束时间需要晚于开始时间"
                 parsed = (start, end, all_day)
 
             if new_title:
@@ -513,7 +594,8 @@ class UpdateScheduleTool(FunctionTool[AstrAgentContext]):
                     None if all_day or end is None else _format_time(end, False)
                 )
                 target.all_day = all_day
-                time_label = format_when_label(start, end, all_day)
+                target.last_triggered = None
+                time_label = _time_label(start, end, all_day)
 
             await self.store.update_item(umo, target)
             await _cancel_pending(self._plugin, umo, target.id)
@@ -545,7 +627,8 @@ def register_schedule_tools(plugin_instance) -> None:
     ]
     for tool in tools:
         tool.inject(store, default_umo, plugin_instance)
+
     plugin_instance.context.add_llm_tools(*tools)
-    plugin_instance.logger.info(
-        "日程管理工具已注册：create_schedule, delete_schedule, list_schedules, update_schedule"
+    logger.info(
+        "日程管理工具已注册：create_schedule/delete_schedule/list_schedules/update_schedule"
     )

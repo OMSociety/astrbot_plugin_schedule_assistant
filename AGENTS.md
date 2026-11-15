@@ -17,7 +17,6 @@ Python 3.10+，宿主为 AstrBot 4.29.4（稳定 API）；测试与 lint 使用�
 - `calendar_sync.py`：Apple 日历同步与删除保护。
 - `schedule_store.py`：唯一的本地持久化层。
 - `apple_calendar.py`、`notion_client.py`、`weather.py`：外部服务客户端。
-- `time_parser.py`：自然语言时间解析。
 - `tools/schedule_tools.py`：4 个 LLM 工具。
 - `tests/`：pytest 测试。
 

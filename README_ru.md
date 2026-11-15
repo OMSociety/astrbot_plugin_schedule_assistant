@@ -6,7 +6,7 @@
 
 **Ваш заботливый помощник по расписанию** — утренняя сводка · напоминания о привычках · управление расписанием через LLM · двусторонняя синхронизация Apple Календаря · задачи Notion
 
-[![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
+[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/OMSociety/astrbot_plugin_schedule_assistant)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/stargazers)
@@ -51,7 +51,7 @@
 - Задачи Notion с обратным отсчётом
 - События на весь день учитываются только в день сводки
 
-Встроенный промпт ограничивает текст 120 символами. Свой промпт полностью заменяет и требования к тексту, и требования к выводу.
+Встроенные промпты — короткие инструкции с данными; свой промпт полностью заменяет встроенный шаблон.
 
 ### Напоминания о привычках
 
@@ -172,8 +172,8 @@ qq:GroupMessage:987654321
 | Параметр | Тип | По умолчанию | Описание |
 |----------|-----|--------------|----------|
 | `prompt_morning` | string | `""` | Плейсхолдеры: `{date} {weekday} {weather_current} {weather_forecast} {agenda} {notion_todos}` |
-| `prompt_bath` | string | `""` | `{current_time} {default_time}` |
-| `prompt_sleep` | string | `""` | `{current_time} {default_time}` |
+| `prompt_bath` | string | `""` | `{current_time}` |
+| `prompt_sleep` | string | `""` | `{current_time}` |
 | `prompt_water` | string | `""` | `{current_time}` |
 | `prompt_schedule` | string | `""` | `{item_title} {time_label} {ahead_label} {item_context}` |
 
@@ -235,12 +235,16 @@ qq:GroupMessage:987654321
 
 Плагин регистрирует четыре инструмента LLM. Модель сама решает, когда их вызвать; достаточно говорить обычным языком.
 
-> **Форматы времени:** ISO / числа (`2024-01-15 14:30`, `2024-01-15 09:00-11:00`, `2024-01-16`) или китайские выражения (明天9点 — завтра в 9, 明天9点到11点 — завтра с 9 до 11, 明天全天 — весь день). Только дата означает весь день.
+> **Форматы времени:** ISO 8601. Со временем — `2026-09-10 14:30`; на весь день — `2026-09-10` и `all_day=true`. Начало не может быть в прошлом, год — позже 2100.
 
 ```
 Пользователь: добавь встречу завтра в 9
--> create_schedule(title=встреча, datetime_str=明天9点)
-   Создано «встреча», время: 08-17 09:00 ✅
+-> create_schedule(title=встреча, start=2026-09-11 09:00)
+   Создано «встреча», время: 09-11 09:00 ✅
+
+Пользователь: послезавтра выездной день
+-> create_schedule(title=выезд, start=2026-09-12, all_day=true)
+   Создано «выезд», время: 09-12 весь день ✅
 
 Пользователь: что на этой неделе
 -> list_schedules(days=7)
@@ -259,8 +263,9 @@ qq:GroupMessage:987654321
 | Параметр | Тип | Описание |
 |----------|-----|----------|
 | `title` | string | **Обязательно**, название |
-| `datetime_str` | string | **Обязательно**, время; только дата — весь день |
-| `end_datetime_str` | string? | Конец интервала (например, `11点`); без него — одна точка (Apple получит час) |
+| `start` | string | **Обязательно**, начало в ISO 8601 (`2026-09-10 14:30`); для всего дня — дата `2026-09-10` |
+| `end` | string? | Конец в ISO 8601; без него — одна точка (Apple получит час) |
+| `all_day` | bool? | Событие на весь день |
 | `description` | string? | Заметка |
 
 ### delete_schedule
@@ -283,8 +288,9 @@ qq:GroupMessage:987654321
 | `schedule_id` | string? | Точный ID |
 | `title_keyword` | string? | Ключевое слово в названии |
 | `new_title` | string? | Новое название |
-| `new_datetime` | string? | Новое время, форматы как у `datetime_str` |
-| `new_end_datetime` | string? | Новый конец, нужен вместе с `new_datetime` |
+| `new_start` | string? | Новое начало (ISO 8601) |
+| `new_end` | string? | Новый конец (ISO 8601), вместе с `new_start` |
+| `new_all_day` | bool? | Сделать событием на весь день |
 | `new_description` | string? | Новая заметка |
 
 ## История изменений

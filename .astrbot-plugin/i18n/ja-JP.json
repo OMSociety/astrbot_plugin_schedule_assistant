@@ -126,7 +126,7 @@
     },
     "prompt_settings": {
       "description": "リマインダーのプロンプトテンプレート",
-      "hint": "空欄なら内蔵テンプレートを使用。入力すると内蔵テンプレートを丸ごと置き換えます（文章要件と出力要件の両方）。",
+      "hint": "空欄なら内蔵テンプレートを使用。入力すると内蔵テンプレートを丸ごと置き換え、プラグインは追加の制約を課しません。",
       "prompt_morning": {
         "description": "おはよう配信テンプレート",
         "hint": "プレースホルダー：{date} {weekday} {weather_current} {weather_forecast} {agenda} {notion_todos}"

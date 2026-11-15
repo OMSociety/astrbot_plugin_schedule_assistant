@@ -6,7 +6,7 @@
 
 **あなたの頼れるスケジュール管理役** —— 朝のブリーフィング · 習慣リマインダー · LLM スケジュール管理 · Apple カレンダー双方向同期 · Notion ToDo 同期
 
-[![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
+[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/OMSociety/astrbot_plugin_schedule_assistant)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/stargazers)
@@ -28,7 +28,7 @@
 | **毎日の朝ブリーフィング** | 天気 + 今後 24 時間の予定（ローカルと Apple）+ Notion ToDo を 1 通にまとめます |
 | **習慣リマインダー** | 入浴・就寝・水分補給の時刻を設定できます |
 | **予定リマインダー** | 予定開始の N 分前に、予定のメモを踏まえて通知します |
-| **LLM スケジュール管理** | 追加・削除・一覧・変更を自然言語で操作できます |
+| **LLM スケジュール管理** | 追加・削除・一覧・変更を自然言語で依頼できます（モデルが ISO 形式に変換） |
 | **Apple カレンダー双方向同期** | iCloud CalDAV の読み書き、重複排除と差分更新に対応 |
 | **Notion ToDo 同期** | 朝のブリーフィングに期限カウント（残り N 日 / 今日締切 / 期限超過）を表示 |
 
@@ -51,7 +51,7 @@
 - Notion ToDo と期限カウント
 - 終日予定はブリーフィング当日のみ集計
 
-内蔵プロンプトは本文を 120 字以内に抑えます。カスタムプロンプトを入力すると、執筆要件と出力要件の両方を置き換えます。
+内蔵プロンプトは短いタスク指示です。カスタムプロンプトは内蔵テンプレート全体を置き換えます。
 
 ### 習慣リマインダー
 
@@ -172,8 +172,8 @@ qq:GroupMessage:987654321
 | 項目 | 型 | 既定値 | 説明 |
 |------|----|--------|------|
 | `prompt_morning` | string | `""` | 朝のプロンプト。プレースホルダー：`{date} {weekday} {weather_current} {weather_forecast} {agenda} {notion_todos}` |
-| `prompt_bath` | string | `""` | 入浴。`{current_time} {default_time}` |
-| `prompt_sleep` | string | `""` | 就寝。`{current_time} {default_time}` |
+| `prompt_bath` | string | `""` | 入浴。`{current_time}` |
+| `prompt_sleep` | string | `""` | 就寝。`{current_time}` |
 | `prompt_water` | string | `""` | 水分補給。`{current_time}` |
 | `prompt_schedule` | string | `""` | 予定。`{item_title} {time_label} {ahead_label} {item_context}` |
 
@@ -235,12 +235,16 @@ qq:GroupMessage:987654321
 
 プラグインは 4 つの LLM ツールを登録します。呼び出しはモデルが判断するので、自然言語で依頼するだけです。
 
-> **時刻の書き方：** ISO / 数値（`2024-01-15 14:30`、`2024-01-15 09:00-11:00`、`2024-01-16`）または中国語の言い方（明天9点 = 明日 9 時、明天9点到11点 = 明日 9〜11 時、明天全天 = 明日終日）。日付だけなら終日です。
+> **時刻の書き方：** ISO 8601。時刻ありは `2026-09-10 14:30`、終日は `2026-09-10` に `all_day=true` を指定します。開始時刻は現在より前にできず、年は 2100 年を超えられません。
 
 ```
 ユーザー: 明日9時に会議を追加して
--> create_schedule(title=会議, datetime_str=明天9点)
-   予定「会議」を作成しました。時刻：08-17 09:00 ✅
+-> create_schedule(title=会議, start=2026-09-11 09:00)
+   予定「会議」を作成しました。時刻：09-11 09:00 ✅
+
+ユーザー: 明後日は終日オフサイト
+-> create_schedule(title=オフサイト, start=2026-09-12, all_day=true)
+   予定「オフサイト」を作成しました。時刻：09-12 終日 ✅
 
 ユーザー: 今週の予定は
 -> list_schedules(days=7)
@@ -259,8 +263,9 @@ qq:GroupMessage:987654321
 | 引数 | 型 | 説明 |
 |------|----|------|
 | `title` | string | **必須**、予定のタイトル |
-| `datetime_str` | string | **必須**、ISO / 数値または自然言語。日付だけなら終日 |
-| `end_datetime_str` | string? | 範囲の終了時刻（例 `11点`）。省略時は単一時刻（Apple は 1 時間） |
+| `start` | string | **必須**、ISO 8601 の開始時刻（`2026-09-10 14:30`）。終日は日付 `2026-09-10` でも可 |
+| `end` | string? | 任意、ISO 8601 の終了時刻。省略時は単一時刻（Apple は 1 時間） |
+| `all_day` | bool? | 終日の予定かどうか |
 | `description` | string? | メモ |
 
 ### delete_schedule
@@ -283,8 +288,9 @@ qq:GroupMessage:987654321
 | `schedule_id` | string? | 予定 ID（完全一致） |
 | `title_keyword` | string? | タイトル語（部分一致） |
 | `new_title` | string? | 新しいタイトル |
-| `new_datetime` | string? | 新しい時刻。書き方は `datetime_str` と同じ |
-| `new_end_datetime` | string? | 新しい終了時刻。`new_datetime` と併用 |
+| `new_start` | string? | 新しい開始時刻（ISO 8601） |
+| `new_end` | string? | 新しい終了時刻（ISO 8601）。`new_start` と併用 |
+| `new_all_day` | bool? | 終日に変更するか |
 | `new_description` | string? | 新しいメモ |
 
 ## 変更履歴

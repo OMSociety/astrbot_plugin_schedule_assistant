@@ -10,6 +10,24 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-11-16
+
+### 修复
+
+- 日程工具改用 ISO 8601 结构化参数（`start` / `end` / `all_day`），不再解析自然语言时间；拒绝过去时间与晚于 2100 年的时间。
+- 删除日程时先删除 Apple 事件，失败则保留本地日程并提示。
+- Apple 同步不再删除同步窗口之外的本地日程。
+- CalDAV 与 WebCal 请求不再跟随重定向。
+- `list_schedules` 默认为最近 7 天，与工具说明一致。
+
+### Fixed
+
+- Schedule tools now take structured ISO 8601 `start` / `end` / `all_day` parameters instead of parsing natural-language time; past times and years beyond 2100 are rejected.
+- Deleting a schedule removes the Apple event first; a failed delete keeps the local entry and reports the error.
+- Apple sync no longer deletes local entries outside the sync window.
+- CalDAV and WebCal requests no longer follow redirects.
+- `list_schedules` defaults to the next 7 days, matching the tool description.
+
 ## [2.1.0] - 2026-11-16
 
 ### 修复

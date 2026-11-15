@@ -126,7 +126,7 @@
     },
     "prompt_settings": {
       "description": "Reminder prompt templates",
-      "hint": "Leave empty to use the built-in template; filling it replaces the built-in template entirely (both writing and output requirements).",
+      "hint": "Leave empty to use the built-in template; filling it replaces the built-in template and the plugin adds no further constraints.",
       "prompt_morning": {
         "description": "Morning broadcast template",
         "hint": "Placeholders: {date} {weekday} {weather_current} {weather_forecast} {agenda} {notion_todos}"

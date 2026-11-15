@@ -229,12 +229,19 @@ class ScheduleStore:
 
             if allow_delete:
                 before = len(items)
-                items = [
-                    item
-                    for item in items
-                    if not item.apple_uid or item.apple_uid in apple_uids
-                ]
-                stats["deleted"] = before - len(items)
+                kept = []
+                for item in items:
+                    if not item.apple_uid or item.apple_uid in apple_uids:
+                        kept.append(item)
+                        continue
+                    item_start = self._parse_event_time(item.time, tz)
+                    if item_start is not None and (
+                        item_start < lower or item_start > future_cutoff
+                    ):
+                        kept.append(item)
+                        continue
+                stats["deleted"] = before - len(kept)
+                items = kept
             else:
                 self._log.debug(f"{LOG_PREFIX} 未获删除授权，本轮保留本地日程")
 
