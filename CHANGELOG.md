@@ -12,17 +12,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.2.0] - 2026-11-16
 
+### 变更
+
+- 破坏性变更：日程工具的 `create_schedule` / `update_schedule` 改用 ISO 8601 结构化参数（`start` / `end` / `all_day`），不再解析自然语言时间；过去的开始时间与 2100 年之后的日期会被拒绝。
+- 五份内置提示词改为短任务说明（数据加一句要求），自定义提示词整段接管；早安播报不再带字数与输出格式约束。
+
+### 移除
+
+- 自然语言时间解析模块及其测试。
+
 ### 修复
 
-- 日程工具改用 ISO 8601 结构化参数（`start` / `end` / `all_day`），不再解析自然语言时间；拒绝过去时间与晚于 2100 年的时间。
 - 删除日程时先删除 Apple 事件，失败则保留本地日程并提示。
 - Apple 同步不再删除同步窗口之外的本地日程。
 - CalDAV 与 WebCal 请求不再跟随重定向。
 - `list_schedules` 默认为最近 7 天，与工具说明一致。
 
+### Changed
+
+- Breaking change: `create_schedule` / `update_schedule` now take structured ISO 8601 `start` / `end` / `all_day` parameters; natural-language time parsing is gone, and past start times or years beyond 2100 are rejected.
+- The five built-in prompts are now short task notes (data plus one instruction), and a custom prompt takes over the whole text; morning briefings no longer carry word-count or output-format constraints.
+
+### Removed
+
+- The natural-language time parser module and its tests.
+
 ### Fixed
 
-- Schedule tools now take structured ISO 8601 `start` / `end` / `all_day` parameters instead of parsing natural-language time; past times and years beyond 2100 are rejected.
 - Deleting a schedule removes the Apple event first; a failed delete keeps the local entry and reports the error.
 - Apple sync no longer deletes local entries outside the sync window.
 - CalDAV and WebCal requests no longer follow redirects.

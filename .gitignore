@@ -3,6 +3,8 @@ __pycache__/
 *.pyo
 *.log
 .git/
+.pytest_cache/
+.ruff_cache/
 
 # AstrBot 运行时数据（勿提交）
 data/

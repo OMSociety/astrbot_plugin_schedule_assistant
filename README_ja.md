@@ -6,7 +6,7 @@
 
 **あなたの頼れるスケジュール管理役** —— 朝のブリーフィング · 習慣リマインダー · LLM スケジュール管理 · Apple カレンダー双方向同期 · Notion ToDo 同期
 
-[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
+[![Version](https://img.shields.io/github/v/tag/OMSociety/astrbot_plugin_schedule_assistant?label=version&color=blue)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/releases)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/OMSociety/astrbot_plugin_schedule_assistant)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/stargazers)
@@ -239,12 +239,20 @@ qq:GroupMessage:987654321
 
 ```
 ユーザー: 明日9時に会議を追加して
--> create_schedule(title=会議, start=2026-09-11 09:00)
+-> create_schedule(title="会議", start="2026-09-11 09:00")
    予定「会議」を作成しました。時刻：09-11 09:00 ✅
 
+ユーザー: 明日9時から11時まで会議
+-> create_schedule(title="会議", start="2026-09-11 09:00", end="2026-09-11 11:00")
+   予定「会議」を作成しました。時刻：09-11 09:00-11:00 ✅
+
 ユーザー: 明後日は終日オフサイト
--> create_schedule(title=オフサイト, start=2026-09-12, all_day=true)
+-> create_schedule(title="オフサイト", start="2026-09-12", all_day=true)
    予定「オフサイト」を作成しました。時刻：09-12 終日 ✅
+
+ユーザー: 15時の会議を16時に変更して
+-> update_schedule(title_keyword="会議", new_start="2026-09-11 16:00")
+   予定を変更しました：時刻は09-11 16:00 ✅
 
 ユーザー: 今週の予定は
 -> list_schedules(days=7)
@@ -254,7 +262,7 @@ qq:GroupMessage:987654321
      ⏰ 09:00 │ 会議
 
 ユーザー: 明日の読書会を削除して
--> delete_schedule(title_keyword=読書会)
+-> delete_schedule(title_keyword="読書会")
    予定「読書会」を削除しました ✅
 ```
 

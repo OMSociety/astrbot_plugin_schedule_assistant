@@ -6,7 +6,7 @@
 
 **Ваш заботливый помощник по расписанию** — утренняя сводка · напоминания о привычках · управление расписанием через LLM · двусторонняя синхронизация Apple Календаря · задачи Notion
 
-[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
+[![Version](https://img.shields.io/github/v/tag/OMSociety/astrbot_plugin_schedule_assistant?label=version&color=blue)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/releases)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/OMSociety/astrbot_plugin_schedule_assistant)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/stargazers)
@@ -239,12 +239,20 @@ qq:GroupMessage:987654321
 
 ```
 Пользователь: добавь встречу завтра в 9
--> create_schedule(title=встреча, start=2026-09-11 09:00)
+-> create_schedule(title="встреча", start="2026-09-11 09:00")
    Создано «встреча», время: 09-11 09:00 ✅
 
+Пользователь: встреча завтра с 9 до 11
+-> create_schedule(title="встреча", start="2026-09-11 09:00", end="2026-09-11 11:00")
+   Создано «встреча», время: 09-11 09:00-11:00 ✅
+
 Пользователь: послезавтра выездной день
--> create_schedule(title=выезд, start=2026-09-12, all_day=true)
+-> create_schedule(title="выезд", start="2026-09-12", all_day=true)
    Создано «выезд», время: 09-12 весь день ✅
+
+Пользователь: перенеси встречу с 15 на 16
+-> update_schedule(title_keyword="встреча", new_start="2026-09-11 16:00")
+   Событие изменено: время — 09-11 16:00 ✅
 
 Пользователь: что на этой неделе
 -> list_schedules(days=7)
@@ -254,7 +262,7 @@ qq:GroupMessage:987654321
      ⏰ 09:00 │ встреча
 
 Пользователь: удали завтрашний книжный клуб
--> delete_schedule(title_keyword=книжный клуб)
+-> delete_schedule(title_keyword="книжный клуб")
    Удалено «книжный клуб» ✅
 ```
 

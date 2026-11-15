@@ -6,7 +6,7 @@
 
 **你的贴心日程管家** —— 早安播报 · 习惯提醒 · LLM 日程管理 · Apple 日历双向同步 · Notion 待办同步
 
-[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
+[![Version](https://img.shields.io/github/v/tag/OMSociety/astrbot_plugin_schedule_assistant?label=version&color=blue)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/releases)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/OMSociety/astrbot_plugin_schedule_assistant)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/stargazers)
@@ -243,19 +243,19 @@ qq:GroupMessage:987654321
 
 ```
 用户: 帮我加个明天早上9点开组会的日程
--> create_schedule(title=组会, start=2026-09-11 09:00)
+-> create_schedule(title="组会", start="2026-09-11 09:00")
    已创建日程「组会」，时间：09-11 09:00 ✅
 
 用户: 明天9点到11点开组会
--> create_schedule(title=组会, start=2026-09-11 09:00, end=2026-09-11 11:00)
+-> create_schedule(title="组会", start="2026-09-11 09:00", end="2026-09-11 11:00")
    已创建日程「组会」，时间：09-11 09:00-11:00 ✅
 
 用户: 后天全天团建
--> create_schedule(title=团建, start=2026-09-12, all_day=true)
+-> create_schedule(title="团建", start="2026-09-12", all_day=true)
    已创建日程「团建」，时间：09-12 全天 ✅
 
 用户: 把下午3点的会议改到4点
--> update_schedule(title_keyword=会议, new_start=2026-09-11 16:00)
+-> update_schedule(title_keyword="会议", new_start="2026-09-11 16:00")
    已修改日程：时间改为09-11 16:00 ✅
 
 用户: 看看这周有什么安排
@@ -266,7 +266,7 @@ qq:GroupMessage:987654321
      ⏰ 09:00 │ 组会
 
 用户: 删除明天的读书会
--> delete_schedule(title_keyword=读书会)
+-> delete_schedule(title_keyword="读书会")
    已删除日程「读书会」✅
 ```
 

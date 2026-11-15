@@ -6,7 +6,7 @@
 
 **Your considerate schedule keeper** — morning briefing · habit reminders · LLM schedule management · two-way Apple Calendar sync · Notion to-dos
 
-[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant)
+[![Version](https://img.shields.io/github/v/tag/OMSociety/astrbot_plugin_schedule_assistant?label=version&color=blue)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/releases)
 [![AstrBot](https://img.shields.io/badge/AstrBot-%E2%89%A5v4-green.svg)](https://github.com/AstrBotDevs/AstrBot)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/OMSociety/astrbot_plugin_schedule_assistant)](https://github.com/OMSociety/astrbot_plugin_schedule_assistant/stargazers)
@@ -239,16 +239,20 @@ The plugin registers four LLM tools. The model decides when to call them; you ju
 
 ```
 User: add a team meeting tomorrow at 9
--> create_schedule(title=team meeting, start=2026-09-11 09:00)
+-> create_schedule(title="team meeting", start="2026-09-11 09:00")
    Created "team meeting", time: 09-11 09:00 ✅
 
 User: meeting from 9 to 11 tomorrow
--> create_schedule(title=meeting, start=2026-09-11 09:00, end=2026-09-11 11:00)
+-> create_schedule(title="meeting", start="2026-09-11 09:00", end="2026-09-11 11:00")
    Created "meeting", time: 09-11 09:00-11:00 ✅
 
 User: all-day offsite the day after tomorrow
--> create_schedule(title=offsite, start=2026-09-12, all_day=true)
+-> create_schedule(title="offsite", start="2026-09-12", all_day=true)
    Created "offsite", time: 09-12 all day ✅
+
+User: move the 3pm meeting to 4
+-> update_schedule(title_keyword="meeting", new_start="2026-09-11 16:00")
+   Updated schedule: time is now 09-11 16:00 ✅
 
 User: what's on this week
 -> list_schedules(days=7)
@@ -258,7 +262,7 @@ User: what's on this week
      ⏰ 09:00 │ team meeting
 
 User: delete tomorrow's reading group
--> delete_schedule(title_keyword=reading group)
+-> delete_schedule(title_keyword="reading group")
    Deleted "reading group" ✅
 ```
 
