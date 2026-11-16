@@ -2,12 +2,12 @@
  "basic_settings": {
   "description": "基础设置",
   "type": "object",
-  "hint": "接收定时推送的会话名单，每行一个完整 UMO，如 qq:FriendMessage:123456789。",
+  "hint": "接收定时推送并使用日程工具的会话名单，每行一个完整 UMO，如 qq:FriendMessage:123456789。",
   "items": {
    "user_umos": {
     "type": "list",
     "description": "会话 UMO 列表",
-    "hint": "格式 platform:message_type:session。在目标会话发送 /sid 获取 UMO；格式不符的条目会在启动时告警并跳过。",
+    "hint": "格式 platform:message_type:session。名单内的会话可接收推送并使用日程工具；未列出的会话调用日程工具会被拒绝。在目标会话发送 /sid 获取 UMO；格式不符的条目会在启动时告警并跳过。",
     "default": []
    }
   }

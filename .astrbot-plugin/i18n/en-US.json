@@ -6,10 +6,10 @@
   "config": {
     "basic_settings": {
       "description": "Basic settings",
-      "hint": "Sessions that receive scheduled pushes, one full UMO per line, e.g. qq:FriendMessage:123456789.",
+      "hint": "Sessions that receive scheduled pushes and may use the schedule tools, one full UMO per line, e.g. qq:FriendMessage:123456789.",
       "user_umos": {
         "description": "Session UMO list",
-        "hint": "Format: platform:message_type:session. Send /sid in the target session to get its UMO; malformed entries are skipped with a startup warning."
+        "hint": "Format: platform:message_type:session. Sessions listed here receive pushes and may use the schedule tools; calls from other sessions are rejected. Send /sid in the target session to get its UMO; malformed entries are skipped with a startup warning."
       }
     },
     "schedule_reminder_settings": {

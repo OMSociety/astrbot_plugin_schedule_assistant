@@ -14,6 +14,7 @@ from pydantic.dataclasses import dataclass
 from ..schedule_store import ScheduleItem
 
 FALLBACK_ERROR = "操作失败，请稍后重试"
+TOOL_NOT_ENABLED = "当前会话未启用日程管理，请先在插件配置的 user_umos 中加入该会话"
 MAX_YEAR = 2100
 
 
@@ -29,6 +30,14 @@ def _resolve_umo(context: ContextWrapper[AstrAgentContext], default_umo: str | N
     event = getattr(context.context, "event", None)
     umo = str(getattr(event, "unified_msg_origin", "") or "") if event else ""
     return umo or (default_umo or "")
+
+
+def _reject_unlisted_umo(plugin, umo: str) -> str | None:
+    settings = getattr(plugin, "settings", None)
+    targets = getattr(settings, "target_umos", ()) if settings else ()
+    if umo in targets:
+        return None
+    return TOOL_NOT_ENABLED
 
 
 def _format_time(value: datetime, all_day: bool) -> str:
@@ -128,7 +137,10 @@ class CreateScheduleTool(FunctionTool[AstrAgentContext]):
     """创建新日程工具"""
 
     name: str = "create_schedule"
-    description: str = "创建新日程。用于当用户想要添加一个日程安排时调用。"
+    description: str = (
+        "创建新日程。用于当用户想要添加一个日程安排时调用。"
+        "仅在插件配置的 user_umos 会话中可用；其他会话调用会返回未启用提示。"
+    )
     parameters: dict = Field(
         default_factory=lambda: {
             "type": "object",
@@ -179,6 +191,13 @@ class CreateScheduleTool(FunctionTool[AstrAgentContext]):
 
     async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs):
         try:
+            umo = _resolve_umo(context, self.default_umo).strip()
+            if not umo:
+                return "无法确定会话身份"
+            rejection = _reject_unlisted_umo(self._plugin, umo)
+            if rejection:
+                return rejection
+
             title = (kwargs.get("title") or "").strip()
             all_day = bool(kwargs.get("all_day"))
             timezone = _timezone(self._plugin)
@@ -205,9 +224,6 @@ class CreateScheduleTool(FunctionTool[AstrAgentContext]):
                 if end <= start:
                     return "结束时间需要晚于开始时间"
 
-            umo = _resolve_umo(context, self.default_umo)
-            if not umo:
-                return "无法确定会话身份"
             if self.store is None:
                 return "日程存储服务未初始化"
 
@@ -256,7 +272,10 @@ class DeleteScheduleTool(FunctionTool[AstrAgentContext]):
     """删除日程工具"""
 
     name: str = "delete_schedule"
-    description: str = "删除日程。用于当用户想要取消或删除一个日程时调用。"
+    description: str = (
+        "删除日程。用于当用户想要取消或删除一个日程时调用。"
+        "仅在插件配置的 user_umos 会话中可用；其他会话调用会返回未启用提示。"
+    )
     parameters: dict = Field(
         default_factory=lambda: {
             "type": "object",
@@ -307,14 +326,18 @@ class DeleteScheduleTool(FunctionTool[AstrAgentContext]):
 
     async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs):
         try:
+            umo = _resolve_umo(context, self.default_umo).strip()
+            if not umo:
+                return "无法确定会话身份"
+            rejection = _reject_unlisted_umo(self._plugin, umo)
+            if rejection:
+                return rejection
+
             schedule_id = (kwargs.get("schedule_id") or "").strip()
             title_keyword = (kwargs.get("title_keyword") or "").strip()
             if not schedule_id and not title_keyword:
                 return "请提供日程 ID 或标题关键词"
 
-            umo = _resolve_umo(context, self.default_umo)
-            if not umo:
-                return "无法确定会话身份"
             if self.store is None:
                 return "日程存储服务未初始化"
 
@@ -347,7 +370,10 @@ class ListSchedulesTool(FunctionTool[AstrAgentContext]):
     """查看日程列表工具"""
 
     name: str = "list_schedules"
-    description: str = "查看日程列表。用于当用户想要查看自己有哪些日程安排时调用。"
+    description: str = (
+        "查看日程列表。用于当用户想要查看自己有哪些日程安排时调用。"
+        "仅在插件配置的 user_umos 会话中可用；其他会话调用会返回未启用提示。"
+    )
     parameters: dict = Field(
         default_factory=lambda: {
             "type": "object",
@@ -375,6 +401,13 @@ class ListSchedulesTool(FunctionTool[AstrAgentContext]):
 
     async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs):
         try:
+            umo = _resolve_umo(context, self.default_umo).strip()
+            if not umo:
+                return "无法确定会话身份"
+            rejection = _reject_unlisted_umo(self._plugin, umo)
+            if rejection:
+                return rejection
+
             days = kwargs.get("days") or 7
             try:
                 days = int(str(days).strip() or 7)
@@ -383,9 +416,6 @@ class ListSchedulesTool(FunctionTool[AstrAgentContext]):
             if days <= 0:
                 days = 7
 
-            umo = _resolve_umo(context, self.default_umo)
-            if not umo:
-                return "无法确定会话身份"
             if self.store is None:
                 return "日程存储服务未初始化"
 
@@ -435,7 +465,10 @@ class UpdateScheduleTool(FunctionTool[AstrAgentContext]):
     """修改日程工具"""
 
     name: str = "update_schedule"
-    description: str = "修改日程。用于当用户想要修改某个日程的时间、标题或备注时调用。"
+    description: str = (
+        "修改日程。用于当用户想要修改某个日程的时间、标题或备注时调用。"
+        "仅在插件配置的 user_umos 会话中可用；其他会话调用会返回未启用提示。"
+    )
     parameters: dict = Field(
         default_factory=lambda: {
             "type": "object",
@@ -526,6 +559,13 @@ class UpdateScheduleTool(FunctionTool[AstrAgentContext]):
 
     async def call(self, context: ContextWrapper[AstrAgentContext], **kwargs):
         try:
+            umo = _resolve_umo(context, self.default_umo).strip()
+            if not umo:
+                return "无法确定会话身份"
+            rejection = _reject_unlisted_umo(self._plugin, umo)
+            if rejection:
+                return rejection
+
             schedule_id = (kwargs.get("schedule_id") or "").strip()
             title_keyword = (kwargs.get("title_keyword") or "").strip()
             new_title = (kwargs.get("new_title") or "").strip()
@@ -540,9 +580,6 @@ class UpdateScheduleTool(FunctionTool[AstrAgentContext]):
             if new_end_raw and not new_start_raw:
                 return "请一并提供新的开始时间"
 
-            umo = _resolve_umo(context, self.default_umo)
-            if not umo:
-                return "无法确定会话身份"
             if self.store is None:
                 return "日程存储服务未初始化"
 
@@ -594,7 +631,6 @@ class UpdateScheduleTool(FunctionTool[AstrAgentContext]):
                     None if all_day or end is None else _format_time(end, False)
                 )
                 target.all_day = all_day
-                target.last_triggered = None
                 time_label = _time_label(start, end, all_day)
 
             await self.store.update_item(umo, target)

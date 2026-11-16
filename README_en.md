@@ -94,7 +94,7 @@ AstrBot WebUI → Plugin Market → search for `schedule_assistant`
 
 ### 2. Fill in the session list
 
-Send `/sid` in the session (private chat or group) that should receive reminders, and note the UMO it returns. Then open the plugin configuration → **Basic Settings** → `user_umos` and add one line per session:
+Send `/sid` in the session (private chat or group) that should receive reminders and may use the schedule tools, and note the UMO it returns. Then open the plugin configuration → **Basic Settings** → `user_umos` and add one line per session:
 
 ```
 qq:FriendMessage:123456789
@@ -103,7 +103,9 @@ qq:GroupMessage:987654321
 
 `platform:message_type:session` (UMO format). Malformed entries are skipped with one warning at startup.
 
-A group is treated as an independent user: members share one schedule list, and morning, bath, sleep and water pushes all go to the group. Reminders and tools operate on the group as a whole, so make sure members know.
+`user_umos` also controls which sessions may use the LLM schedule tools: listed sessions can create, view, update and delete schedules; calls from other sessions return a not-enabled message and write nothing.
+
+A group is treated as an independent user: members share one schedule list, and morning, bath, sleep and water pushes all go to the group. Reminders and tools operate on the group as a whole when the group is listed in `user_umos`, so make sure members know.
 
 ### 3. Optional: Notion
 
@@ -120,7 +122,7 @@ A group is treated as an independent user: members share one schedule list, and 
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `user_umos` | list | `[]` | Session UMOs that receive pushes, one `platform:message_type:session` per line |
+| `user_umos` | list | `[]` | Session UMOs that receive pushes and may use the schedule tools, one `platform:message_type:session` per line |
 
 ### Schedule reminder settings
 
@@ -236,6 +238,8 @@ A group is treated as an independent user: members share one schedule list, and 
 The plugin registers four LLM tools. The model decides when to call them; you just speak naturally.
 
 > **Time formats:** ISO 8601. Use `2026-09-10 14:30` for timed entries and `2026-09-10` with `all_day=true` for all-day entries. Start times cannot be in the past, and years cannot exceed 2100.
+>
+> **Scope:** Tools are available only in sessions listed in `user_umos`; calls from other sessions return a not-enabled message and write nothing.
 
 ```
 User: add a team meeting tomorrow at 9

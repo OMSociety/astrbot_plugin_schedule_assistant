@@ -6,10 +6,10 @@
   "config": {
     "basic_settings": {
       "description": "基本設定",
-      "hint": "定期配信を受け取るセッション一覧。1 行に 1 件、完全な UMO（例: qq:FriendMessage:123456789）。",
+      "hint": "定期配信を受け取り、スケジュールツールを利用できるセッション一覧。1 行に 1 件、完全な UMO（例: qq:FriendMessage:123456789）。",
       "user_umos": {
         "description": "セッション UMO のリスト",
-        "hint": "形式は platform:message_type:session。対象セッションで /sid を送って UMO を取得してください。形式が不正な項目は起動時に警告してスキップします。"
+        "hint": "形式は platform:message_type:session。一覧にあるセッションは配信を受け取り、スケジュールツールを利用できます。一覧にないセッションからの呼び出しは拒否されます。対象セッションで /sid を送って UMO を取得してください。形式が不正な項目は起動時に警告してスキップします。"
       }
     },
     "schedule_reminder_settings": {

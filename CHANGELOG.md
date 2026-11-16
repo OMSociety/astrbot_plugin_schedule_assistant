@@ -10,6 +10,24 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.1] - 2026-11-16
+
+### 变更
+
+- 日程工具仅在 `user_umos` 列出的会话中可用；名单外调用返回未启用提示，避免写入永远不会被扫描或提醒的日程。工具说明与配置提示同步标明这一范围。
+
+### 修复
+
+- 移除 `update_schedule` 对 `ScheduleItem` 不存在字段 `last_triggered` 的赋值。
+
+### Changed
+
+- Schedule tools are available only in sessions listed in `user_umos`; calls from other sessions return a not-enabled message instead of writing schedules that would never be scanned or reminded. Tool descriptions and configuration hints now state this scope.
+
+### Fixed
+
+- Removed the `update_schedule` assignment to `last_triggered`, a field that `ScheduleItem` does not have.
+
 ## [2.2.0] - 2026-11-16
 
 ### 变更
